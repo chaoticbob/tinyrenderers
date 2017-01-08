@@ -101,7 +101,7 @@ void TinyCiApp::setup()
 	settings.width                          = getWindowWidth();
 	settings.height                         = getWindowHeight();
 	settings.swapchain.image_count          = kImageCount;
-	settings.swapchain.sample_count         = tr_sample_count_1;
+	settings.swapchain.sample_count         = tr_sample_count_8;
 	settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
 	settings.swapchain.depth_stencil_format = tr_format_d16_unorm;
 	settings.log_fn							= renderer_log;
@@ -158,12 +158,12 @@ void TinyCiApp::setup()
 	vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
 	tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_strip};
 	tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
-	tr_create_pipeline(m_renderer, m_shader, &vertex_layout, NULL, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+	//tr_create_pipeline(m_renderer, m_shader, &vertex_layout, NULL, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
 	std::vector<float> data = {
-		-0.5f, -0.5f, 0.0f,	1.0f, 0.0f, 0.0f,
-		-0.5f,  0.5f, 0.0f,	1.0f, 0.0f, 1.0f,
-		 0.5f, -0.5f, 0.0f,	1.0f, 1.0f, 0.0f,
+		-0.8f, -0.5f, 0.0f,	1.0f, 0.0f, 0.0f,
+		-0.3f,  0.5f, 0.0f,	1.0f, 0.0f, 1.0f,
+		 0.6f, -0.6f, 0.0f,	1.0f, 1.0f, 0.0f,
 		 0.5f,  0.5f, 0.0f,	1.0f, 1.0f, 1.0f,
 	};
 
@@ -215,7 +215,7 @@ void TinyCiApp::draw()
 	tr_cmd_set_viewport(cmd, 0, 0, getWindowWidth(), getWindowHeight(), 0.0f, 1.0f);
 	tr_cmd_set_scissor(cmd, 0, 0, getWindowWidth(), getWindowHeight());
 	tr_cmd_begin_render(cmd, render_target);
-	tr_clear_value clear_value = {1.0f, 0.0f, 0.0f, 1.0f};
+	tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 1.0f};
 	tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
 	tr_cmd_bind_pipeline(cmd, m_pipeline);
 	tr_cmd_bind_vertex_buffers(cmd, 1, &m_vertex_buffer);

@@ -2421,6 +2421,9 @@ void tr_internal_vk_create_swapchain(tr_renderer* p_renderer)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_active_gpu);
 
+    // Most GPUs will not go beyond VK_SAMPLE_COUNT_8_BIT
+    assert(0 != (p_renderer->vk_active_gpu_properties.limits.framebufferColorSampleCounts & p_renderer->settings.swapchain.sample_count));
+
     // Image count
     {
         if (0 == p_renderer->settings.swapchain.image_count) {
@@ -3449,9 +3452,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[ssidx].flags          = 0;
             attachments[ssidx].format         = tr_util_to_vk_format(p_render_target->color_format);
             attachments[ssidx].samples        = tr_to_vk_sample_count(tr_sample_count_1);
-            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[ssidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachments[ssidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -3459,9 +3462,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[msidx].flags          = 0;
             attachments[msidx].format         = tr_util_to_vk_format(p_render_target->color_format);
             attachments[msidx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
-            attachments[msidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[msidx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[msidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[msidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[msidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[msidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[msidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachments[msidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -3475,16 +3478,16 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
 
         // Depth stencil
         if (depth_stencil_attachment_count > 0) {
-            uint32_t idx =  (2 * color_attachment_count);
+            uint32_t idx = (2 * color_attachment_count);
             attachments[idx].flags          = 0;
-            attachments[idx].format         = tr_util_to_vk_format(p_render_target->color_format);
+            attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
             attachments[idx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
-            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             depth_stencil_attachment_ref[0].attachment = idx;
             depth_stencil_attachment_ref[0].layout     = attachments[idx].initialLayout;
         }
@@ -3510,9 +3513,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[ssidx].flags          = 0;
             attachments[ssidx].format         = tr_util_to_vk_format(p_render_target->color_format);
             attachments[ssidx].samples        = tr_to_vk_sample_count(tr_sample_count_1);
-            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[ssidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachments[ssidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -3524,13 +3527,13 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
 
         // Depth stencil
         if (depth_stencil_attachment_count > 0) {
-            uint32_t idx =  color_attachment_count;
+            uint32_t idx = color_attachment_count;
             attachments[idx].flags          = 0;
             attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
             attachments[idx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
-            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -3561,11 +3564,14 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
     subpass_dependency.dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     subpass_dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
+    uint32_t attachment_count = (p_render_target->sample_count > tr_sample_count_1) ?  (2 * color_attachment_count) : color_attachment_count;
+    attachment_count += depth_stencil_attachment_count;
+
     TINY_RENDERER_DECLARE_ZERO(VkRenderPassCreateInfo, create_info);
     create_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     create_info.pNext           = NULL;
     create_info.flags           = 0;
-    create_info.attachmentCount = color_attachment_count + depth_stencil_attachment_count;
+    create_info.attachmentCount = attachment_count;
     create_info.pAttachments    = attachments;
     create_info.subpassCount    = 1;
     create_info.pSubpasses      = &subpass;
