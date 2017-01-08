@@ -4,7 +4,6 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
-#define TINY_RENDERER_VK
 #define TINY_RENDERER_IMPLEMENTATION
 
 #include "tinyci.h"
@@ -13,6 +12,9 @@ using namespace std;
 #elif defined(TINY_RENDERER_VK)
 	#include "tinyvk.h"
 #endif
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
 
 const uint32_t kImageCount = 3;
 

@@ -38,8 +38,7 @@
 
 /*
 
-Things To Note:
- - Requires C++
+NOTES:
  - Microsoft's C compiler doesn't support certain C11/C99 features, such as VLAs
  - tinyvk/tinydx is written for experimentation and fun-having - not performance
  - For simplicity, only one descriptor set can be bound at once
@@ -49,6 +48,11 @@ Things To Note:
    - For Vulkan shaders the 'set' parameter for 'layout' should always be 0
    - For D3D12 shaders the 'space' parameter for resource bindings should always be 0
  - Vulkan like idioms are used primarily with some D3D12 wherever it makes sense
+
+COMPILING & LINKING
+   In one C/C++ file that #includes this file, do this:
+      #define TINY_RENDERER_IMPLEMENTATION
+   before the #include. That will create the implementation in that file.
 
 */
 
@@ -506,6 +510,14 @@ typedef struct tr_mesh {
     tr_pipeline*                        pipeline;
 } tr_mesh;
 
+typedef bool(*tr_image_resize_uint8_fn)(uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data, 
+                                        uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, uint8_t* dst_data,
+                                        uint32_t channel_cout, void* user_data);
+
+typedef bool(*tr_image_resize_float_fn)(uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* src_data, 
+                                        uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, float* dst_data,
+                                        uint32_t channel_cout, void* user_data);
+
 // API functions
 tr_api_export void tr_create_renderer(const char* app_name, const tr_renderer_settings* p_settings, tr_renderer** pp_renderer);
 tr_api_export void tr_destroy_renderer(tr_renderer* p_renderer);
@@ -534,9 +546,9 @@ tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t si
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
-tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
@@ -583,12 +595,16 @@ tr_api_export tr_format          tr_util_from_vk_format(VkFormat fomat);
 tr_api_export uint32_t           tr_util_format_stride(tr_format format);
 tr_api_export VkShaderStageFlags tr_util_to_vk_shader_stages(tr_shader_stage shader_stages);
 tr_api_export void               tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export bool               tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn);
+tr_api_export bool               tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn);
 
 // =================================================================================================
 // IMPLEMENTATION
 // =================================================================================================
 
 #if defined(TINY_RENDERER_IMPLEMENTATION)
+
+#pragma comment(lib, "vulkan-1.lib")
 
 #define TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer) \
     assert(NULL != s_tr_internal);                   \
@@ -1302,20 +1318,41 @@ void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 }
 
 void tr_create_texture(
-    tr_renderer*     p_renderer, 
-    tr_texture_type  type, 
-    uint32_t         width, 
-    uint32_t         height, 
-    uint32_t         depth, 
-    tr_sample_count  sample_count,
-    tr_format        format, 
-    bool             host_visible, 
-    tr_texture_usage usage, 
-    tr_texture**     pp_texture
+    tr_renderer*             p_renderer, 
+    tr_texture_type          type, 
+    uint32_t                 width, 
+    uint32_t                 height, 
+    uint32_t                 depth, 
+    tr_sample_count          sample_count,
+    tr_format                format, 
+    uint32_t                 mip_levels, 
+    bool                     host_visible, 
+    tr_texture_usage         usage, 
+    tr_texture**             pp_texture
 )
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert((width > 0) && (height > 0) && (depth > 0));
+
+    tr_texture* p_texture = (tr_texture*)calloc(1, sizeof(*p_texture));
+    assert(NULL != p_texture);
+
+    p_texture->renderer           = p_renderer;
+    p_texture->type               = type;
+    p_texture->usage              = usage;
+    p_texture->width              = width;
+    p_texture->height             = height;
+    p_texture->depth              = depth;
+    p_texture->format             = format;
+    p_texture->mip_levels         = mip_levels;
+    p_texture->sample_count       = sample_count;
+    p_texture->host_visible       = host_visible;
+    p_texture->cpu_mapped_address = NULL;
+    p_texture->owns_image         = false;
+
+    tr_internal_vk_create_texture(p_renderer, p_texture);
+
+    *pp_texture = p_texture;
 }
 
 void tr_create_texture_1d(
@@ -1328,21 +1365,22 @@ void tr_create_texture_1d(
     tr_texture**     pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, host_visible, usage, pp_texture);
 }
 
 void tr_create_texture_2d(
-    tr_renderer*     p_renderer, 
-    uint32_t         width, 
-    uint32_t         height, 
-    tr_sample_count  sample_count, 
-    tr_format        format, 
-    bool             host_visible,
-    tr_texture_usage usage, 
-    tr_texture**     pp_texture
+    tr_renderer*             p_renderer, 
+    uint32_t                 width, 
+    uint32_t                 height, 
+    tr_sample_count          sample_count, 
+    tr_format                format,
+    uint32_t                 mip_levels, 
+    bool                     host_visible,
+    tr_texture_usage         usage, 
+    tr_texture**             pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, host_visible, usage, pp_texture);
 }
 
 void tr_create_texture_3d(
@@ -1357,7 +1395,7 @@ void tr_create_texture_3d(
     tr_texture**     pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, host_visible, usage, pp_texture);
 }
 
 void tr_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -1474,7 +1512,8 @@ void tr_create_render_target(
                                  p_render_target->width, 
                                  p_render_target->height, 
                                  tr_sample_count_1,
-                                 p_render_target->color_format, 
+                                 p_render_target->color_format,
+                                 1,
                                  false,
                                  (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image),
                                  &(p_render_target->color_attachments[i]));
@@ -1484,7 +1523,8 @@ void tr_create_render_target(
                                      p_render_target->width, 
                                      p_render_target->height, 
                                      p_render_target->sample_count,
-                                     p_render_target->color_format, 
+                                     p_render_target->color_format,
+                                     1, 
                                      false,
                                      (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image),
                                      &(p_render_target->color_attachments_multisample[i]));
@@ -1497,7 +1537,8 @@ void tr_create_render_target(
                                  p_render_target->width, 
                                  p_render_target->height, 
                                  p_render_target->sample_count,
-                                 p_render_target->color_format, 
+                                 p_render_target->color_format,
+                                 1, 
                                  false,
                                  (tr_texture_usage)(tr_texture_usage_depth_stencil_attachment | tr_texture_usage_sampled_image),
                                  &(p_render_target->depth_stencil_attachment));
