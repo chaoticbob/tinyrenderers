@@ -18,13 +18,10 @@
     <ClCompile Include="..\src\tinyciApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\tinyciApp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClInclude Include="..\include\Resources.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClCompile Include="..\..\..\tinyvk.c">
+    <ClCompile Include="..\src\TinyCiApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
