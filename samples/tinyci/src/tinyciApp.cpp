@@ -4,7 +4,7 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
-#define TINY_RENDERER_DX
+#define TINY_RENDERER_VK
 #define TINY_RENDERER_IMPLEMENTATION
 
 #include "tinyci.h"
