@@ -182,7 +182,9 @@ typedef enum tr_texture_usage {
     tr_texture_usage_storage                    = 0x00000008,
     tr_texture_usage_color_attachment           = 0x00000010,
     tr_texture_usage_depth_stencil_attachment   = 0x00000020,
-    tr_texture_usage_present                    = 0x00000040,
+    tr_texture_usage_resolve_src                = 0x00000040,
+    tr_texture_usage_resolve_dst                = 0x00000080,
+    tr_texture_usage_present                    = 0x00000100,
 } tr_texture_usage;
 
 typedef enum tr_format {
@@ -299,6 +301,21 @@ typedef struct tr_buffer tr_buffer;
 typedef struct tr_texture tr_texture;
 typedef struct tr_sampler tr_sampler;
 
+typedef struct tr_clear_value {
+    union {
+        struct {
+            float                       r;
+            float                       g;
+            float                       b;
+            float                       a;
+        };
+        struct {
+            float                       depth;
+            uint32_t                    stencil;
+        };
+    };
+} tr_clear_value;
+
 typedef struct tr_platform_handle {
 #if defined(TINY_RENDERER_MSW)
     HINSTANCE                           hinstance;
@@ -311,7 +328,9 @@ typedef struct tr_swapchain_settings {
     tr_sample_count                     sample_count;
     uint32_t                            sample_quality;
     tr_format                           color_format;
+    tr_clear_value                      color_clear_value;
     tr_format                           depth_stencil_format;
+    tr_clear_value                      depth_stencil_clear_value;
 } tr_swapchain_settings;
 
 typedef struct tr_string_list {
@@ -419,6 +438,8 @@ typedef struct tr_texture {
     tr_format                           format;
     uint32_t                            mip_levels;
     tr_sample_count                     sample_count;
+    uint32_t                            sample_quality;
+    tr_clear_value                      clear_value;
     bool                                host_visible;
     void*                               cpu_mapped_address;
     uint32_t                            owns_image;
@@ -469,21 +490,6 @@ typedef struct tr_pipeline {
     VkPipeline                          vk_pipeline;
 } tr_pipeline;
 
-typedef struct tr_clear_value {
-    union {
-        struct {
-            float                       r;
-            float                       g;
-            float                       b;
-            float                       a;
-        };
-        struct {
-            float                       depth;
-            uint32_t                    stencil;
-        };
-    };
-} tr_clear_value;
-
 typedef struct tr_render_target {
     tr_renderer*                        renderer;
     uint32_t                            width;
@@ -493,10 +499,8 @@ typedef struct tr_render_target {
     uint32_t                            color_attachment_count;
     tr_texture*                         color_attachments[tr_max_render_target_attachments];
     tr_texture*                         color_attachments_multisample[tr_max_render_target_attachments];
-    tr_clear_value                      color_clear_values[tr_max_render_target_attachments];
     tr_format                           depth_stencil_format;
     tr_texture*                         depth_stencil_attachment;
-    tr_clear_value                      depth_stencil_clear_value;
     VkRenderPass                        vk_render_pass;
     VkFramebuffer                       vk_framebuffer;
 } tr_render_target;
@@ -546,9 +550,9 @@ tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t si
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
-tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
@@ -560,7 +564,7 @@ tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_
 tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
-tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, tr_format depth_stencil_format, tr_render_target** pp_render_target);
+tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, const tr_clear_value* color_clear_values, tr_format depth_stencil_format, const tr_clear_value* depth_stencil_clear_value, tr_render_target** pp_render_target);
 tr_api_export void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 
 tr_api_export void tr_begin_cmd(tr_cmd* p_cmd);
@@ -577,6 +581,7 @@ tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t fi
 tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
 tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
 tr_api_export void tr_queue_submit(tr_queue* p_queue, uint32_t cmd_count, tr_cmd** pp_cmds, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores, uint32_t signal_semaphore_count, tr_semaphore** pp_signal_semaphores);
@@ -685,6 +690,7 @@ void tr_internal_vk_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t firs
 void tr_internal_vk_cmd_draw_indexed(uint32_t index_count, uint32_t first_index);
 void tr_internal_vk_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
+void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 
 // Internal queue/swapchain functions
 void tr_internal_vk_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -1325,7 +1331,8 @@ void tr_create_texture(
     uint32_t                 depth, 
     tr_sample_count          sample_count,
     tr_format                format, 
-    uint32_t                 mip_levels, 
+    uint32_t                 mip_levels,
+    const tr_clear_value*    p_clear_value, 
     bool                     host_visible, 
     tr_texture_usage         usage, 
     tr_texture**             pp_texture
@@ -1349,6 +1356,18 @@ void tr_create_texture(
     p_texture->host_visible       = host_visible;
     p_texture->cpu_mapped_address = NULL;
     p_texture->owns_image         = false;
+    if (NULL != p_clear_value) {
+        if (tr_texture_usage_depth_stencil_attachment == (usage & tr_texture_usage_depth_stencil_attachment)) {
+            p_texture->clear_value.depth = p_clear_value->depth;
+            p_texture->clear_value.stencil = p_clear_value->stencil;
+        }
+        else {
+            p_texture->clear_value.r = p_clear_value->r;
+            p_texture->clear_value.g = p_clear_value->g;
+            p_texture->clear_value.b = p_clear_value->b;
+            p_texture->clear_value.a = p_clear_value->a;
+        }
+    }
 
     tr_internal_vk_create_texture(p_renderer, p_texture);
 
@@ -1365,7 +1384,7 @@ void tr_create_texture_1d(
     tr_texture**     pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
 }
 
 void tr_create_texture_2d(
@@ -1374,13 +1393,14 @@ void tr_create_texture_2d(
     uint32_t                 height, 
     tr_sample_count          sample_count, 
     tr_format                format,
-    uint32_t                 mip_levels, 
+    uint32_t                 mip_levels,
+    const tr_clear_value*    clear_value, 
     bool                     host_visible,
     tr_texture_usage         usage, 
     tr_texture**             pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, clear_value, host_visible, usage, pp_texture);
 }
 
 void tr_create_texture_3d(
@@ -1395,7 +1415,7 @@ void tr_create_texture_3d(
     tr_texture**     pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
 }
 
 void tr_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -1481,14 +1501,16 @@ void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline)
 }
 
 void tr_create_render_target(
-    tr_renderer*       p_renderer, 
-    uint32_t           width, 
-    uint32_t           height, 
-    tr_sample_count    sample_count, 
-    tr_format          color_format, 
-    uint32_t           color_attachment_count, 
-    tr_format          depth_stencil_format, 
-    tr_render_target** pp_render_target
+    tr_renderer*            p_renderer, 
+    uint32_t                width, 
+    uint32_t                height, 
+    tr_sample_count         sample_count, 
+    tr_format               color_format, 
+    uint32_t                color_attachment_count, 
+    const tr_clear_value*   p_color_clear_values,
+    tr_format               depth_stencil_format, 
+    const tr_clear_value*   p_depth_stencil_clear_value,
+    tr_render_target**      pp_render_target
 )
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
@@ -1508,12 +1530,15 @@ void tr_create_render_target(
     {
         // Color
         for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
+            const tr_clear_value* clear_value = (NULL != p_color_clear_values) ? &p_color_clear_values[i] : NULL;
+
             tr_create_texture_2d(p_renderer, 
                                  p_render_target->width, 
                                  p_render_target->height, 
                                  tr_sample_count_1,
                                  p_render_target->color_format,
                                  1,
+                                 clear_value,
                                  false,
                                  (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image),
                                  &(p_render_target->color_attachments[i]));
@@ -1524,7 +1549,8 @@ void tr_create_render_target(
                                      p_render_target->height, 
                                      p_render_target->sample_count,
                                      p_render_target->color_format,
-                                     1, 
+                                     1,
+                                     clear_value,
                                      false,
                                      (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image),
                                      &(p_render_target->color_attachments_multisample[i]));
@@ -1538,7 +1564,8 @@ void tr_create_render_target(
                                  p_render_target->height, 
                                  p_render_target->sample_count,
                                  p_render_target->color_format,
-                                 1, 
+                                 1,
+                                 p_depth_stencil_clear_value,
                                  false,
                                  (tr_texture_usage)(tr_texture_usage_depth_stencil_attachment | tr_texture_usage_sampled_image),
                                  &(p_render_target->depth_stencil_attachment));
@@ -1692,6 +1719,14 @@ void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_us
     tr_internal_vk_cmd_image_transition(p_cmd, p_texture, old_usage, new_usage);
 }
 
+void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+{
+    assert(NULL != p_cmd);
+    assert(NULL != p_render_target);
+
+    tr_internal_vk_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
+}
+
 void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
@@ -1750,18 +1785,18 @@ void tr_render_target_set_color_clear_value(tr_render_target* p_render_target, u
     assert(NULL != p_render_target);
     assert(attachment_index < p_render_target->color_attachment_count);
 
-    p_render_target->color_clear_values[attachment_index].r = r;
-    p_render_target->color_clear_values[attachment_index].g = g;
-    p_render_target->color_clear_values[attachment_index].b = b;
-    p_render_target->color_clear_values[attachment_index].a = a;
+    p_render_target->color_attachments[attachment_index]->clear_value.r = r;
+    p_render_target->color_attachments[attachment_index]->clear_value.g = g;
+    p_render_target->color_attachments[attachment_index]->clear_value.b = b;
+    p_render_target->color_attachments[attachment_index]->clear_value.a = a;
 }
 
 void tr_render_target_set_depth_stencil_clear_value(tr_render_target* p_render_target, float depth, uint8_t stencil)
 {
     assert(NULL != p_render_target);
 
-    p_render_target->depth_stencil_clear_value.depth = depth;
-    p_render_target->depth_stencil_clear_value.stencil = stencil;
+    p_render_target->depth_stencil_attachment->clear_value.depth = depth;
+    p_render_target->depth_stencil_attachment->clear_value.stencil = stencil;
 }
 
 bool tr_vertex_layout_support_format(tr_format format)
@@ -2599,35 +2634,45 @@ void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer)
 
     for (size_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
         tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-        render_target->color_attachments[0]->type         = tr_texture_type_2d;
-        render_target->color_attachments[0]->usage        = (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_present);
-        render_target->color_attachments[0]->width        = p_renderer->settings.width;
-        render_target->color_attachments[0]->height       = p_renderer->settings.height;
-        render_target->color_attachments[0]->depth        = 1;
-        render_target->color_attachments[0]->format       = p_renderer->settings.swapchain.color_format;
-        render_target->color_attachments[0]->mip_levels   = 1;
-        render_target->color_attachments[0]->sample_count = tr_sample_count_1;
+        render_target->color_attachments[0]->type          = tr_texture_type_2d;
+        render_target->color_attachments[0]->usage         = (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_present);
+        render_target->color_attachments[0]->width         = p_renderer->settings.width;
+        render_target->color_attachments[0]->height        = p_renderer->settings.height;
+        render_target->color_attachments[0]->depth         = 1;
+        render_target->color_attachments[0]->format        = p_renderer->settings.swapchain.color_format;
+        render_target->color_attachments[0]->mip_levels    = 1;
+        render_target->color_attachments[0]->clear_value.r = p_renderer->settings.swapchain.color_clear_value.r;
+        render_target->color_attachments[0]->clear_value.g = p_renderer->settings.swapchain.color_clear_value.g;
+        render_target->color_attachments[0]->clear_value.b = p_renderer->settings.swapchain.color_clear_value.b;
+        render_target->color_attachments[0]->clear_value.a = p_renderer->settings.swapchain.color_clear_value.a;
+        render_target->color_attachments[0]->sample_count  = tr_sample_count_1;
 
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-            render_target->color_attachments_multisample[0]->type         = tr_texture_type_2d;
-            render_target->color_attachments_multisample[0]->usage        = tr_texture_usage_color_attachment;
-            render_target->color_attachments_multisample[0]->width        = p_renderer->settings.width;
-            render_target->color_attachments_multisample[0]->height       = p_renderer->settings.height;
-            render_target->color_attachments_multisample[0]->depth        = 1;
-            render_target->color_attachments_multisample[0]->format       = p_renderer->settings.swapchain.color_format;
-            render_target->color_attachments_multisample[0]->mip_levels   = 1;
-            render_target->color_attachments_multisample[0]->sample_count = render_target->sample_count;
+            render_target->color_attachments_multisample[0]->type          = tr_texture_type_2d;
+            render_target->color_attachments_multisample[0]->usage         = tr_texture_usage_color_attachment;
+            render_target->color_attachments_multisample[0]->width         = p_renderer->settings.width;
+            render_target->color_attachments_multisample[0]->height        = p_renderer->settings.height;
+            render_target->color_attachments_multisample[0]->depth         = 1;
+            render_target->color_attachments_multisample[0]->format        = p_renderer->settings.swapchain.color_format;
+            render_target->color_attachments_multisample[0]->mip_levels    = 1;
+            render_target->color_attachments_multisample[0]->clear_value.r = p_renderer->settings.swapchain.color_clear_value.r;
+            render_target->color_attachments_multisample[0]->clear_value.g = p_renderer->settings.swapchain.color_clear_value.g;
+            render_target->color_attachments_multisample[0]->clear_value.b = p_renderer->settings.swapchain.color_clear_value.b;
+            render_target->color_attachments_multisample[0]->clear_value.a = p_renderer->settings.swapchain.color_clear_value.a;
+            render_target->color_attachments_multisample[0]->sample_count  = render_target->sample_count;
         }
 
         if (tr_format_undefined != p_renderer->settings.swapchain.depth_stencil_format) {
-            render_target->depth_stencil_attachment->type         = tr_texture_type_2d;
-            render_target->depth_stencil_attachment->usage        = tr_texture_usage_depth_stencil_attachment;
-            render_target->depth_stencil_attachment->width        = p_renderer->settings.width;
-            render_target->depth_stencil_attachment->height       = p_renderer->settings.height;
-            render_target->depth_stencil_attachment->depth        = 1;
-            render_target->depth_stencil_attachment->format       = p_renderer->settings.swapchain.depth_stencil_format;
-            render_target->depth_stencil_attachment->mip_levels   = 1;
-            render_target->depth_stencil_attachment->sample_count = render_target->sample_count;
+            render_target->depth_stencil_attachment->type                = tr_texture_type_2d;
+            render_target->depth_stencil_attachment->usage               = tr_texture_usage_depth_stencil_attachment;
+            render_target->depth_stencil_attachment->width               = p_renderer->settings.width;
+            render_target->depth_stencil_attachment->height              = p_renderer->settings.height;
+            render_target->depth_stencil_attachment->depth               = 1;
+            render_target->depth_stencil_attachment->format              = p_renderer->settings.swapchain.depth_stencil_format;
+            render_target->depth_stencil_attachment->mip_levels          = 1;
+            render_target->depth_stencil_attachment->clear_value.depth   = p_renderer->settings.swapchain.depth_stencil_clear_value.depth;
+            render_target->depth_stencil_attachment->clear_value.stencil = p_renderer->settings.swapchain.depth_stencil_clear_value.stencil;
+            render_target->depth_stencil_attachment->sample_count        = render_target->sample_count;
         }
     }
 }
@@ -3452,9 +3497,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[ssidx].flags          = 0;
             attachments[ssidx].format         = tr_util_to_vk_format(p_render_target->color_format);
             attachments[ssidx].samples        = tr_to_vk_sample_count(tr_sample_count_1);
-            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachments[ssidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -3462,9 +3507,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[msidx].flags          = 0;
             attachments[msidx].format         = tr_util_to_vk_format(p_render_target->color_format);
             attachments[msidx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
-            attachments[msidx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[msidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[msidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[msidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[msidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[msidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[msidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachments[msidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -3482,9 +3527,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[idx].flags          = 0;
             attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
             attachments[idx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
-            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -3513,9 +3558,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[ssidx].flags          = 0;
             attachments[ssidx].format         = tr_util_to_vk_format(p_render_target->color_format);
             attachments[ssidx].samples        = tr_to_vk_sample_count(tr_sample_count_1);
-            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             attachments[ssidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -3531,9 +3576,9 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[idx].flags          = 0;
             attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
             attachments[idx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
-            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_LOAD;
+            attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -3686,20 +3731,33 @@ void tr_internal_vk_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_t
     render_area.extent.width = p_render_target->width;
     render_area.extent.height = p_render_target->height;
 
-    TINY_RENDERER_DECLARE_ZERO(VkClearValue, clear_values[tr_max_render_target_attachments + 1]);
+    // Multiply by 2 in case there's multisampling
+    TINY_RENDERER_DECLARE_ZERO(VkClearValue, clear_values[(2 * tr_max_render_target_attachments) + 1]);
     
     uint32_t color_count = p_render_target->color_attachment_count;
     for (uint32_t i = 0; i < color_count; ++i) {
-        clear_values[i].color.float32[0] = p_render_target->color_clear_values[i].r;
-        clear_values[i].color.float32[1] = p_render_target->color_clear_values[i].g;
-        clear_values[i].color.float32[2] = p_render_target->color_clear_values[i].b;
-        clear_values[i].color.float32[3] = p_render_target->color_clear_values[i].a;
+        clear_values[i].color.float32[0] = p_render_target->color_attachments[i]->clear_value.r;
+        clear_values[i].color.float32[1] = p_render_target->color_attachments[i]->clear_value.g;
+        clear_values[i].color.float32[2] = p_render_target->color_attachments[i]->clear_value.b;
+        clear_values[i].color.float32[3] = p_render_target->color_attachments[i]->clear_value.a;
+        if (p_render_target->sample_count > tr_sample_count_1) {
+            clear_values[i].color.float32[0] = p_render_target->color_attachments_multisample[i]->clear_value.r;
+            clear_values[i].color.float32[1] = p_render_target->color_attachments_multisample[i]->clear_value.g;
+            clear_values[i].color.float32[2] = p_render_target->color_attachments_multisample[i]->clear_value.b;
+            clear_values[i].color.float32[3] = p_render_target->color_attachments_multisample[i]->clear_value.a;
+        }
     }
     uint32_t depth_stencil_count = (tr_format_undefined != p_render_target->depth_stencil_format) ? 1 : 0;
     if (depth_stencil_count > 0) {
-        clear_values[color_count].depthStencil.depth = 0.0f;
-        clear_values[color_count].depthStencil.stencil = 0;
+        clear_values[color_count].depthStencil.depth = p_render_target->depth_stencil_attachment->clear_value.depth;
+        clear_values[color_count].depthStencil.stencil = p_render_target->depth_stencil_attachment->clear_value.stencil;
     }
+
+    uint32_t clear_value_count = color_count;
+    if (p_render_target->sample_count > tr_sample_count_1) {
+        clear_value_count *= 2;
+    }
+    clear_value_count += depth_stencil_count;
 
     TINY_RENDERER_DECLARE_ZERO(VkRenderPassBeginInfo, begin_info);
     begin_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3707,7 +3765,7 @@ void tr_internal_vk_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_t
     begin_info.renderPass      = p_render_target->vk_render_pass;
     begin_info.framebuffer     = p_render_target->vk_framebuffer;
     begin_info.renderArea      = render_area;
-    begin_info.clearValueCount = color_count + depth_stencil_count;
+    begin_info.clearValueCount = clear_value_count;
     begin_info.pClearValues    = clear_values;
 
     vkCmdBeginRenderPass(p_cmd->vk_cmd_buf, &begin_info, VK_SUBPASS_CONTENTS_INLINE);
@@ -3940,6 +3998,45 @@ void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
                          1,
                          &barrier);
 }
+
+void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+{
+    assert(NULL != p_cmd->vk_cmd_buf);
+    
+    if (p_render_target->sample_count > tr_sample_count_1) {
+        if (1 == p_render_target->color_attachment_count) {
+            tr_texture* ss_attachment = p_render_target->color_attachments[0];
+            tr_texture* ms_attachment = p_render_target->color_attachments_multisample[0];
+
+            // This means we're dealing with a multisample swapchain
+            if (tr_texture_usage_present == (ss_attachment->usage & tr_texture_usage_present)) {
+                if ((tr_texture_usage_present == old_usage) && (tr_texture_usage_color_attachment == new_usage)) {
+                    tr_internal_vk_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_present, tr_texture_usage_color_attachment);
+                }
+
+                if ((tr_texture_usage_color_attachment == old_usage) && (tr_texture_usage_present == new_usage)) {
+                    tr_internal_vk_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_color_attachment, tr_texture_usage_present);
+                }
+            }
+        }
+    }
+    else {
+        if (1 == p_render_target->color_attachment_count) {
+            tr_texture* attachment = p_render_target->color_attachments[0];
+            // This means we're dealing with a single sample swapchain
+            if (tr_texture_usage_present == (attachment->usage & tr_texture_usage_present)) {
+                if ((tr_texture_usage_present == old_usage) && (tr_texture_usage_color_attachment == new_usage)) {
+                    tr_internal_vk_cmd_image_transition(p_cmd, attachment, tr_texture_usage_present, tr_texture_usage_color_attachment);
+                }
+
+                if ((tr_texture_usage_color_attachment == old_usage) && (tr_texture_usage_present == new_usage)) {
+                    tr_internal_vk_cmd_image_transition(p_cmd, attachment, tr_texture_usage_color_attachment, tr_texture_usage_present);
+                }
+            }
+        }
+    }
+}
+
 
 // -------------------------------------------------------------------------------------------------
 // Internal queue functions

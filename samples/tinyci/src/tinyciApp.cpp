@@ -65,7 +65,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 		//CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
 	}
 	else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-		//CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+		CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
 	}
 	else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
 		CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
@@ -211,18 +211,18 @@ void TinyCiApp::draw()
 	tr_cmd* cmd = m_cmds[frameIdx];
 
 	tr_begin_cmd(cmd);
-	tr_cmd_image_transition(cmd, render_target->color_attachments[0], tr_texture_usage_present, tr_texture_usage_color_attachment);
+    tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
 	tr_cmd_set_viewport(cmd, 0, 0, getWindowWidth(), getWindowHeight(), 0.0f, 1.0f);
 	tr_cmd_set_scissor(cmd, 0, 0, getWindowWidth(), getWindowHeight());
 	tr_cmd_begin_render(cmd, render_target);
-	tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 1.0f};
+	tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
 	tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
 	tr_cmd_bind_pipeline(cmd, m_pipeline);
 	tr_cmd_bind_vertex_buffers(cmd, 1, &m_vertex_buffer);
 	tr_cmd_bind_descriptor_sets(cmd, m_pipeline, 1, &m_desc_set);
 	tr_cmd_draw(cmd, 4, 0);
 	tr_cmd_end_render(cmd);
-	tr_cmd_image_transition(cmd, render_target->color_attachments[0], tr_texture_usage_color_attachment, tr_texture_usage_present);
+    tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
 	tr_end_cmd(cmd);
 
 	tr_queue_submit(m_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
