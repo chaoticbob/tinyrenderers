@@ -22,8 +22,6 @@
  - tinyvk/tinydx is written for experimentation and fun-having - not performance
  - For simplicity, only one descriptor set can be bound at once
    - In D3D12, this means two descriptor heaps (CBVSRVUAVs and samplers)
-     - CBVSRVUAVs root parameter index is by default at 0
-     - Samplers root parameter index is by default at 1
    - For Vulkan shaders the 'set' parameter for 'layout' should always be 0
    - For D3D12 shaders the 'space' parameter for resource bindings should always be 0
  - Vulkan like idioms are used primarily with some D3D12 wherever it makes sense
