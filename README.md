@@ -25,6 +25,7 @@
    - For Vulkan shaders the 'set' parameter for 'layout' should always be 0
    - For D3D12 shaders the 'space' parameter for resource bindings should always be 0
  - Vulkan like idioms are used primarily with some D3D12 wherever it makes sense
+ - For Vulkan, host visible means both HOST VISIBLE and HOST COHERENT
  - Bring your own math libraary
  - Development was done on Cinder but renderers are not limited to it
 
