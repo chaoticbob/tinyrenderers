@@ -96,6 +96,7 @@ namespace TINY_RENDERER_CPP_NAMESPACE {
 
 #define tr_api_export 
 
+#if ! defined(TINY_RENDERER_CUSTOM_MAX)
 enum {
     tr_max_instance_extensions       = 256,
     tr_max_device_extensions         = 256,
@@ -110,7 +111,10 @@ enum {
     tr_max_vertex_bindings           = 15,
     tr_max_vertex_attribs            = 15,
     tr_max_semantic_name_length      = 128,
+    tr_max_descriptor_entries        = 256,
+    tr_max_mip_levels                = 0xFFFFFFFF,
 };
+#endif
 
 typedef enum tr_log_type {
     tr_log_type_info = 0,
@@ -309,12 +313,6 @@ typedef enum tr_dx_shader_target {
     tr_dx_shader_target_6_0,
 } tr_dx_shader_target;
 
-enum {
-    tr_dx_default_root_parameter_index_undefined = 0xFFFFFFFF,
-    tr_dx_default_cbvsrvuav_root_parameter_index = 0,
-    tr_dx_default_sampler_root_parameter_index   = 1
-};
-
 // Forward declarations
 typedef struct tr_renderer tr_renderer;
 typedef struct tr_render_target tr_render_target;
@@ -409,9 +407,11 @@ typedef struct tr_descriptor {
     uint32_t                            binding;
     uint32_t                            count;
     tr_shader_stage                     shader_stages;
-    tr_buffer*                          uniform_buffer;
-    tr_texture*                         texture;
-    tr_sampler*                         sampler;
+    tr_buffer*                          uniform_buffers[tr_max_descriptor_entries];
+    tr_texture*                         textures[tr_max_descriptor_entries];
+    tr_sampler*                         samplers[tr_max_descriptor_entries];
+    uint32_t                            dx_heap_offset;
+    uint32_t                            dx_root_parameter_index;
 } tr_descriptor;
 
 typedef struct tr_descriptor_set {
@@ -419,8 +419,6 @@ typedef struct tr_descriptor_set {
     tr_descriptor*                      descriptors;
     ID3D12DescriptorHeap*               dx_cbvsrvuav_heap;
     ID3D12DescriptorHeap*               dx_sampler_heap;
-    uint32_t                            dx_cbvsrvuav_root_parameter_index;
-    uint32_t                            dx_sampler_root_parameter_index;
 } tr_descriptor_set;
 
 typedef struct tr_cmd_pool {
@@ -442,7 +440,8 @@ typedef struct tr_buffer {
     uint32_t                            vertex_stride;
     void*                               cpu_mapped_address;
     ID3D12Resource*                     dx_resource;
-    D3D12_INDEX_BUFFER_VIEW             dx_index_buffer_view;   
+    D3D12_CONSTANT_BUFFER_VIEW_DESC     dx_constant_buffer_view_desc;
+    D3D12_INDEX_BUFFER_VIEW             dx_index_buffer_view;  
     D3D12_VERTEX_BUFFER_VIEW            dx_vertex_buffer_view;
 } tr_buffer;
 
@@ -464,6 +463,11 @@ typedef struct tr_texture {
     ID3D12Resource*                     dx_resource;
     D3D12_SHADER_RESOURCE_VIEW_DESC     dx_view_desc;
 } tr_texture;
+
+typedef struct tr_sampler {
+    tr_renderer*                        renderer;
+    D3D12_SAMPLER_DESC	                dx_sampler_desc;
+} tr_sampler;
 
 typedef struct tr_shader_program {
     tr_renderer*                        renderer;
@@ -572,7 +576,9 @@ tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width,
 tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
-//! Size is in bytes
+tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
+tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
+
 tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
@@ -583,6 +589,8 @@ tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_p
 tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, tr_format depth_stencil_format, tr_render_target** pp_render_target);
 tr_api_export void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 
+tr_api_export void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
+
 tr_api_export void tr_begin_cmd(tr_cmd* p_cmd);
 tr_api_export void tr_end_cmd(tr_cmd* p_cmd);
 tr_api_export void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_target);
@@ -591,7 +599,7 @@ tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float widt
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 tr_api_export void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
-tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets);
+tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
 tr_api_export void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
@@ -612,12 +620,14 @@ tr_api_export bool      tr_vertex_layout_support_format(tr_format format);
 tr_api_export uint32_t  tr_vertex_layout_stride(const tr_vertex_layout* p_vertex_layout);
 
 // Utility functions
+tr_api_export uint32_t    tr_util_calc_mip_levels(uint32_t width, uint32_t height);
 tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format);
 tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
+tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
 tr_api_export void        tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
-tr_api_export bool        tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn);
-tr_api_export bool        tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn);
+tr_api_export void        tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data);
+tr_api_export void        tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data);
 
 // =================================================================================================
 // IMPLEMENTATION
@@ -668,17 +678,13 @@ static inline uint32_t tr_min(uint32_t a, uint32_t b)
 }
 
 // Internal utility functions (may become external one day)
-D3D12_RESOURCE_STATES tr_to_dx_resource_state(tr_texture_usage usage);
+D3D12_RESOURCE_STATES tr_util_to_dx_resource_state(tr_texture_usage usage);
 
 // Internal init functions
-//void tr_internal_dx_create_instance(const char* app_name, tr_renderer* p_renderer);
-//void tr_internal_dx_create_surface(tr_renderer* p_renderer);
 void tr_internal_dx_create_device(tr_renderer* p_renderer);
 void tr_internal_dx_create_swapchain(tr_renderer* p_renderer);
 void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer);
 void tr_internal_dx_create_swapchain_renderpass(tr_renderer* p_renderer);
-//void tr_internal_dx_destroy_instance(tr_renderer* p_renderer);
-//void tr_internal_dx_destroy_surface(tr_renderer* p_renderer);
 void tr_internal_dx_destroy_device(tr_renderer* p_renderer);
 void tr_internal_dx_destroy_swapchain(tr_renderer* p_renderer);
 
@@ -698,12 +704,17 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 void tr_internal_dx_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_texture);
 void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture);
+void tr_internal_dx_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
+void tr_internal_dx_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_dx_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program);
 void tr_internal_dx_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 void tr_internal_dx_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
+
+// Internal descriptor set functions
+void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
 
 // Internal command buffer functions
 void tr_internal_dx_begin_cmd(tr_cmd* p_cmd);
@@ -714,7 +725,7 @@ void tr_internal_dx_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width,
 void tr_internal_dx_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
-void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets);
+void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
 void tr_internal_dx_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 void tr_internal_dx_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
@@ -1148,6 +1159,10 @@ void tr_create_descriptor_set(tr_renderer* p_renderer, uint32_t descriptor_count
     p_descriptor_set->descriptor_count = descriptor_count;
     memcpy(p_descriptor_set->descriptors, p_descriptors, descriptor_count * sizeof(*(p_descriptor_set->descriptors)));
 
+    for (uint32_t i = 0; i < descriptor_count; ++i) {
+        p_descriptor_set->descriptors[i].dx_root_parameter_index = 0xFFFFFFFF;
+    }
+
     tr_internal_dx_create_descriptor_set(p_renderer, p_descriptor_set);
 
     *pp_descriptor_set = p_descriptor_set;
@@ -1367,6 +1382,10 @@ void tr_create_texture_2d(
     tr_texture**             pp_texture
 )
 {
+    if (tr_max_mip_levels == mip_levels) {
+        mip_levels = tr_util_calc_mip_levels(width, height);
+    }
+
     tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, p_clear_value, host_visible, usage, pp_texture);
 }
 
@@ -1393,6 +1412,30 @@ void tr_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
     tr_internal_dx_destroy_texture(p_renderer, p_texture);
 
     TINY_RENDERER_SAFE_FREE(p_texture);
+}
+
+void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+
+    tr_sampler* p_sampler = (tr_sampler*)calloc(1, sizeof(*p_sampler));
+    assert(NULL != p_sampler);
+
+    p_sampler->renderer = p_renderer;
+
+    tr_internal_dx_create_sampler(p_renderer, p_sampler);
+
+    *pp_sampler = p_sampler;
+}
+
+void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(NULL != p_sampler);
+
+    tr_internal_dx_destroy_sampler(p_renderer, p_sampler);
+
+    TINY_RENDERER_SAFE_FREE(p_sampler);
 }
 
 void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
@@ -1582,6 +1625,17 @@ void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_rende
 }
 
 // -------------------------------------------------------------------------------------------------
+// Descriptor set functions
+// -------------------------------------------------------------------------------------------------
+void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set)
+{
+    assert(NULL != p_renderer);
+    assert(NULL != p_descriptor_set);
+
+    tr_internal_dx_update_descriptor_set(p_renderer, p_descriptor_set);
+}
+
+// -------------------------------------------------------------------------------------------------
 // Command buffer functions
 // -------------------------------------------------------------------------------------------------
 void tr_begin_cmd(tr_cmd* p_cmd)
@@ -1647,14 +1701,13 @@ void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
     tr_internal_dx_cmd_bind_pipeline(p_cmd, p_pipeline);
 }
 
-void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets)
+void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set)
 {
     assert(NULL != p_cmd);
     assert(NULL != p_pipeline);
-    assert(0 != set_count);
-    assert(NULL != pp_sets);
+    assert(NULL != p_descriptor_set);
 
-    tr_internal_dx_cmd_bind_descriptor_sets(p_cmd, p_pipeline, set_count, pp_sets);
+    tr_internal_dx_cmd_bind_descriptor_sets(p_cmd, p_pipeline, p_descriptor_set);
 }
 
 void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
@@ -1815,7 +1868,22 @@ uint32_t tr_vertex_layout_stride(const tr_vertex_layout* p_vertex_layout)
 // -------------------------------------------------------------------------------------------------
 // Utility functions
 // -------------------------------------------------------------------------------------------------
-tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format)
+uint32_t tr_util_calc_mip_levels(uint32_t width, uint32_t height)
+{
+    if (width == 0 || height == 0)
+        return 0;
+
+    uint32_t result = 1;
+    while (width > 1 || height > 1)
+    {
+        width >>= 1;
+        height >>= 1;
+        result++;
+    }
+    return result;
+}
+
+DXGI_FORMAT tr_util_to_dx_format(tr_format format)
 {
     DXGI_FORMAT result = DXGI_FORMAT_UNKNOWN;
     switch (format) {
@@ -1928,6 +1996,47 @@ uint32_t tr_util_format_stride(tr_format format)
     return result;
 }
 
+uint32_t tr_util_format_channel_count(tr_format format)
+{
+    uint32_t result = 0;
+    switch (format) {
+        // 1 channel
+        case tr_format_r8_unorm            : result = 1; break;
+        case tr_format_r16_unorm           : result = 1; break;
+        case tr_format_r16_float           : result = 1; break;
+        case tr_format_r32_uint            : result = 1; break;
+        case tr_format_r32_float           : result = 1; break;
+        // 2 channel
+        case tr_format_r8g8_unorm          : result = 2; break;
+        case tr_format_r16g16_unorm        : result = 2; break;
+        case tr_format_r16g16_float        : result = 2; break;
+        case tr_format_r32g32_uint         : result = 2; break;
+        case tr_format_r32g32_float        : result = 2; break;
+        // 3 channel
+        case tr_format_r8g8b8_unorm        : result = 3; break;
+        case tr_format_r16g16b16_unorm     : result = 3; break;
+        case tr_format_r16g16b16_float     : result = 3; break;
+        case tr_format_r32g32b32_uint      : result = 3; break;
+        case tr_format_r32g32b32_float     : result = 3; break;
+        // 4 channel
+        case tr_format_b8g8r8a8_unorm      : result = 4; break;
+        case tr_format_r8g8b8a8_unorm      : result = 4; break;
+        case tr_format_r16g16b16a16_unorm  : result = 4; break;
+        case tr_format_r16g16b16a16_float  : result = 4; break;
+        case tr_format_r32g32b32a32_uint   : result = 4; break;
+        case tr_format_r32g32b32a32_float  : result = 4; break;
+        // Depth/stencil
+        case tr_format_d16_unorm           : result = 0; break;
+        case tr_format_x8_d24_unorm_pack32 : result = 0; break;
+        case tr_format_d32_float           : result = 0; break;
+        case tr_format_s8_uint             : result = 0; break;
+        case tr_format_d16_unorm_s8_uint   : result = 0; break;
+        case tr_format_d24_unorm_s8_uint   : result = 0; break;
+        case tr_format_d32_float_s8_uint   : result = 0; break;
+    }
+    return result;
+}
+
 void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_queue);
@@ -1949,11 +2058,260 @@ void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_textu
     tr_destroy_cmd(p_cmd_pool, p_cmd);
     tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
 }
+bool tr_image_resize_uint8_t(
+    uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data,
+    uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, uint8_t* dst_data,
+    uint32_t channel_cout, void* user_data
+)
+{
+    float dx = (float)src_width / (float)dst_width;
+    float dy = (float)src_height / (float)dst_height;
+
+    const uint8_t src_pixel_stride = channel_cout;
+    const uint8_t dst_pixel_stride = channel_cout;
+
+    uint8_t* dst_row = dst_data;
+    for (uint32_t y = 0; y < dst_height; ++y) {
+        float src_x = 0;
+        float src_y = (float)y * dy;
+        uint8_t* dst_pixel = dst_row;
+        for (uint32_t x = 0; x < dst_width; ++x) {
+            const uint32_t src_offset = ((uint32_t)src_y * src_row_stride) + ((uint32_t)src_x * src_pixel_stride);
+            const uint8_t* src_pixel = src_data + src_offset;           
+            for (uint32_t c = 0; c < channel_cout; ++c) {
+                *(dst_pixel + c) = *(src_pixel + c);
+            }
+            src_x += dx;
+            dst_pixel += dst_pixel_stride;
+        }
+        dst_row += dst_row_stride;
+    }
+
+    return true;
+}
+
+void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data)
+{
+    assert(NULL != p_queue);
+    assert(NULL != p_src_data);
+    assert(NULL != p_texture);
+    assert(NULL != p_texture->dx_resource);
+    assert((src_width > 0) && (src_height > 0) && (src_row_stride > 0));
+    assert(tr_sample_count_1 == p_texture->sample_count);
+
+    uint8_t* p_expanded_src_data = NULL;
+    const uint32_t dst_channel_count = tr_util_format_channel_count(p_texture->format);
+    assert(src_channel_count < dst_channel_count);
+
+    if (src_channel_count < dst_channel_count) {
+        uint32_t expanded_row_stride = src_width * dst_channel_count;
+        uint32_t expanded_size = expanded_row_stride * src_height;
+        p_expanded_src_data = (uint8_t*)calloc(1, expanded_size);
+        assert(NULL != p_expanded_src_data);
+
+        const uint32_t src_pixel_stride = src_channel_count;
+        const uint32_t expanded_pixel_stride = dst_channel_count;
+        const uint8_t* src_row = p_src_data;
+        uint8_t* expanded_row = p_expanded_src_data;
+        for (uint32_t y = 0; y < src_height; ++y) {
+            const uint8_t* src_pixel = src_row;
+            uint8_t* expanded_pixel = expanded_row;
+            for (uint32_t x = 0; x < src_width; ++x) {
+                uint32_t c = 0; 
+                for (; c < src_channel_count; ++c) {
+                    *(expanded_pixel + c) = *(src_pixel + c);
+                }
+                for (; c < dst_channel_count; ++c) {
+                    *(expanded_pixel + c) = 0xFF;
+                }
+                src_pixel += src_pixel_stride;
+                expanded_pixel += expanded_pixel_stride;
+            }
+            src_row += src_row_stride;
+            expanded_row += expanded_row_stride;
+        }
+        src_row_stride = expanded_row_stride;
+        src_channel_count = dst_channel_count;
+        p_src_data = p_expanded_src_data;
+    }
+
+    // Get resource layout and memory requirements for all mip levels
+    TINY_RENDERER_DECLARE_ZERO(D3D12_RESOURCE_DESC, tex_resource_desc);
+    tex_resource_desc.Dimension              = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    tex_resource_desc.Alignment              = 0;
+    tex_resource_desc.Width                  = (UINT)p_texture->width;
+    tex_resource_desc.Height                 = (UINT)p_texture->height;
+    tex_resource_desc.DepthOrArraySize       = (UINT16)p_texture->depth;
+    tex_resource_desc.MipLevels              = (UINT16)p_texture->mip_levels;
+    tex_resource_desc.Format                 = tr_util_to_dx_format(p_texture->format);
+    tex_resource_desc.SampleDesc.Count       = (UINT)p_texture->sample_count;
+    tex_resource_desc.SampleDesc.Quality     = (UINT)p_texture->sample_quality;
+    tex_resource_desc.Layout                 = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    tex_resource_desc.Flags                  = D3D12_RESOURCE_FLAG_NONE;    
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT* subres_layouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)calloc(p_texture->mip_levels, sizeof(*subres_layouts));
+    UINT* subres_rowcounts = (UINT*)calloc(p_texture->mip_levels, sizeof(*subres_rowcounts));
+    UINT64* subres_row_strides = (UINT64*)calloc(p_texture->mip_levels, sizeof(*subres_row_strides));
+    UINT64 buffer_size = 0;
+    p_queue->renderer->dx_device->GetCopyableFootprints(&tex_resource_desc, 0, p_texture->mip_levels, 0, subres_layouts, subres_rowcounts, subres_row_strides, &buffer_size);
+    // Create temporary buffer big enough to fit all mip levels
+    tr_buffer* buffer = NULL;
+    tr_create_buffer(p_texture->renderer, tr_buffer_usage_transfer_src, buffer_size, true, &buffer);
+    // Use default simple resize if a resize function was not supplied
+    if (NULL == resize_fn) {
+        resize_fn = &tr_image_resize_uint8_t;
+    }
+    // Resize image into appropriate mip level
+    uint32_t dst_width = p_texture->width;
+    uint32_t dst_height = p_texture->height;
+    for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT* subres_layout = &subres_layouts[mip_level];
+        uint32_t dst_row_stride = subres_layout->Footprint.RowPitch;
+        uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + subres_layout->Offset;
+        resize_fn(src_width, src_height, src_row_stride, p_src_data, dst_width, dst_height, dst_row_stride, p_dst_data, dst_channel_count, p_user_data);
+        dst_width >>= 1;
+        dst_height >>= 1;
+    }
+
+    // Copy buffer to texture
+    {      
+        tr_cmd_pool* p_cmd_pool = NULL;
+        tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+        tr_cmd* p_cmd = NULL;
+        tr_create_cmd(p_cmd_pool, false, &p_cmd);
+
+        tr_begin_cmd(p_cmd);
+        //
+        // D3D12 textures are created with the following resources states (tr_texture_usage_sampled_image):
+        //     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+        //
+        tr_internal_dx_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
+        for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
+		    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = subres_layouts[mip_level];
+            TINY_RENDERER_DECLARE_ZERO(D3D12_TEXTURE_COPY_LOCATION, src);
+		    src.pResource       = buffer->dx_resource;
+		    src.Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		    src.PlacedFootprint = layout;
+            TINY_RENDERER_DECLARE_ZERO(D3D12_TEXTURE_COPY_LOCATION, dst);
+		    dst.pResource        = p_texture->dx_resource;
+		    dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		    dst.SubresourceIndex = mip_level;
+
+		    p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+        }        
+        tr_internal_dx_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
+        tr_end_cmd(p_cmd);
+
+        tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+        tr_queue_wait_idle(p_queue);
+
+        tr_destroy_cmd(p_cmd_pool, p_cmd);
+        tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+    }
+
+    TINY_RENDERER_SAFE_FREE(subres_layouts);
+    TINY_RENDERER_SAFE_FREE(subres_rowcounts);
+    TINY_RENDERER_SAFE_FREE(subres_row_strides);
+
+/*
+    // Create temporary buffer big enough to fit all mip levels
+    TINY_RENDERER_DECLARE_ZERO(VkMemoryRequirements, mem_reqs);
+    vkGetImageMemoryRequirements(p_texture->renderer->vk_device, p_texture->vk_image, &mem_reqs);
+    tr_buffer* buffer = NULL;
+    tr_create_buffer(p_texture->renderer, tr_buffer_usage_transfer_src, mem_reqs.size, true, &buffer);
+    // Get resource layout for all mip levels
+    VkSubresourceLayout* subres_layouts = (VkSubresourceLayout*)calloc(p_texture->mip_levels, sizeof(*subres_layouts));
+    assert(NULL != subres_layouts);
+    VkImageAspectFlags aspect_mask = tr_util_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
+    for (uint32_t i = 0; i < p_texture->mip_levels; ++i) {
+        TINY_RENDERER_DECLARE_ZERO(VkImageSubresource, img_sub_res);
+        img_sub_res.aspectMask = aspect_mask;
+        img_sub_res.mipLevel   = i;
+        img_sub_res.arrayLayer = 0;
+        vkGetImageSubresourceLayout(p_texture->renderer->vk_device, p_texture->vk_image, &img_sub_res, &(subres_layouts[i]));
+    }    
+    // Use default simple resize if a resize function was not supplied
+    if (NULL == resize_fn) {
+        resize_fn = &tr_image_resize_uint8_t;
+    }
+    // Resize image into appropriate mip level
+    uint32_t dst_width = p_texture->width;
+    uint32_t dst_height = p_texture->height;
+    for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
+        VkSubresourceLayout* subres_layout = &subres_layouts[mip_level];
+        uint32_t dst_row_stride = subres_layout->rowPitch;
+        uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + subres_layout->offset;
+        resize_fn(src_width, src_height, src_row_stride, p_src_data, dst_width, dst_height, dst_row_stride, p_dst_data, dst_channel_count, p_user_data);
+
+        if (mip_level == 1) {
+            ci::Surface surf = ci::Surface(p_dst_data, dst_width, dst_height, dst_row_stride, ci::SurfaceChannelOrder::RGBA);
+            ci::writeImage("testme.png", surf);
+        }
+
+        dst_width >>= 1;
+        dst_height >>= 1;
+    }
+
+    {
+        const uint32_t region_count = p_texture->mip_levels;
+        VkBufferImageCopy* regions = (VkBufferImageCopy*)calloc(region_count, sizeof(*regions));
+        assert(NULL != regions);
+
+        dst_width = p_texture->width;
+        dst_height = p_texture->height;
+        for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
+            regions[mip_level].bufferOffset                    = subres_layouts[mip_level].offset;
+            regions[mip_level].bufferRowLength                 = dst_width;
+            regions[mip_level].bufferImageHeight               = dst_height;
+            regions[mip_level].imageSubresource.aspectMask     = aspect_mask;
+            regions[mip_level].imageSubresource.mipLevel       = mip_level;
+            regions[mip_level].imageSubresource.baseArrayLayer = 0;
+            regions[mip_level].imageSubresource.layerCount     = 1;
+            regions[mip_level].imageOffset.x                   = 0;
+            regions[mip_level].imageOffset.y                   = 0;
+            regions[mip_level].imageOffset.z                   = 0;
+            regions[mip_level].imageExtent.width               = dst_width;
+            regions[mip_level].imageExtent.height              = dst_height;
+            regions[mip_level].imageExtent.depth               = 1;
+            dst_width >>= 1;
+            dst_height >>= 1;
+        }
+        
+        tr_cmd_pool* p_cmd_pool = NULL;
+        tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+        tr_cmd* p_cmd = NULL;
+        tr_create_cmd(p_cmd_pool, false, &p_cmd);
+
+        tr_begin_cmd(p_cmd);
+        tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_undefined, tr_texture_usage_transfer_dst);
+        vkCmdCopyBufferToImage(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_texture->vk_image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region_count, regions);
+        tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
+        tr_end_cmd(p_cmd);
+
+        tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+        tr_queue_wait_idle(p_queue);
+
+        tr_destroy_cmd(p_cmd_pool, p_cmd);
+        tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+
+        TINY_RENDERER_SAFE_FREE(regions);
+    }
+
+    TINY_RENDERER_SAFE_FREE(subres_layouts);
+    TINY_RENDERER_SAFE_FREE(p_expanded_src_data);
+*/
+}
+
+void tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data)
+{
+}
 
 // -------------------------------------------------------------------------------------------------
 // Internal utility functions
 // -------------------------------------------------------------------------------------------------
-D3D12_RESOURCE_STATES tr_to_dx_resource_state(tr_texture_usage usage)
+D3D12_RESOURCE_STATES tr_util_to_dx_resource_state(tr_texture_usage usage)
 {
     D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
     if (tr_texture_usage_transfer_src == (usage & tr_texture_usage_transfer_src)) {
@@ -2210,14 +2568,6 @@ void tr_internal_dx_create_swapchain_renderpass(tr_renderer* p_renderer)
     TINY_RENDERER_SAFE_FREE(swapchain_images);
 }
 
-//void tr_internal_dx_destroy_instance(tr_renderer* p_renderer)
-//{
-//}
-//
-//void tr_internal_dx_destroy_surface(tr_renderer* p_renderer)
-//{
-//}
-
 void tr_internal_dx_destroy_device(tr_renderer* p_renderer)
 {
     TINY_RENDERER_SAFE_RELEASE(p_renderer->graphics_queue->dx_queue);
@@ -2261,18 +2611,15 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 {
     assert(NULL != p_renderer->dx_device);
 
-    p_descriptor_set->dx_cbvsrvuav_root_parameter_index = tr_dx_default_root_parameter_index_undefined;
-    p_descriptor_set->dx_sampler_root_parameter_index = tr_dx_default_root_parameter_index_undefined;
-
     uint32_t cbvsrvuav_count = 0;
     uint32_t sampler_count = 0;
 
     for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
         uint32_t count = p_descriptor_set->descriptors[i].count;
         switch (p_descriptor_set->descriptors[i].type) {
-            case tr_descriptor_type_sampler       : sampler_count   += count; break;
-            case tr_descriptor_type_texture         : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_uniform_buffer: cbvsrvuav_count += count; break;
+            case tr_descriptor_type_sampler        : sampler_count   += count; break;
+            case tr_descriptor_type_texture        : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_uniform_buffer : cbvsrvuav_count += count; break;
         }
     }
 
@@ -2281,12 +2628,10 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         desc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
         desc.NumDescriptors = cbvsrvuav_count;
         desc.NodeMask       = 0;
-        desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         HRESULT hres = p_renderer->dx_device->CreateDescriptorHeap(&desc,
             __uuidof(p_descriptor_set->dx_cbvsrvuav_heap), (void**)&(p_descriptor_set->dx_cbvsrvuav_heap));
-        assert(SUCCEEDED(hres));
-    
-        p_descriptor_set->dx_cbvsrvuav_root_parameter_index = tr_dx_default_cbvsrvuav_root_parameter_index;
+        assert(SUCCEEDED(hres));   
     }
 
     if (sampler_count > 0) {
@@ -2294,14 +2639,32 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         desc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
         desc.NumDescriptors = sampler_count;
         desc.NodeMask       = 0;
-        desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         HRESULT hres = p_renderer->dx_device->CreateDescriptorHeap(&desc,
             __uuidof(p_descriptor_set->dx_sampler_heap), (void**)&(p_descriptor_set->dx_sampler_heap));
         assert(SUCCEEDED(hres));
-
-        p_descriptor_set->dx_sampler_root_parameter_index = tr_dx_default_sampler_root_parameter_index;
     }
 
+    // Assign heap offsets
+    uint32_t cbvsrvuav_heap_offset = 0;
+    uint32_t sampler_heap_offset = 0;
+    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
+        switch (p_descriptor_set->descriptors[i].type) {
+            case tr_descriptor_type_sampler: {
+                descriptor->dx_heap_offset = sampler_heap_offset;
+                sampler_heap_offset += descriptor->count;
+            }
+            break;
+
+            case tr_descriptor_type_texture:
+            case tr_descriptor_type_uniform_buffer: {
+                descriptor->dx_heap_offset = cbvsrvuav_heap_offset;
+                cbvsrvuav_heap_offset += descriptor->count;
+            }
+            break;
+        }
+    }
 }
 
 void tr_internal_dx_destroy_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set)
@@ -2399,6 +2762,12 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     }
 
     switch (p_buffer->usage) {
+        case tr_buffer_usage_uniform: {
+            p_buffer->dx_index_buffer_view.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
+            p_buffer->dx_index_buffer_view.SizeInBytes    = (UINT)p_buffer->size;
+        }
+        break;
+
         case tr_buffer_usage_index: {
             p_buffer->dx_index_buffer_view.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
             p_buffer->dx_index_buffer_view.SizeInBytes    = (UINT)p_buffer->size;
@@ -2458,14 +2827,14 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         desc.SampleDesc.Quality         = (UINT)p_texture->sample_quality;
         desc.Layout                     = D3D12_TEXTURE_LAYOUT_UNKNOWN;
         desc.Flags                      = D3D12_RESOURCE_FLAG_NONE;
-        if (tr_texture_usage_color_attachment == (p_texture->usage & tr_texture_usage_color_attachment)) {
+        if (p_texture->usage & tr_texture_usage_color_attachment) {
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
         }
-        if (tr_texture_usage_depth_stencil_attachment == (p_texture->usage & tr_texture_usage_depth_stencil_attachment)) {
+        if (p_texture->usage & tr_texture_usage_depth_stencil_attachment) {
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
         }
 
-        D3D12_RESOURCE_STATES res_states = tr_to_dx_resource_state(p_texture->usage);
+        D3D12_RESOURCE_STATES res_states = tr_util_to_dx_resource_state(p_texture->usage);
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_CLEAR_VALUE, clear_value);
         clear_value.Format = tr_util_to_dx_format(p_texture->format);
@@ -2480,8 +2849,13 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
             clear_value.Color[3] = p_texture->clear_value.a;
         }
 
+        D3D12_CLEAR_VALUE* p_clear_value = NULL;
+        if ((desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) || (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)) {
+            p_clear_value = &clear_value;
+        }
+
         HRESULT hres = p_renderer->dx_device->CreateCommittedResource(
-            &heap_props, heap_flags, &desc, res_states, &clear_value,
+            &heap_props, heap_flags, &desc, res_states, p_clear_value,
             __uuidof(p_texture->dx_resource), (void**)&(p_texture->dx_resource));
         assert(SUCCEEDED(hres));
         
@@ -2506,6 +2880,32 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
 void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
 {
     TINY_RENDERER_SAFE_RELEASE(p_texture->dx_resource);
+}
+
+void tr_internal_dx_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+{
+    assert(NULL != p_renderer->dx_device);
+
+	p_sampler->dx_sampler_desc.Filter         = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	p_sampler->dx_sampler_desc.AddressU       = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	p_sampler->dx_sampler_desc.AddressV       = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	p_sampler->dx_sampler_desc.AddressW	      = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	p_sampler->dx_sampler_desc.MipLODBias     = 0;
+	p_sampler->dx_sampler_desc.MaxAnisotropy  = 0;
+	p_sampler->dx_sampler_desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	p_sampler->dx_sampler_desc.BorderColor[0] = 0.0f;
+	p_sampler->dx_sampler_desc.BorderColor[1] = 0.0f;
+	p_sampler->dx_sampler_desc.BorderColor[2] = 0.0f;
+	p_sampler->dx_sampler_desc.BorderColor[3] = 0.0f;
+	p_sampler->dx_sampler_desc.MinLOD         = 0.0f;
+	p_sampler->dx_sampler_desc.MaxLOD         = D3D12_FLOAT32_MAX;    
+}
+
+void tr_internal_dx_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+{
+    assert(NULL != p_renderer->dx_device);
+
+    // NO-OP for now
 }
 
 void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program)
@@ -2649,9 +3049,9 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
         for (uint32_t i = 0; i < descriptor_count; ++i) {
             uint32_t count = p_descriptor_set->descriptors[i].count;
             switch (p_descriptor_set->descriptors[i].type) {
-                case tr_descriptor_type_sampler       : sampler_count   += count; break;
-                case tr_descriptor_type_texture         : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_uniform_buffer: cbvsrvuav_count += count; break;
+                case tr_descriptor_type_sampler        : sampler_count   += count; break;
+                case tr_descriptor_type_texture        : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_uniform_buffer : cbvsrvuav_count += count; break;
             }
         }
 
@@ -2666,7 +3066,7 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
 
         // Build ranges
         for (uint32_t descriptor_index = 0; descriptor_index < descriptor_count; ++descriptor_index) {
-            tr_descriptor* descriptor = &p_descriptor_set->descriptors[descriptor_index];
+            tr_descriptor* descriptor = &(p_descriptor_set->descriptors[descriptor_index]);
             D3D12_DESCRIPTOR_RANGE1* range_11 = &ranges_11[range_count];
             D3D12_DESCRIPTOR_RANGE*  range_10 = &ranges_10[range_count];
             D3D12_ROOT_PARAMETER1* param_11 = &parameters_11[parameter_count];
@@ -2676,20 +3076,19 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
 
             bool assign_range = false;
             switch (descriptor->type) {
-                case tr_descriptor_type_texture: {
+                case tr_descriptor_type_sampler: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
                     assign_range = true;
                 }
                 break;
-
-                case tr_descriptor_type_sampler: {
+                case tr_descriptor_type_texture: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     assign_range = true;
                 }
                 break;
-            
+           
                 case tr_descriptor_type_uniform_buffer: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
@@ -2715,6 +3114,8 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
 
                 param_10->DescriptorTable.pDescriptorRanges   = range_10;
                 param_10->DescriptorTable.NumDescriptorRanges = 1;
+
+                descriptor->dx_root_parameter_index = parameter_count;
 
                 ++range_count;
                 ++parameter_count;
@@ -3033,6 +3434,88 @@ void tr_internal_dx_destroy_render_target(tr_renderer* p_renderer, tr_render_tar
 }
 
 // -------------------------------------------------------------------------------------------------
+// Internal descriptor set functions
+// -------------------------------------------------------------------------------------------------
+void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set)
+{
+    assert(NULL != p_renderer->dx_device);
+    assert((NULL != p_descriptor_set->dx_cbvsrvuav_heap) || (NULL != p_descriptor_set->dx_sampler_heap));
+
+    // Not really efficient, just write less frequently ;)
+    uint32_t write_count = 0;
+    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
+        if ((NULL != descriptor->samplers) || (NULL != descriptor->textures) || (NULL != descriptor->uniform_buffers)) {
+            ++write_count;
+        }
+    }
+    // Bail if there's nothing to write
+    if (0 == write_count) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
+        if ((NULL == descriptor->samplers) && (NULL == descriptor->textures) && (NULL == descriptor->uniform_buffers)) {
+            continue;
+        }
+
+        switch (descriptor->type) {
+            case tr_descriptor_type_sampler: {
+                assert(NULL != descriptor->samplers);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_sampler_heap->GetCPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    assert(NULL != descriptor->samplers[i]);
+
+                    D3D12_SAMPLER_DESC* sampler_desc = &(descriptor->samplers[i]->dx_sampler_desc);
+                    p_renderer->dx_device->CreateSampler(sampler_desc, handle);
+                    handle.ptr += handle_inc_size;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_texture: {
+                assert(NULL != descriptor->textures);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    assert(NULL != descriptor->textures[i]);
+
+                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
+                    D3D12_SHADER_RESOURCE_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_view_desc);
+                    p_renderer->dx_device->CreateShaderResourceView(resource, view_desc, handle);
+                    handle.ptr += handle_inc_size;
+                }
+            }
+            break;
+
+
+            case tr_descriptor_type_uniform_buffer: {
+                assert(NULL != descriptor->uniform_buffers);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    assert(NULL != descriptor->uniform_buffers[i]);
+
+                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
+                    D3D12_CONSTANT_BUFFER_VIEW_DESC* view_desc = &(descriptor->uniform_buffers[i]->dx_constant_buffer_view_desc);
+                    p_renderer->dx_device->CreateConstantBufferView(view_desc, handle);
+                    handle.ptr += handle_inc_size;
+                }
+            }
+            break;
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
 // Internal command buffer functions
 // -------------------------------------------------------------------------------------------------
 void tr_internal_dx_begin_cmd(tr_cmd* p_cmd)
@@ -3179,8 +3662,50 @@ void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
     p_cmd->dx_cmd_list->IASetPrimitiveTopology(topology);
 }
 
-void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets)
+void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set)
 {
+    assert(NULL != p_cmd->dx_cmd_list);
+
+    uint32_t descriptor_heap_count = 0;
+    ID3D12DescriptorHeap* descriptor_heaps[2];
+    if (NULL != p_descriptor_set->dx_cbvsrvuav_heap) {
+        descriptor_heaps[descriptor_heap_count] = p_descriptor_set->dx_cbvsrvuav_heap;
+        ++descriptor_heap_count;
+    }
+    if (NULL != p_descriptor_set->dx_sampler_heap) {
+        descriptor_heaps[descriptor_heap_count] = p_descriptor_set->dx_sampler_heap;
+        ++descriptor_heap_count;
+    }
+
+    if (descriptor_heap_count > 0) {
+        p_cmd->dx_cmd_list->SetDescriptorHeaps(descriptor_heap_count, descriptor_heaps);
+    }
+
+    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
+        if (UINT32_MAX == descriptor->dx_root_parameter_index) {
+            continue;
+        }
+
+        switch (p_descriptor_set->descriptors[i].type) {
+            case tr_descriptor_type_sampler: {
+                D3D12_GPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_sampler_heap->GetGPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+            }
+            break;
+
+            case tr_descriptor_type_texture:
+            case tr_descriptor_type_uniform_buffer: {
+                D3D12_GPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetGPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+            }
+            break;
+        }       
+    }
 }
 
 void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
@@ -3228,8 +3753,8 @@ void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
     barrier.Flags                   = D3D12_RESOURCE_BARRIER_FLAG_NONE;
     barrier.Transition.pResource    = p_texture->dx_resource;
     barrier.Transition.Subresource  = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrier.Transition.StateBefore  = tr_to_dx_resource_state(old_usage);
-    barrier.Transition.StateAfter   = tr_to_dx_resource_state(new_usage);
+    barrier.Transition.StateBefore  = tr_util_to_dx_resource_state(old_usage);
+    barrier.Transition.StateAfter   = tr_util_to_dx_resource_state(new_usage);
 
     p_cmd->dx_cmd_list->ResourceBarrier(1, &barrier);
 }

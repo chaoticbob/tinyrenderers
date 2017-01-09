@@ -91,6 +91,7 @@ namespace TINY_RENDERER_CPP_NAMESPACE {
     #define tr_api_export 
 #endif
 
+#if ! defined(TINY_RENDERER_CUSTOM_MAX)
 enum {
     tr_max_instance_extensions       = 256,
     tr_max_device_extensions         = 256,
@@ -105,8 +106,10 @@ enum {
     tr_max_vertex_bindings           = 15,
     tr_max_vertex_attribs            = 15,
     tr_max_semantic_name_length      = 128,
-    tr_all_mip_levels                 = 0xFFFFFFFF,
+    tr_max_descriptor_entries        = 256,
+    tr_max_mip_levels                = 0xFFFFFFFF,
 };
+#endif
 
 typedef enum tr_log_type {
     tr_log_type_info = 0,
@@ -396,9 +399,9 @@ typedef struct tr_descriptor {
     uint32_t                            binding;
     uint32_t                            count;
     tr_shader_stage                     shader_stages;
-    tr_buffer*                          uniform_buffer;
-    tr_texture*                         texture;
-    tr_sampler*                         sampler;
+    tr_buffer*                          uniform_buffers[tr_max_descriptor_entries];
+    tr_texture*                         textures[tr_max_descriptor_entries];
+    tr_sampler*                         samplers[tr_max_descriptor_entries];
 } tr_descriptor;
 
 typedef struct tr_descriptor_set {
@@ -570,7 +573,6 @@ tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_text
 tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
 tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 
-//! Size is in bytes
 tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** p_shader_program);
 tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
@@ -590,7 +592,7 @@ tr_api_export void tr_cmd_end_render(tr_cmd* p_cmd);
 tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
-tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets);
+tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
 tr_api_export void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
@@ -716,7 +718,7 @@ void tr_internal_vk_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width,
 void tr_internal_vk_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 void tr_cmd_internal_vk_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 void tr_internal_vk_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
-void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets);
+void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 void tr_internal_vk_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
 void tr_internal_vk_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 void tr_internal_vk_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
@@ -1433,9 +1435,10 @@ void tr_create_texture_2d(
     tr_texture**             pp_texture
 )
 {
-    if (tr_all_mip_levels == mip_levels) {
+    if (tr_max_mip_levels == mip_levels) {
         mip_levels = tr_util_calc_mip_levels(width, height);
     }
+
     tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, clear_value, host_visible, usage, pp_texture);
 }
 
@@ -1471,6 +1474,8 @@ void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler)
     tr_sampler* p_sampler = (tr_sampler*)calloc(1, sizeof(*p_sampler));
     assert(NULL != p_sampler);
 
+    p_sampler->renderer = p_renderer;
+    
     tr_internal_vk_create_sampler(p_renderer, p_sampler);
 
     *pp_sampler = p_sampler;
@@ -1746,14 +1751,13 @@ void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
     tr_internal_vk_cmd_bind_pipeline(p_cmd, p_pipeline);
 }
 
-void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets)
+void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set)
 {
     assert(NULL != p_cmd);
     assert(NULL != p_pipeline);
-    assert(0 != set_count);
-    assert(NULL != pp_sets);
+    assert(NULL != p_descriptor_set);
 
-    tr_internal_vk_cmd_bind_descriptor_sets(p_cmd, p_pipeline, set_count, pp_sets);
+    tr_internal_vk_cmd_bind_descriptor_sets(p_cmd, p_pipeline, p_descriptor_set);
 }
 
 void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
@@ -2221,9 +2225,10 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         p_src_data = p_expanded_src_data;
     }
 
-    // Create temporary buffer big enough to fit all mip levels
+    // Get memory requirements that covers all mip levels
     TINY_RENDERER_DECLARE_ZERO(VkMemoryRequirements, mem_reqs);
     vkGetImageMemoryRequirements(p_texture->renderer->vk_device, p_texture->vk_image, &mem_reqs);
+    // Create temporary buffer big enough to fit all mip levels
     tr_buffer* buffer = NULL;
     tr_create_buffer(p_texture->renderer, tr_buffer_usage_transfer_src, mem_reqs.size, true, &buffer);
     // Get resource layout for all mip levels
@@ -2259,6 +2264,7 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         dst_height >>= 1;
     }
 
+    // Copy buffer to texture
     {
         const uint32_t region_count = p_texture->mip_levels;
         VkBufferImageCopy* regions = (VkBufferImageCopy*)calloc(region_count, sizeof(*regions));
@@ -2291,6 +2297,9 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
         tr_begin_cmd(p_cmd);
+        //
+        // Vulkan textures are created with VK_IMAGE_LAYOUT_UNDEFFINED (tr_texture_usage_undefined)
+        //
         tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_undefined, tr_texture_usage_transfer_dst);
         vkCmdCopyBufferToImage(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_texture->vk_image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region_count, regions);
@@ -4084,10 +4093,29 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
     // Not really efficient, just write less frequently ;)
     uint32_t write_count = 0;
-    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
-        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
-        if ((NULL != descriptor->sampler) || (NULL != descriptor->texture) || (NULL != descriptor->uniform_buffer)) {
-            ++write_count;
+    uint32_t sampler_veww_count = 0;
+    uint32_t texture_view_count = 0;
+    uint32_t uniform_buffer_view_count = 0;
+    for (uint32_t descriptor_index = 0; descriptor_index < p_descriptor_set->descriptor_count; ++descriptor_index) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[descriptor_index]);
+        switch (descriptor->type) {
+            case tr_descriptor_type_sampler: {
+                sampler_veww_count += descriptor->count;
+                ++write_count;
+            }
+            break;
+
+            case tr_descriptor_type_texture: {
+                texture_view_count += descriptor->count;
+                ++write_count;
+            }
+            break;
+
+            case tr_descriptor_type_uniform_buffer: {
+                uniform_buffer_view_count += descriptor->count;
+                ++write_count;
+            }
+            break;
         }
     }
     // Bail if there's nothing to write
@@ -4097,11 +4125,20 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
     VkWriteDescriptorSet* writes = (VkWriteDescriptorSet*)calloc(write_count, sizeof(*writes));
     assert(NULL != writes);
+    VkDescriptorImageInfo* sampler_views = (VkDescriptorImageInfo*)calloc(sampler_veww_count, sizeof(*sampler_views));
+    assert(NULL != sampler_views);
+    VkDescriptorImageInfo* texture_views = (VkDescriptorImageInfo*)calloc(texture_view_count, sizeof(*sampler_views));
+    assert(NULL != texture_views);
+    VkDescriptorBufferInfo* uniform_buffer_views = (VkDescriptorBufferInfo*)calloc(uniform_buffer_view_count, sizeof(*uniform_buffer_views));
+    assert(NULL != uniform_buffer_views);
 
     uint32_t write_index = 0;
-    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
-        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
-        if ((NULL == descriptor->sampler) && (NULL == descriptor->texture) && (NULL == descriptor->uniform_buffer)) {
+    uint32_t sampler_veww_index = 0;
+    uint32_t texture_view_index = 0;
+    uint32_t uniform_buffer_view_index = 0;
+    for (uint32_t descriptor_index = 0; descriptor_index < p_descriptor_set->descriptor_count; ++descriptor_index) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[descriptor_index]);
+        if ((NULL == descriptor->samplers) && (NULL == descriptor->textures) && (NULL == descriptor->uniform_buffers)) {
             continue;
         }
 
@@ -4113,24 +4150,41 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         writes[write_index].descriptorCount = descriptor->count;
         switch (descriptor->type) {
             case tr_descriptor_type_sampler: {
-                assert(NULL != descriptor->sampler);
+                assert(NULL != descriptor->samplers);
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-                writes[write_index].pImageInfo = &(descriptor->sampler->vk_sampler_view);
+                writes[write_index].pImageInfo = &(sampler_views[sampler_veww_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(sampler_views[sampler_veww_index]), 
+                           &(descriptor->samplers[i]->vk_sampler_view),
+                           sizeof(descriptor->samplers[i]->vk_sampler_view));
+                    ++sampler_veww_index;
+                }
             }
             break;
 
             case tr_descriptor_type_texture: {
-                assert(NULL != descriptor->texture);
+                assert(NULL != descriptor->textures);
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-                writes[write_index].pImageInfo = &(descriptor->texture->vk_texture_view);
+                writes[write_index].pImageInfo = &(texture_views[texture_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(texture_views[texture_view_index]), 
+                           &(descriptor->textures[i]->vk_texture_view),
+                           sizeof(descriptor->textures[i]->vk_texture_view));
+                    ++texture_view_index;
+                }
             }
             break;
 
-
             case tr_descriptor_type_uniform_buffer: {
-                assert(NULL != descriptor->uniform_buffer);
+                assert(NULL != descriptor->uniform_buffers);
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                writes[write_index].pBufferInfo = &(descriptor->uniform_buffer->vk_buffer_view);
+                writes[write_index].pBufferInfo = &(uniform_buffer_views[uniform_buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(uniform_buffer_views[uniform_buffer_view_index]), 
+                           &(descriptor->uniform_buffers[i]->vk_buffer_view),
+                           sizeof(descriptor->uniform_buffers[i]->vk_buffer_view));
+                    ++uniform_buffer_view_index;
+                }
             }
             break;
         }
@@ -4143,6 +4197,9 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
     vkUpdateDescriptorSets(p_renderer->vk_device, write_count, writes, copy_count, copies);
 
+    TINY_RENDERER_SAFE_FREE(sampler_views);
+    TINY_RENDERER_SAFE_FREE(texture_views);
+    TINY_RENDERER_SAFE_FREE(uniform_buffer_views);
     TINY_RENDERER_SAFE_FREE(writes);
 }
 
@@ -4286,23 +4343,14 @@ void tr_internal_vk_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
     vkCmdBindPipeline(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, p_pipeline->vk_pipeline);
 }
 
-void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, uint32_t set_count, tr_descriptor_set** pp_sets)
+void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set)
 {
     assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
 
-    const uint32_t max_sets = p_cmd->cmd_pool->renderer->vk_active_gpu_properties.limits.maxBoundDescriptorSets;
-    uint32_t capped_set_count = set_count > max_sets ? max_sets : set_count;
-
-    // 32 is the current highest maxBoundDescriptorSets so 64 should be sufficient - for now    
-    assert(capped_set_count < 64);
-    
-    TINY_RENDERER_DECLARE_ZERO(VkDescriptorSet, sets[64]);
-    for (uint32_t i = 0; i < capped_set_count; ++i) {
-        sets[i] = pp_sets[i]->vk_descriptor_set;
-    }
-
     // @TODO: Add dynamic offsets support
-    vkCmdBindDescriptorSets(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, p_pipeline->vk_pipeline_layout, 0, capped_set_count, sets, 0, NULL);
+    vkCmdBindDescriptorSets(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                            p_pipeline->vk_pipeline_layout, 0, 
+                            1, &(p_descriptor_set->vk_descriptor_set), 0, NULL);
 }
 
 void tr_internal_vk_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)

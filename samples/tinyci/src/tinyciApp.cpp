@@ -172,14 +172,13 @@ void TinyCiApp::setup()
 	memcpy(m_vertex_buffer->cpu_mapped_address, data.data(), dataSize);
 
     Surface surf = loadImage(getAssetPath("texture.jpg"));
-    tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_all_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
-    //tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_update_texture_uint8(m_renderer->graphics_queue, surf.getWidth(), surf.getHeight(), surf.getRowBytes(), surf.getData(), surf.hasAlpha() ? 4 : 3, m_texture, NULL, NULL);
 
     tr_create_sampler(m_renderer, &m_sampler);
 
-    m_desc_set->descriptors[0].texture = m_texture;
-    m_desc_set->descriptors[1].sampler = m_sampler;
+    m_desc_set->descriptors[0].textures[0] = m_texture;
+    m_desc_set->descriptors[1].samplers[0] = m_sampler;
     tr_update_descriptor_set(m_renderer, m_desc_set);
 }
 
@@ -229,7 +228,7 @@ void TinyCiApp::draw()
 	tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
 	tr_cmd_bind_pipeline(cmd, m_pipeline);
 	tr_cmd_bind_vertex_buffers(cmd, 1, &m_vertex_buffer);
-	tr_cmd_bind_descriptor_sets(cmd, m_pipeline, 1, &m_desc_set);
+	tr_cmd_bind_descriptor_sets(cmd, m_pipeline, m_desc_set);
 	tr_cmd_draw(cmd, 4, 0);
 	tr_cmd_end_render(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
