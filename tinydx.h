@@ -14,7 +14,7 @@
  limitations under the License.
 
 
- Copyright (c) 2016, The Cinder Project, All rights reserved.
+ Copyright (c) 2017, The Cinder Project, All rights reserved.
 
  This code is intended for use with the Cinder C++ library: http://libcinder.org
 
