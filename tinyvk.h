@@ -62,8 +62,6 @@ COMPILING & LINKING
 #include <stdlib.h>
 #include <string.h>
 
-#include "cinder/ImageIo.h"
-
 #if defined(_WIN32)
     #define TINY_RENDERER_MSW
     #define VK_USE_PLATFORM_WIN32_KHR
