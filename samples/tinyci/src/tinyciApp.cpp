@@ -1,8 +1,8 @@
 #include "cinder/app/App.h"
 #include "cinder/Log.h"
+#include "cinder/ImageIo.h"
 using namespace ci;
 using namespace ci::app;
-using namespace std;
 
 #define TINY_RENDERER_IMPLEMENTATION
 
@@ -34,6 +34,9 @@ private:
 	tr_shader_program*	m_shader;
 	tr_buffer*			m_vertex_buffer;
 	tr_pipeline*		m_pipeline;
+
+    tr_texture*         m_texture;
+    tr_sampler*         m_sampler;
 };
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
@@ -65,7 +68,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 		//CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
 	}
 	else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-		CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+		//CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
 	}
 	else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
 		CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
@@ -114,19 +117,6 @@ void TinyCiApp::setup()
 #endif
 	tr_create_renderer("myappTinyCiApp", &settings, &m_renderer);
 
-
-	std::vector<tr_descriptor> descriptors(3);
-	descriptors[0].type  = tr_descriptor_type_image;
-	descriptors[0].count = 4;
-	descriptors[0].binding = 0;
-	descriptors[1].type  = tr_descriptor_type_sampler;
-	descriptors[1].count = 4;
-	descriptors[1].binding = 1;
-	descriptors[2].type  = tr_descriptor_type_uniform_buffer;
-	descriptors[2].count = 4;
-	descriptors[2].binding = 2;
-	tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
-
 	tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
 	tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
 	
@@ -143,6 +133,16 @@ void TinyCiApp::setup()
 		                     hlsl->getSize(), (uint32_t*)(hlsl->getData()), "PSMain", &m_shader);
 #endif
 
+	std::vector<tr_descriptor> descriptors(2);
+	descriptors[0].type  = tr_descriptor_type_texture;
+	descriptors[0].count = 1;
+	descriptors[0].binding = 0;
+    descriptors[0].shader_stages = tr_shader_stage_frag;
+	descriptors[1].type  = tr_descriptor_type_sampler;
+	descriptors[1].count = 1;
+	descriptors[1].binding = 1;
+    descriptors[1].shader_stages = tr_shader_stage_frag;
+	tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
 	tr_vertex_layout vertex_layout = {};
 	vertex_layout.attrib_count = 2;
@@ -158,12 +158,11 @@ void TinyCiApp::setup()
 	vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
 	tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_strip};
 	tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
-	//tr_create_pipeline(m_renderer, m_shader, &vertex_layout, NULL, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
 	std::vector<float> data = {
-		-0.8f, -0.5f, 0.0f,	1.0f, 0.0f, 0.0f,
-		-0.3f,  0.5f, 0.0f,	1.0f, 0.0f, 1.0f,
-		 0.6f, -0.6f, 0.0f,	1.0f, 1.0f, 0.0f,
+		-0.5f, -0.5f, 0.0f,	1.0f, 0.0f, 0.0f,
+		-0.5f,  0.5f, 0.0f,	1.0f, 0.0f, 1.0f,
+		 0.5f, -0.5f, 0.0f,	1.0f, 1.0f, 0.0f,
 		 0.5f,  0.5f, 0.0f,	1.0f, 1.0f, 1.0f,
 	};
 
@@ -171,6 +170,17 @@ void TinyCiApp::setup()
 	uint64_t strideSize = sizeof(float) * 6;
 	tr_create_vertex_buffer(m_renderer, dataSize, true, strideSize, &m_vertex_buffer);
 	memcpy(m_vertex_buffer->cpu_mapped_address, data.data(), dataSize);
+
+    Surface surf = loadImage(getAssetPath("texture.jpg"));
+    tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_all_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    //tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_util_update_texture_uint8(m_renderer->graphics_queue, surf.getWidth(), surf.getHeight(), surf.getRowBytes(), surf.getData(), surf.hasAlpha() ? 4 : 3, m_texture, NULL, NULL);
+
+    tr_create_sampler(m_renderer, &m_sampler);
+
+    m_desc_set->descriptors[0].texture = m_texture;
+    m_desc_set->descriptors[1].sampler = m_sampler;
+    tr_update_descriptor_set(m_renderer, m_desc_set);
 }
 
 void TinyCiApp::cleanup()

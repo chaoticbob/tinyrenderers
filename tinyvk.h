@@ -64,6 +64,8 @@ COMPILING & LINKING
 #include <stdlib.h>
 #include <string.h>
 
+#include "cinder/ImageIo.h"
+
 #if defined(_WIN32)
     #define TINY_RENDERER_MSW
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -103,6 +105,7 @@ enum {
     tr_max_vertex_bindings           = 15,
     tr_max_vertex_attribs            = 15,
     tr_max_semantic_name_length      = 128,
+    tr_all_mip_levels                 = 0xFFFFFFFF,
 };
 
 typedef enum tr_log_type {
@@ -227,7 +230,7 @@ typedef enum tr_format {
 typedef enum tr_descriptor_type {
     tr_descriptor_type_undefined = 0,
     tr_descriptor_type_sampler,
-    tr_descriptor_type_image,
+    tr_descriptor_type_texture,
     tr_descriptor_type_uniform_buffer,
 } tr_descriptor_type;
 
@@ -426,6 +429,7 @@ typedef struct tr_buffer {
     void*                               cpu_mapped_address;
     VkBuffer                            vk_buffer;
     VkDeviceMemory                      vk_memory;
+    VkDescriptorBufferInfo              vk_buffer_view;
 } tr_buffer;
 
 typedef struct tr_texture {
@@ -447,7 +451,14 @@ typedef struct tr_texture {
     VkDeviceMemory                      vk_memory;
     VkImageView                         vk_image_view;
     VkImageAspectFlags                  vk_aspect_mask;
+    VkDescriptorImageInfo               vk_texture_view;
 } tr_texture;
+
+typedef struct tr_sampler {
+    tr_renderer*                        renderer;
+    VkSampler                           vk_sampler;
+    VkDescriptorImageInfo               vk_sampler_view;
+} tr_sampler;
 
 typedef struct tr_shader_program {
     tr_renderer*                        renderer;
@@ -514,13 +525,13 @@ typedef struct tr_mesh {
     tr_pipeline*                        pipeline;
 } tr_mesh;
 
-typedef bool(*tr_image_resize_uint8_fn)(uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data, 
-                                        uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, uint8_t* dst_data,
-                                        uint32_t channel_cout, void* user_data);
+typedef bool(*tr_image_resize_uint8_fn)(uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, 
+                                        uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, uint8_t* p_dst_data,
+                                        uint32_t channel_cout, void* p_user_data);
 
-typedef bool(*tr_image_resize_float_fn)(uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* src_data, 
-                                        uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, float* dst_data,
-                                        uint32_t channel_cout, void* user_data);
+typedef bool(*tr_image_resize_float_fn)(uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, 
+                                        uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, float* p_dst_data,
+                                        uint32_t channel_cout, void* p_user_data);
 
 // API functions
 tr_api_export void tr_create_renderer(const char* app_name, const tr_renderer_settings* p_settings, tr_renderer** pp_renderer);
@@ -556,6 +567,9 @@ tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width,
 tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
+tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
+tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
+
 //! Size is in bytes
 tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** p_shader_program);
@@ -564,8 +578,10 @@ tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_
 tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
-tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, const tr_clear_value* color_clear_values, tr_format depth_stencil_format, const tr_clear_value* depth_stencil_clear_value, tr_render_target** pp_render_target);
+tr_api_export void tr_create_render_target(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, const tr_clear_value* color_clear_values, tr_format depth_stencil_format, const tr_clear_value* depth_stencil_clear_value, tr_render_target** pp_render_target);
 tr_api_export void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
+
+tr_api_export void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
 
 tr_api_export void tr_begin_cmd(tr_cmd* p_cmd);
 tr_api_export void tr_end_cmd(tr_cmd* p_cmd);
@@ -595,13 +611,15 @@ tr_api_export bool      tr_vertex_layout_support_format(tr_format format);
 tr_api_export uint32_t  tr_vertex_layout_stride(const tr_vertex_layout* p_vertex_layout);
 
 // Utility functions
+tr_api_export uint32_t           tr_util_calc_mip_levels(uint32_t width, uint32_t height);
 tr_api_export VkFormat           tr_util_to_vk_format(tr_format format);
 tr_api_export tr_format          tr_util_from_vk_format(VkFormat fomat);
 tr_api_export uint32_t           tr_util_format_stride(tr_format format);
+tr_api_export uint32_t           tr_util_format_channel_count(tr_format format);
 tr_api_export VkShaderStageFlags tr_util_to_vk_shader_stages(tr_shader_stage shader_stages);
 tr_api_export void               tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
-tr_api_export bool               tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn);
-tr_api_export bool               tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn);
+tr_api_export void               tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data);
+tr_api_export void               tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data);
 
 // =================================================================================================
 // IMPLEMENTATION
@@ -631,13 +649,24 @@ tr_api_export bool               tr_util_update_texture_float(tr_queue* p_queue,
             type var = {0};                        
 #endif
 
+static inline uint32_t tr_max(uint32_t a, uint32_t b) 
+{
+    return a > b ? a : b;
+}
+
+static inline uint32_t tr_min(uint32_t a, uint32_t b) 
+{
+    return a < b ? a : b;
+}
+
 // Internal utility functions (may become external one day)
-VkSampleCountFlagBits tr_to_vk_sample_count(tr_sample_count sample_count);
-VkBufferUsageFlags    tr_to_vk_buffer_usage(tr_buffer_usage usage);
-VkImageUsageFlags     tr_to_vk_image_usage(tr_texture_usage usage);
-VkImageLayout         tr_to_vk_image_layout(tr_texture_usage usage);
-VkImageAspectFlags    tr_vk_determine_aspect_mask(VkFormat format);
-bool                  tr_vk_get_memory_type(const VkPhysicalDeviceMemoryProperties* mem_props,  uint32_t type_bits, VkMemoryPropertyFlags flags, uint32_t* p_index);
+VkSampleCountFlagBits tr_util_to_vk_sample_count(tr_sample_count sample_count);
+VkBufferUsageFlags    tr_util_to_vk_buffer_usage(tr_buffer_usage usage);
+VkImageUsageFlags     tr_util_to_vk_image_usage(tr_texture_usage usage);
+VkImageLayout         tr_util_to_vk_image_layout(tr_texture_usage usage);
+VkImageAspectFlags    tr_util_vk_determine_aspect_mask(VkFormat format);
+bool                  tr_util_vk_get_memory_type(const VkPhysicalDeviceMemoryProperties* mem_props,  uint32_t type_bits, VkMemoryPropertyFlags flags, uint32_t* p_index);
+VkFormatFeatureFlags  tr_util_vk_image_usage_to_format_features(VkImageUsageFlags usage);
 
 // Internal init functions
 void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_renderer);
@@ -650,7 +679,6 @@ void tr_internal_vk_destroy_instance(tr_renderer* p_renderer);
 void tr_internal_vk_destroy_surface(tr_renderer* p_renderer);
 void tr_internal_vk_destroy_device(tr_renderer* p_renderer);
 void tr_internal_vk_destroy_swapchain(tr_renderer* p_renderer);
-
 
 // Internal create functions
 void tr_internal_vk_create_fence(tr_renderer *p_renderer, tr_fence* p_fence);
@@ -667,12 +695,17 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 void tr_internal_vk_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_texture);
 void tr_internal_vk_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture);
+void tr_internal_vk_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
+void tr_internal_vk_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* pp_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_vk_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program);
 void tr_internal_vk_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 void tr_internal_vk_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 void tr_internal_vk_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
+
+// Internal descriptor set functions
+void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
 
 // Internal command buffer functions
 void tr_internal_vk_begin_cmd(tr_cmd* p_cmd);
@@ -1400,6 +1433,9 @@ void tr_create_texture_2d(
     tr_texture**             pp_texture
 )
 {
+    if (tr_all_mip_levels == mip_levels) {
+        mip_levels = tr_util_calc_mip_levels(width, height);
+    }
     tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, clear_value, host_visible, usage, pp_texture);
 }
 
@@ -1426,6 +1462,28 @@ void tr_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
     tr_internal_vk_destroy_texture(p_renderer, p_texture);
 
     TINY_RENDERER_SAFE_FREE(p_texture);
+}
+
+void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+
+    tr_sampler* p_sampler = (tr_sampler*)calloc(1, sizeof(*p_sampler));
+    assert(NULL != p_sampler);
+
+    tr_internal_vk_create_sampler(p_renderer, p_sampler);
+
+    *pp_sampler = p_sampler;
+}
+
+void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(NULL != p_sampler);
+
+    tr_internal_vk_destroy_sampler(p_renderer, p_sampler);
+
+    TINY_RENDERER_SAFE_FREE(p_sampler);
 }
 
 void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
@@ -1610,6 +1668,17 @@ void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_rende
     }
 
     TINY_RENDERER_SAFE_FREE(p_render_target);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Descriptor set functions
+// -------------------------------------------------------------------------------------------------
+void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set)
+{
+    assert(NULL != p_renderer);
+    assert(NULL != p_descriptor_set);
+
+    tr_internal_vk_update_descriptor_set(p_renderer, p_descriptor_set);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1845,6 +1914,21 @@ uint32_t tr_vertex_layout_stride(const tr_vertex_layout* p_vertex_layout)
 // -------------------------------------------------------------------------------------------------
 // Utility functions
 // -------------------------------------------------------------------------------------------------
+uint32_t tr_util_calc_mip_levels(uint32_t width, uint32_t height)
+{
+    if (width == 0 || height == 0)
+        return 0;
+
+    uint32_t result = 1;
+    while (width > 1 || height > 1)
+    {
+        width >>= 1;
+        height >>= 1;
+        result++;
+    }
+    return result;
+}
+
 tr_api_export VkFormat tr_util_to_vk_format(tr_format format)
 {
     VkFormat result = VK_FORMAT_UNDEFINED;
@@ -1997,6 +2081,47 @@ uint32_t tr_util_format_stride(tr_format format)
     return result;
 }
 
+uint32_t tr_util_format_channel_count(tr_format format)
+{
+    uint32_t result = 0;
+    switch (format) {
+        // 1 channel
+        case tr_format_r8_unorm            : result = 1; break;
+        case tr_format_r16_unorm           : result = 1; break;
+        case tr_format_r16_float           : result = 1; break;
+        case tr_format_r32_uint            : result = 1; break;
+        case tr_format_r32_float           : result = 1; break;
+        // 2 channel
+        case tr_format_r8g8_unorm          : result = 2; break;
+        case tr_format_r16g16_unorm        : result = 2; break;
+        case tr_format_r16g16_float        : result = 2; break;
+        case tr_format_r32g32_uint         : result = 2; break;
+        case tr_format_r32g32_float        : result = 2; break;
+        // 3 channel
+        case tr_format_r8g8b8_unorm        : result = 3; break;
+        case tr_format_r16g16b16_unorm     : result = 3; break;
+        case tr_format_r16g16b16_float     : result = 3; break;
+        case tr_format_r32g32b32_uint      : result = 3; break;
+        case tr_format_r32g32b32_float     : result = 3; break;
+        // 4 channel
+        case tr_format_b8g8r8a8_unorm      : result = 4; break;
+        case tr_format_r8g8b8a8_unorm      : result = 4; break;
+        case tr_format_r16g16b16a16_unorm  : result = 4; break;
+        case tr_format_r16g16b16a16_float  : result = 4; break;
+        case tr_format_r32g32b32a32_uint   : result = 4; break;
+        case tr_format_r32g32b32a32_float  : result = 4; break;
+        // Depth/stencil
+        case tr_format_d16_unorm           : result = 0; break;
+        case tr_format_x8_d24_unorm_pack32 : result = 0; break;
+        case tr_format_d32_float           : result = 0; break;
+        case tr_format_s8_uint             : result = 0; break;
+        case tr_format_d16_unorm_s8_uint   : result = 0; break;
+        case tr_format_d24_unorm_s8_uint   : result = 0; break;
+        case tr_format_d32_float_s8_uint   : result = 0; break;
+    }
+    return result;
+}
+
 void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_queue);
@@ -2019,10 +2144,180 @@ void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_textu
     tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
 }
 
+bool tr_image_resize_uint8_t(
+    uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data,
+    uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, uint8_t* dst_data,
+    uint32_t channel_cout, void* user_data
+)
+{
+    float dx = (float)src_width / (float)dst_width;
+    float dy = (float)src_height / (float)dst_height;
+
+    const uint8_t src_pixel_stride = channel_cout;
+    const uint8_t dst_pixel_stride = channel_cout;
+
+    uint8_t* dst_row = dst_data;
+    for (uint32_t y = 0; y < dst_height; ++y) {
+        float src_x = 0;
+        float src_y = (float)y * dy;
+        uint8_t* dst_pixel = dst_row;
+        for (uint32_t x = 0; x < dst_width; ++x) {
+            const uint32_t src_offset = ((uint32_t)src_y * src_row_stride) + ((uint32_t)src_x * src_pixel_stride);
+            const uint8_t* src_pixel = src_data + src_offset;           
+            for (uint32_t c = 0; c < channel_cout; ++c) {
+                *(dst_pixel + c) = *(src_pixel + c);
+            }
+            src_x += dx;
+            dst_pixel += dst_pixel_stride;
+        }
+        dst_row += dst_row_stride;
+    }
+
+    return true;
+}
+
+void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data)
+{
+    assert(NULL != p_queue);
+    assert(NULL != p_src_data);
+    assert(NULL != p_texture);
+    assert(NULL != p_texture->vk_image);
+    assert((src_width > 0) && (src_height > 0) && (src_row_stride > 0));
+    assert(tr_sample_count_1 == p_texture->sample_count);
+
+    uint8_t* p_expanded_src_data = NULL;
+    const uint32_t dst_channel_count = tr_util_format_channel_count(p_texture->format);
+    assert(src_channel_count < dst_channel_count);
+
+    if (src_channel_count < dst_channel_count) {
+        uint32_t expanded_row_stride = src_width * dst_channel_count;
+        uint32_t expanded_size = expanded_row_stride * src_height;
+        p_expanded_src_data = (uint8_t*)calloc(1, expanded_size);
+        assert(NULL != p_expanded_src_data);
+
+        const uint32_t src_pixel_stride = src_channel_count;
+        const uint32_t expanded_pixel_stride = dst_channel_count;
+        const uint8_t* src_row = p_src_data;
+        uint8_t* expanded_row = p_expanded_src_data;
+        for (uint32_t y = 0; y < src_height; ++y) {
+            const uint8_t* src_pixel = src_row;
+            uint8_t* expanded_pixel = expanded_row;
+            for (uint32_t x = 0; x < src_width; ++x) {
+                uint32_t c = 0; 
+                for (; c < src_channel_count; ++c) {
+                    *(expanded_pixel + c) = *(src_pixel + c);
+                }
+                for (; c < dst_channel_count; ++c) {
+                    *(expanded_pixel + c) = 0xFF;
+                }
+                src_pixel += src_pixel_stride;
+                expanded_pixel += expanded_pixel_stride;
+            }
+            src_row += src_row_stride;
+            expanded_row += expanded_row_stride;
+        }
+        src_row_stride = expanded_row_stride;
+        src_channel_count = dst_channel_count;
+        p_src_data = p_expanded_src_data;
+    }
+
+    // Create temporary buffer big enough to fit all mip levels
+    TINY_RENDERER_DECLARE_ZERO(VkMemoryRequirements, mem_reqs);
+    vkGetImageMemoryRequirements(p_texture->renderer->vk_device, p_texture->vk_image, &mem_reqs);
+    tr_buffer* buffer = NULL;
+    tr_create_buffer(p_texture->renderer, tr_buffer_usage_transfer_src, mem_reqs.size, true, &buffer);
+    // Get resource layout for all mip levels
+    VkSubresourceLayout* subres_layouts = (VkSubresourceLayout*)calloc(p_texture->mip_levels, sizeof(*subres_layouts));
+    assert(NULL != subres_layouts);
+    VkImageAspectFlags aspect_mask = tr_util_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
+    for (uint32_t i = 0; i < p_texture->mip_levels; ++i) {
+        TINY_RENDERER_DECLARE_ZERO(VkImageSubresource, img_sub_res);
+        img_sub_res.aspectMask = aspect_mask;
+        img_sub_res.mipLevel   = i;
+        img_sub_res.arrayLayer = 0;
+        vkGetImageSubresourceLayout(p_texture->renderer->vk_device, p_texture->vk_image, &img_sub_res, &(subres_layouts[i]));
+    }    
+    // Use default simple resize if a resize function was not supplied
+    if (NULL == resize_fn) {
+        resize_fn = &tr_image_resize_uint8_t;
+    }
+    // Resize image into appropriate mip level
+    uint32_t dst_width = p_texture->width;
+    uint32_t dst_height = p_texture->height;
+    for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
+        VkSubresourceLayout* subres_layout = &subres_layouts[mip_level];
+        uint32_t dst_row_stride = subres_layout->rowPitch;
+        uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + subres_layout->offset;
+        resize_fn(src_width, src_height, src_row_stride, p_src_data, dst_width, dst_height, dst_row_stride, p_dst_data, dst_channel_count, p_user_data);
+
+        if (mip_level == 1) {
+            ci::Surface surf = ci::Surface(p_dst_data, dst_width, dst_height, dst_row_stride, ci::SurfaceChannelOrder::RGBA);
+            ci::writeImage("testme.png", surf);
+        }
+
+        dst_width >>= 1;
+        dst_height >>= 1;
+    }
+
+    {
+        const uint32_t region_count = p_texture->mip_levels;
+        VkBufferImageCopy* regions = (VkBufferImageCopy*)calloc(region_count, sizeof(*regions));
+        assert(NULL != regions);
+
+        dst_width = p_texture->width;
+        dst_height = p_texture->height;
+        for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
+            regions[mip_level].bufferOffset                    = subres_layouts[mip_level].offset;
+            regions[mip_level].bufferRowLength                 = dst_width;
+            regions[mip_level].bufferImageHeight               = dst_height;
+            regions[mip_level].imageSubresource.aspectMask     = aspect_mask;
+            regions[mip_level].imageSubresource.mipLevel       = mip_level;
+            regions[mip_level].imageSubresource.baseArrayLayer = 0;
+            regions[mip_level].imageSubresource.layerCount     = 1;
+            regions[mip_level].imageOffset.x                   = 0;
+            regions[mip_level].imageOffset.y                   = 0;
+            regions[mip_level].imageOffset.z                   = 0;
+            regions[mip_level].imageExtent.width               = dst_width;
+            regions[mip_level].imageExtent.height              = dst_height;
+            regions[mip_level].imageExtent.depth               = 1;
+            dst_width >>= 1;
+            dst_height >>= 1;
+        }
+        
+        tr_cmd_pool* p_cmd_pool = NULL;
+        tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+        tr_cmd* p_cmd = NULL;
+        tr_create_cmd(p_cmd_pool, false, &p_cmd);
+
+        tr_begin_cmd(p_cmd);
+        tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_undefined, tr_texture_usage_transfer_dst);
+        vkCmdCopyBufferToImage(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_texture->vk_image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region_count, regions);
+        tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
+        tr_end_cmd(p_cmd);
+
+        tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+        tr_queue_wait_idle(p_queue);
+
+        tr_destroy_cmd(p_cmd_pool, p_cmd);
+        tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+
+        TINY_RENDERER_SAFE_FREE(regions);
+    }
+
+    TINY_RENDERER_SAFE_FREE(subres_layouts);
+    TINY_RENDERER_SAFE_FREE(p_expanded_src_data);
+}
+
+void tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data)
+{
+}
+
 // -------------------------------------------------------------------------------------------------
 // Internal utility functions
 // -------------------------------------------------------------------------------------------------
-VkSampleCountFlagBits tr_to_vk_sample_count(tr_sample_count sample_count) 
+VkSampleCountFlagBits tr_util_to_vk_sample_count(tr_sample_count sample_count) 
 {
     VkSampleCountFlagBits result = VK_SAMPLE_COUNT_1_BIT;
     switch (sample_count) {
@@ -2035,7 +2330,7 @@ VkSampleCountFlagBits tr_to_vk_sample_count(tr_sample_count sample_count)
     return result;
 }
 
-VkBufferUsageFlags tr_to_vk_buffer_usage(tr_buffer_usage usage)
+VkBufferUsageFlags tr_util_to_vk_buffer_usage(tr_buffer_usage usage)
 {
     VkBufferUsageFlags result = 0;
     if (tr_buffer_usage_transfer_src == (usage & tr_buffer_usage_transfer_src)) {
@@ -2068,7 +2363,7 @@ VkBufferUsageFlags tr_to_vk_buffer_usage(tr_buffer_usage usage)
     return result;
 }
 
-VkImageUsageFlags tr_to_vk_image_usage(tr_texture_usage usage)
+VkImageUsageFlags tr_util_to_vk_image_usage(tr_texture_usage usage)
 {
     VkImageUsageFlags result = 0;
     if (tr_texture_usage_transfer_src == (usage & tr_texture_usage_transfer_src)) {
@@ -2093,7 +2388,7 @@ VkImageUsageFlags tr_to_vk_image_usage(tr_texture_usage usage)
 }
 
 
-VkImageLayout tr_to_vk_image_layout(tr_texture_usage usage)
+VkImageLayout tr_util_to_vk_image_layout(tr_texture_usage usage)
 {
     VkImageLayout result = VK_IMAGE_LAYOUT_UNDEFINED;
     switch(usage) {
@@ -2108,7 +2403,7 @@ VkImageLayout tr_to_vk_image_layout(tr_texture_usage usage)
     return result;
 }
 
-VkImageAspectFlags tr_vk_determine_aspect_mask(VkFormat format)
+VkImageAspectFlags tr_util_vk_determine_aspect_mask(VkFormat format)
 {
     VkImageAspectFlags result = 0;
     switch( format ) {
@@ -2136,7 +2431,7 @@ VkImageAspectFlags tr_vk_determine_aspect_mask(VkFormat format)
     return result;
 }
 
-bool tr_vk_get_memory_type(const VkPhysicalDeviceMemoryProperties* mem_props, uint32_t type_bits, VkMemoryPropertyFlags flags, uint32_t* p_index)
+bool tr_util_vk_get_memory_type(const VkPhysicalDeviceMemoryProperties* mem_props, uint32_t type_bits, VkMemoryPropertyFlags flags, uint32_t* p_index)
 {
     bool found = false; 
     for (uint32_t i = 0; i < mem_props->memoryTypeCount; ++i) {
@@ -2152,6 +2447,24 @@ bool tr_vk_get_memory_type(const VkPhysicalDeviceMemoryProperties* mem_props, ui
         type_bits >>= 1;
     }
     return found;
+}
+
+VkFormatFeatureFlags tr_util_vk_image_usage_to_format_features(VkImageUsageFlags usage)
+{
+    VkFormatFeatureFlags result = (VkFormatFeatureFlags)0;
+    if (VK_IMAGE_USAGE_SAMPLED_BIT== (usage & VK_IMAGE_USAGE_SAMPLED_BIT)) {
+        result |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+    }
+    if (VK_IMAGE_USAGE_STORAGE_BIT== (usage & VK_IMAGE_USAGE_STORAGE_BIT)) {
+        result |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+    }
+    if (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT== (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
+        result |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+    }
+    if (VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT== (usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+        result |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    }
+    return result;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -2821,7 +3134,7 @@ void tr_internal_vk_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         uint32_t type_index = UINT32_MAX;
         switch (descriptor->type) {
             case tr_descriptor_type_sampler        : type_index = VK_DESCRIPTOR_TYPE_SAMPLER; break;
-            case tr_descriptor_type_image          : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
+            case tr_descriptor_type_texture        : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
             case tr_descriptor_type_uniform_buffer : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; break;
         }
         if (UINT32_MAX != type_index) {
@@ -2960,7 +3273,7 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     create_info.pNext                 = NULL;
     create_info.flags                 = 0;
     create_info.size                  = p_buffer->size;
-    create_info.usage                 = tr_to_vk_buffer_usage(p_buffer->usage);
+    create_info.usage                 = tr_util_to_vk_buffer_usage(p_buffer->usage);
     create_info.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
     create_info.queueFamilyIndexCount = 0;
     create_info.pQueueFamilyIndices   = NULL;
@@ -2976,7 +3289,7 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     }
 
     uint32_t memory_type_index = UINT32_MAX;
-    assert(tr_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index));
+    assert(tr_util_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index));
 
     TINY_RENDERER_DECLARE_ZERO(VkMemoryAllocateInfo, alloc_info);
     alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -3027,16 +3340,42 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         create_info.extent.width          = p_texture->width;
         create_info.extent.height         = p_texture->height;
         create_info.extent.depth          = p_texture->depth;
-        create_info.mipLevels             = (0 != p_texture->host_visible) ? 1 : 1;
-        create_info.arrayLayers           = (0 != p_texture->host_visible) ? 1 : 1;
-        create_info.samples               = tr_to_vk_sample_count(p_texture->sample_count);
+        create_info.mipLevels             = p_texture->mip_levels;
+        create_info.arrayLayers           = p_texture->host_visible ? 1 : 1;
+        create_info.samples               = tr_util_to_vk_sample_count(p_texture->sample_count);
         create_info.tiling                = (0 != p_texture->host_visible) ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
-        create_info.usage                 = tr_to_vk_image_usage(p_texture->usage);
+        create_info.usage                 = tr_util_to_vk_image_usage(p_texture->usage);
         create_info.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
         create_info.queueFamilyIndexCount = 0;
         create_info.pQueueFamilyIndices   = NULL;
         create_info.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkResult vk_res = vkCreateImage(p_renderer->vk_device, &create_info, NULL, &(p_texture->vk_image));
+        if (VK_IMAGE_USAGE_SAMPLED_BIT & create_info.usage) {
+            // Make it easy to copy to and from textures
+            create_info.usage |= (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        }
+        // Verify that GPU supports this format
+        TINY_RENDERER_DECLARE_ZERO(VkFormatProperties, format_props);
+        vkGetPhysicalDeviceFormatProperties(p_renderer->vk_active_gpu, create_info.format, &format_props);
+        VkFormatFeatureFlags format_features = tr_util_vk_image_usage_to_format_features(create_info.usage);
+        if (p_texture->host_visible) {
+            VkFormatFeatureFlags flags = format_props.linearTilingFeatures & format_features;
+            assert((0 != flags) && "Format is not supported for host visible images");
+        }
+        else {
+            VkFormatFeatureFlags flags = format_props.optimalTilingFeatures & format_features;
+            assert((0 != flags) && "Format is not supported for GPU local images (i.e. not host visible images)");
+        }
+        // Apply some bounds to the image
+        TINY_RENDERER_DECLARE_ZERO(VkImageFormatProperties, image_format_props);
+        VkResult vk_res = vkGetPhysicalDeviceImageFormatProperties(p_renderer->vk_active_gpu, create_info.format,
+            create_info.imageType, create_info.tiling, create_info.usage, create_info.flags, &image_format_props);
+        assert(VK_SUCCESS == vk_res);
+        if (create_info.mipLevels > 1) {
+            p_texture->mip_levels = tr_min(p_texture->mip_levels, image_format_props.maxMipLevels);
+            create_info.mipLevels = p_texture->mip_levels;
+        }
+        // Create image
+        vk_res = vkCreateImage(p_renderer->vk_device, &create_info, NULL, &(p_texture->vk_image));
         assert(VK_SUCCESS == vk_res);
 
         TINY_RENDERER_DECLARE_ZERO(VkMemoryRequirements, mem_reqs);
@@ -3048,7 +3387,7 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         }
 
         uint32_t memory_type_index = UINT32_MAX;
-        assert(tr_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index));
+        assert(tr_util_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index));
 
         TINY_RENDERER_DECLARE_ZERO(VkMemoryAllocateInfo, alloc_info);
         alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -3090,7 +3429,7 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         create_info.components.g                    = VK_COMPONENT_SWIZZLE_G;
         create_info.components.b                    = VK_COMPONENT_SWIZZLE_B;
         create_info.components.a                    = VK_COMPONENT_SWIZZLE_A;
-        create_info.subresourceRange.aspectMask     = tr_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
+        create_info.subresourceRange.aspectMask     = tr_util_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
         create_info.subresourceRange.baseMipLevel   = 0;
         create_info.subresourceRange.levelCount     = p_texture->mip_levels;
         create_info.subresourceRange.baseArrayLayer = 0;
@@ -3100,6 +3439,9 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
 
         p_texture->vk_aspect_mask = create_info.subresourceRange.aspectMask;
     }
+
+    p_texture->vk_texture_view.imageView = p_texture->vk_image_view;
+    p_texture->vk_texture_view.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
 void tr_internal_vk_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -3122,6 +3464,43 @@ void tr_internal_vk_destroy_texture(tr_renderer* p_renderer, tr_texture* p_textu
     if (VK_NULL_HANDLE != p_texture->vk_image_view) {
         vkDestroyImageView(p_renderer->vk_device, p_texture->vk_image_view, NULL);
     }
+}
+
+void tr_internal_vk_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+{
+    assert(VK_NULL_HANDLE != p_renderer->vk_device);
+
+    TINY_RENDERER_DECLARE_ZERO(VkSamplerCreateInfo, create_info);
+    create_info.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    create_info.pNext                   = NULL;
+    create_info.flags                   = 0;
+    create_info.magFilter               = VK_FILTER_LINEAR;
+    create_info.minFilter               = VK_FILTER_LINEAR;
+    create_info.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    create_info.addressModeU            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    create_info.addressModeV            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    create_info.addressModeW            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    create_info.mipLodBias              = 0.0f;
+    create_info.anisotropyEnable        = VK_FALSE;
+    create_info.maxAnisotropy           = 1.0f;
+    create_info.compareEnable           = VK_FALSE;
+    create_info.compareOp               = VK_COMPARE_OP_NEVER;
+    create_info.minLod                  = 0.0f;
+    create_info.maxLod                  = 0.0f;
+    create_info.borderColor             = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+    create_info.unnormalizedCoordinates = VK_FALSE;
+    VkResult vk_res = vkCreateSampler(p_renderer->vk_device, &create_info, NULL, &(p_sampler->vk_sampler));
+    assert(VK_SUCCESS == vk_res);
+
+    p_sampler->vk_sampler_view.sampler = p_sampler->vk_sampler;
+}
+
+void tr_internal_vk_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+{
+    assert(VK_NULL_HANDLE != p_renderer->vk_device);
+    assert(VK_NULL_HANDLE != p_sampler->vk_sampler);
+
+    vkDestroySampler(p_renderer->vk_device, p_sampler->vk_sampler, NULL);
 }
 
 void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program)
@@ -3351,7 +3730,7 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         ms.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         ms.pNext                                    = NULL;
         ms.flags                                    = 0;
-        ms.rasterizationSamples                     = tr_to_vk_sample_count(p_render_target->sample_count);
+        ms.rasterizationSamples                     = tr_util_to_vk_sample_count(p_render_target->sample_count);
         ms.sampleShadingEnable                      = VK_FALSE;
         ms.minSampleShading                         = 0.0f;
         ms.pSampleMask                              = 0;
@@ -3496,7 +3875,7 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             // descriptions
             attachments[ssidx].flags          = 0;
             attachments[ssidx].format         = tr_util_to_vk_format(p_render_target->color_format);
-            attachments[ssidx].samples        = tr_to_vk_sample_count(tr_sample_count_1);
+            attachments[ssidx].samples        = tr_util_to_vk_sample_count(tr_sample_count_1);
             attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -3506,7 +3885,7 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
 
             attachments[msidx].flags          = 0;
             attachments[msidx].format         = tr_util_to_vk_format(p_render_target->color_format);
-            attachments[msidx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
+            attachments[msidx].samples        = tr_util_to_vk_sample_count(p_render_target->sample_count);
             attachments[msidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[msidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[msidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -3526,7 +3905,7 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             uint32_t idx = (2 * color_attachment_count);
             attachments[idx].flags          = 0;
             attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
-            attachments[idx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
+            attachments[idx].samples        = tr_util_to_vk_sample_count(p_render_target->sample_count);
             attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -3557,7 +3936,7 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             // descriptions
             attachments[ssidx].flags          = 0;
             attachments[ssidx].format         = tr_util_to_vk_format(p_render_target->color_format);
-            attachments[ssidx].samples        = tr_to_vk_sample_count(tr_sample_count_1);
+            attachments[ssidx].samples        = tr_util_to_vk_sample_count(tr_sample_count_1);
             attachments[ssidx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -3575,7 +3954,7 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             uint32_t idx = color_attachment_count;
             attachments[idx].flags          = 0;
             attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
-            attachments[idx].samples        = tr_to_vk_sample_count(p_render_target->sample_count);
+            attachments[idx].samples        = tr_util_to_vk_sample_count(p_render_target->sample_count);
             attachments[idx].loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -3693,6 +4072,78 @@ void tr_internal_vk_destroy_render_target(tr_renderer* p_renderer, tr_render_tar
 
     vkDestroyFramebuffer(p_renderer->vk_device, p_render_target->vk_framebuffer, NULL);
     vkDestroyRenderPass(p_renderer->vk_device, p_render_target->vk_render_pass, NULL);
+}
+
+// -------------------------------------------------------------------------------------------------
+// Internal descriptor set functions
+// -------------------------------------------------------------------------------------------------
+void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set)
+{
+    assert(VK_NULL_HANDLE != p_renderer->vk_device);
+    assert(VK_NULL_HANDLE != p_descriptor_set->vk_descriptor_set);
+
+    // Not really efficient, just write less frequently ;)
+    uint32_t write_count = 0;
+    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
+        if ((NULL != descriptor->sampler) || (NULL != descriptor->texture) || (NULL != descriptor->uniform_buffer)) {
+            ++write_count;
+        }
+    }
+    // Bail if there's nothing to write
+    if (0 == write_count) {
+        return;
+    }
+
+    VkWriteDescriptorSet* writes = (VkWriteDescriptorSet*)calloc(write_count, sizeof(*writes));
+    assert(NULL != writes);
+
+    uint32_t write_index = 0;
+    for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
+        tr_descriptor* descriptor = &(p_descriptor_set->descriptors[i]);
+        if ((NULL == descriptor->sampler) && (NULL == descriptor->texture) && (NULL == descriptor->uniform_buffer)) {
+            continue;
+        }
+
+        writes[write_index].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[write_index].pNext           = NULL;
+        writes[write_index].dstSet          = p_descriptor_set->vk_descriptor_set;
+        writes[write_index].dstBinding      = descriptor->binding;
+        writes[write_index].dstArrayElement = 0;
+        writes[write_index].descriptorCount = descriptor->count;
+        switch (descriptor->type) {
+            case tr_descriptor_type_sampler: {
+                assert(NULL != descriptor->sampler);
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+                writes[write_index].pImageInfo = &(descriptor->sampler->vk_sampler_view);
+            }
+            break;
+
+            case tr_descriptor_type_texture: {
+                assert(NULL != descriptor->texture);
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                writes[write_index].pImageInfo = &(descriptor->texture->vk_texture_view);
+            }
+            break;
+
+
+            case tr_descriptor_type_uniform_buffer: {
+                assert(NULL != descriptor->uniform_buffer);
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                writes[write_index].pBufferInfo = &(descriptor->uniform_buffer->vk_buffer_view);
+            }
+            break;
+        }
+
+        ++write_index;
+    }
+
+    uint32_t copy_count = 0;
+    VkCopyDescriptorSet* copies = NULL;
+
+    vkUpdateDescriptorSets(p_renderer->vk_device, write_count, writes, copy_count, copies);
+
+    TINY_RENDERER_SAFE_FREE(writes);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -3899,13 +4350,13 @@ void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
     VkDependencyFlags dependency_flags = 0;
     TINY_RENDERER_DECLARE_ZERO(VkImageMemoryBarrier, barrier);
 
-    barrier.oldLayout = tr_to_vk_image_layout(old_usage);
-    barrier.newLayout = tr_to_vk_image_layout(new_usage);
+    barrier.oldLayout = tr_util_to_vk_image_layout(old_usage);
+    barrier.newLayout = tr_util_to_vk_image_layout(new_usage);
 
     barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.pNext                           = NULL;
-    barrier.oldLayout                       = tr_to_vk_image_layout(old_usage);
-    barrier.newLayout                       = tr_to_vk_image_layout(new_usage);
+    barrier.oldLayout                       = tr_util_to_vk_image_layout(old_usage);
+    barrier.newLayout                       = tr_util_to_vk_image_layout(new_usage);
     barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
     barrier.image                           = p_texture->vk_image;

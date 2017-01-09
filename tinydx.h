@@ -234,7 +234,7 @@ typedef enum tr_format {
 typedef enum tr_descriptor_type {
     tr_descriptor_type_undefined = 0,
     tr_descriptor_type_sampler,
-    tr_descriptor_type_image,
+    tr_descriptor_type_texture,
     tr_descriptor_type_uniform_buffer,
 } tr_descriptor_type;
 
@@ -2271,7 +2271,7 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         uint32_t count = p_descriptor_set->descriptors[i].count;
         switch (p_descriptor_set->descriptors[i].type) {
             case tr_descriptor_type_sampler       : sampler_count   += count; break;
-            case tr_descriptor_type_image         : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_texture         : cbvsrvuav_count += count; break;
             case tr_descriptor_type_uniform_buffer: cbvsrvuav_count += count; break;
         }
     }
@@ -2650,7 +2650,7 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
             uint32_t count = p_descriptor_set->descriptors[i].count;
             switch (p_descriptor_set->descriptors[i].type) {
                 case tr_descriptor_type_sampler       : sampler_count   += count; break;
-                case tr_descriptor_type_image         : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_texture         : cbvsrvuav_count += count; break;
                 case tr_descriptor_type_uniform_buffer: cbvsrvuav_count += count; break;
             }
         }
@@ -2676,7 +2676,7 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
 
             bool assign_range = false;
             switch (descriptor->type) {
-                case tr_descriptor_type_image: {
+                case tr_descriptor_type_texture: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
                     assign_range = true;
