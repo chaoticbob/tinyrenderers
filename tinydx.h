@@ -116,6 +116,11 @@ enum {
 };
 #endif
 
+typedef enum tr_api {
+    tr_api_d3d12 = 0,
+    tr_api_vulkan
+} tr_api;
+
 typedef enum tr_log_type {
     tr_log_type_info = 0,
     tr_log_type_warn,
@@ -252,14 +257,14 @@ typedef enum tr_sample_count {
 
 typedef enum tr_shader_stage {
     tr_shader_stage_vert         = 0x00000001,
-    tr_shader_stage_tess_ctrl    = 0x00000002,
-    tr_shader_stage_tess_eval    = 0x00000004,
+    tr_shader_stage_tesc         = 0x00000002,
+    tr_shader_stage_tese         = 0x00000004,
     tr_shader_stage_geom         = 0x00000008,
     tr_shader_stage_frag         = 0x00000010,
     tr_shader_stage_comp         = 0x00000020,
     tr_shader_stage_all_graphics = 0x0000001F,
-    tr_shader_stage_hull         = tr_shader_stage_tess_ctrl,
-    tr_shader_stage_domn         = tr_shader_stage_tess_eval,
+    tr_shader_stage_hull         = tr_shader_stage_tesc,
+    tr_shader_stage_domn         = tr_shader_stage_tese,
 } tr_shader_stage;
 
 typedef enum tr_primitive_topo {
@@ -382,7 +387,8 @@ typedef struct tr_queue {
     UINT64                              dx_wait_idle_fence_value;
 } tr_queue;
 
-typedef struct tr_renderer {    
+typedef struct tr_renderer {
+    tr_api                              api;
     tr_renderer_settings                settings;
     tr_render_target**                  swapchain_render_targets;
     uint32_t                            swapchain_image_index;
@@ -675,6 +681,12 @@ static inline uint32_t tr_max(uint32_t a, uint32_t b)
 static inline uint32_t tr_min(uint32_t a, uint32_t b) 
 {
     return a < b ? a : b;
+}
+
+static inline uint32_t tr_round_up(uint32_t value, uint32_t multiple)
+{
+    assert(multiple);
+    return ((value + multiple - 1) / multiple) * multiple;
 }
 
 // Internal utility functions (may become external one day)
@@ -1462,8 +1474,8 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
     
     p_shader_program->renderer = p_renderer;
     p_shader_program->shader_stages |= (vert_size > 0) ? tr_shader_stage_vert : 0;
-    p_shader_program->shader_stages |= (hull_size > 0) ? tr_shader_stage_tess_ctrl : 0;
-    p_shader_program->shader_stages |= (domn_size > 0) ? tr_shader_stage_tess_eval : 0;
+    p_shader_program->shader_stages |= (hull_size > 0) ? tr_shader_stage_tesc : 0;
+    p_shader_program->shader_stages |= (domn_size > 0) ? tr_shader_stage_tese : 0;
     p_shader_program->shader_stages |= (geom_size > 0) ? tr_shader_stage_geom : 0;
     p_shader_program->shader_stages |= (frag_size > 0) ? tr_shader_stage_frag : 0;
 
@@ -2713,6 +2725,11 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 {
     assert(NULL != p_renderer->dx_device);
 
+    // Align the buffer size to multiples of 256
+    if (p_buffer->usage & tr_buffer_usage_uniform) {
+        p_buffer->size = tr_round_up(p_buffer->size, 256);
+    }
+
     D3D12_RESOURCE_DIMENSION res_dim = D3D12_RESOURCE_DIMENSION_BUFFER;
 
     TINY_RENDERER_DECLARE_ZERO(D3D12_HEAP_PROPERTIES, heap_props);
@@ -2744,8 +2761,25 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     desc.Width = padded_size;
 
     D3D12_RESOURCE_STATES res_states = D3D12_RESOURCE_STATE_COPY_DEST;
+    switch (p_buffer->usage) {
+        case tr_buffer_usage_uniform: {
+            res_states = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+        }
+        break;
+
+        case tr_buffer_usage_index: {
+            res_states = D3D12_RESOURCE_STATE_INDEX_BUFFER;
+        }
+        break;
+
+        case tr_buffer_usage_vertex: {
+            res_states = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+        }
+        break;
+    }
 
     if (p_buffer->host_visible) {
+        // D3D12_HEAP_TYPE_UPLOAD requires D3D12_RESOURCE_STATE_GENERIC_READ
         heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
         res_states = D3D12_RESOURCE_STATE_GENERIC_READ;
     }
@@ -2763,8 +2797,8 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     switch (p_buffer->usage) {
         case tr_buffer_usage_uniform: {
-            p_buffer->dx_index_buffer_view.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
-            p_buffer->dx_index_buffer_view.SizeInBytes    = (UINT)p_buffer->size;
+            p_buffer->dx_constant_buffer_view_desc.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
+            p_buffer->dx_constant_buffer_view_desc.SizeInBytes    = (UINT)p_buffer->size;
         }
         break;
 
@@ -3073,6 +3107,42 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
             D3D12_ROOT_PARAMETER*  param_10 = &parameters_10[parameter_count];
             param_11->ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
             param_10->ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+
+            // Start out with visibility on all shader stages
+            param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            uint32_t shader_stage_count = 0;
+            // Select one if there is only one
+            if (descriptor->shader_stages & tr_shader_stage_vert) {
+                param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+                param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+                ++shader_stage_count;
+            }
+            if (descriptor->shader_stages & tr_shader_stage_hull) {
+                param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_HULL;
+                param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_HULL;
+                ++shader_stage_count;
+            }
+            if (descriptor->shader_stages & tr_shader_stage_domn) {
+                param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_DOMAIN;
+                param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_DOMAIN;
+                ++shader_stage_count;
+            }
+            if (descriptor->shader_stages & tr_shader_stage_geom) {
+                param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_GEOMETRY;
+                param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_GEOMETRY;
+                ++shader_stage_count;
+            }
+            if (descriptor->shader_stages & tr_shader_stage_frag) {
+                param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+                ++shader_stage_count;
+            }
+            // Go back to all shader stages if there's more than one stage
+            if (shader_stage_count > 1) {
+                param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+                param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;                
+            }
 
             bool assign_range = false;
             switch (descriptor->type) {
@@ -3504,7 +3574,7 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
                     assert(NULL != descriptor->uniform_buffers[i]);
 
-                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
+                    ID3D12Resource* resource = descriptor->uniform_buffers[i]->dx_resource;
                     D3D12_CONSTANT_BUFFER_VIEW_DESC* view_desc = &(descriptor->uniform_buffers[i]->dx_constant_buffer_view_desc);
                     p_renderer->dx_device->CreateConstantBufferView(view_desc, handle);
                     handle.ptr += handle_inc_size;

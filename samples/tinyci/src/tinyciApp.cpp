@@ -37,6 +37,7 @@ private:
 
     tr_texture*         m_texture;
     tr_sampler*         m_sampler;
+    tr_buffer*          m_uniform_buffer;
 };
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
@@ -133,15 +134,19 @@ void TinyCiApp::setup()
 		                     hlsl->getSize(), (uint32_t*)(hlsl->getData()), "PSMain", &m_shader);
 #endif
 
-	std::vector<tr_descriptor> descriptors(2);
-	descriptors[0].type  = tr_descriptor_type_texture;
+	std::vector<tr_descriptor> descriptors(3);
+	descriptors[0].type  = tr_descriptor_type_uniform_buffer;
 	descriptors[0].count = 1;
 	descriptors[0].binding = 0;
-    descriptors[0].shader_stages = tr_shader_stage_frag;
-	descriptors[1].type  = tr_descriptor_type_sampler;
+    descriptors[0].shader_stages = tr_shader_stage_vert;
+	descriptors[1].type  = tr_descriptor_type_texture;
 	descriptors[1].count = 1;
 	descriptors[1].binding = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
+	descriptors[2].type  = tr_descriptor_type_sampler;
+	descriptors[2].count = 1;
+	descriptors[2].binding = 2;
+    descriptors[2].shader_stages = tr_shader_stage_frag;
 	tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
 	tr_vertex_layout vertex_layout = {};
@@ -177,8 +182,21 @@ void TinyCiApp::setup()
 
     tr_create_sampler(m_renderer, &m_sampler);
 
-    m_desc_set->descriptors[0].textures[0] = m_texture;
-    m_desc_set->descriptors[1].samplers[0] = m_sampler;
+    tr_create_uniform_buffer(m_renderer, sizeof(mat4), true, &m_uniform_buffer);
+#if defined(TINY_RENDERER_DX)
+    mat4 flip = mat4( 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+#elif defined(TINY_RENDERER_VK)
+    mat4 flip = mat4( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+#endif
+    mat4 proj = glm::perspective(toRadians(60.0f), getWindowAspectRatio(), 0.1f, 10000.0f);
+    mat4 view = glm::lookAt(vec3(0, 0, 1), vec3(0, 0, 0), vec3(0, 1, 0));
+    mat4 modl = glm::rotate(toRadians(00.0f), vec3(0, 0, 1)); 
+    mat4 mvp = flip * proj * view * modl;
+    memcpy(m_uniform_buffer->cpu_mapped_address, &mvp, sizeof(mvp));
+
+    m_desc_set->descriptors[0].uniform_buffers[0] = m_uniform_buffer;
+    m_desc_set->descriptors[1].textures[0]        = m_texture;
+    m_desc_set->descriptors[2].samplers[0]        = m_sampler;
     tr_update_descriptor_set(m_renderer, m_desc_set);
 }
 
@@ -215,7 +233,18 @@ void TinyCiApp::draw()
 
 	uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
 	tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
-	tr_render_target_set_color_clear_value(render_target, 0, 0.0f, 0.0f, 0.0f, 0.0f );
+	//tr_render_target_set_color_clear_value(render_target, 0, 0.0f, 0.0f, 0.0f, 0.0f );
+
+#if defined(TINY_RENDERER_DX)
+    mat4 flip = mat4( 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+#elif defined(TINY_RENDERER_VK)
+    mat4 flip = mat4( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+#endif
+    mat4 proj = glm::perspective(toRadians(60.0f), getWindowAspectRatio(), 0.1f, 10000.0f);
+    mat4 view = glm::lookAt(vec3(0, 0, 1), vec3(0, 0, 0), vec3(0, 1, 0));
+    mat4 modl = glm::rotate(t, vec3(0, 0, 1)); 
+    mat4 mvp = flip * proj * view * modl;
+    memcpy(m_uniform_buffer->cpu_mapped_address, &mvp, sizeof(mvp));
 
 	tr_cmd* cmd = m_cmds[frameIdx];
 

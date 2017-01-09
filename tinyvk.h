@@ -111,6 +111,11 @@ enum {
 };
 #endif
 
+typedef enum tr_api {
+    tr_api_vulkan = 0,
+    tr_api_d3d12
+} tr_api;
+
 typedef enum tr_log_type {
     tr_log_type_info = 0,
     tr_log_type_warn,
@@ -247,8 +252,8 @@ typedef enum tr_sample_count {
 
 typedef enum tr_shader_stage {
     tr_shader_stage_vert         = 0x00000001,
-    tr_shader_stage_tess_ctrl    = 0x00000002,
-    tr_shader_stage_tess_eval    = 0x00000004,
+    tr_shader_stage_tesc         = 0x00000002,
+    tr_shader_stage_tese         = 0x00000004,
     tr_shader_stage_geom         = 0x00000008,
     tr_shader_stage_frag         = 0x00000010,
     tr_shader_stage_comp         = 0x00000020,
@@ -372,7 +377,8 @@ typedef struct tr_queue {
     uint32_t                            vk_queue_family_index;
 } tr_queue;
 
-typedef struct tr_renderer {    
+typedef struct tr_renderer {
+    tr_api                              api;
     tr_renderer_settings                settings;
     tr_render_target**                  swapchain_render_targets;
     uint32_t                            swapchain_image_index;
@@ -467,8 +473,8 @@ typedef struct tr_shader_program {
     tr_renderer*                        renderer;
     uint32_t                            shader_stages;
     VkShaderModule                      vk_vert;
-    VkShaderModule                      vk_tess_ctrl;
-    VkShaderModule                      vk_tess_eval;
+    VkShaderModule                      vk_tesc;
+    VkShaderModule                      vk_tese;
     VkShaderModule                      vk_geom;
     VkShaderModule                      vk_frag;
     VkShaderModule                      vk_comp;
@@ -573,7 +579,7 @@ tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_text
 tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
 tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 
-tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
+tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** p_shader_program);
 tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 
@@ -661,6 +667,12 @@ static inline uint32_t tr_min(uint32_t a, uint32_t b)
     return a < b ? a : b;
 }
 
+static inline uint32_t tr_round_up(uint32_t value, uint32_t multiple)
+{
+    assert(multiple);
+    return ((value + multiple - 1) / multiple) * multiple;
+}
+
 // Internal utility functions (may become external one day)
 VkSampleCountFlagBits tr_util_to_vk_sample_count(tr_sample_count sample_count);
 VkBufferUsageFlags    tr_util_to_vk_buffer_usage(tr_buffer_usage usage);
@@ -701,7 +713,7 @@ void tr_internal_vk_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sample
 void tr_internal_vk_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* pp_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_vk_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
-void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program);
+void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program);
 void tr_internal_vk_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 void tr_internal_vk_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 void tr_internal_vk_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
@@ -1491,17 +1503,17 @@ void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
     TINY_RENDERER_SAFE_FREE(p_sampler);
 }
 
-void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
+void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     if (vert_size > 0) {
         assert(NULL != vert_code);
     }
-    if (tctl_size > 0) {
-        assert(NULL != tctl_code);
+    if (tesc_size > 0) {
+        assert(NULL != tesc_code);
     }
-    if (tevl_size > 0) {
-        assert(NULL != tevl_code);
+    if (tese_size > 0) {
+        assert(NULL != tese_code);
     }
     if (geom_size > 0) {
         assert(NULL != geom_code);
@@ -1515,12 +1527,12 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
     
     p_shader_program->renderer = p_renderer;
     p_shader_program->shader_stages |= (vert_size > 0) ? tr_shader_stage_vert : 0;
-    p_shader_program->shader_stages |= (tctl_size > 0) ? tr_shader_stage_tess_ctrl : 0;
-    p_shader_program->shader_stages |= (tevl_size > 0) ? tr_shader_stage_tess_eval : 0;
+    p_shader_program->shader_stages |= (tesc_size > 0) ? tr_shader_stage_tesc : 0;
+    p_shader_program->shader_stages |= (tese_size > 0) ? tr_shader_stage_tese : 0;
     p_shader_program->shader_stages |= (geom_size > 0) ? tr_shader_stage_geom : 0;
     p_shader_program->shader_stages |= (frag_size > 0) ? tr_shader_stage_frag : 0;
 
-    tr_internal_vk_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, tctl_size, tctl_code, tctl_enpt, tevl_size, tevl_code, tevl_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, p_shader_program);
+    tr_internal_vk_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, tesc_size, tesc_code, tesc_enpt, tese_size, tese_code, tese_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, p_shader_program);
 
     *pp_shader_program = p_shader_program;
 }
@@ -2025,10 +2037,10 @@ VkShaderStageFlags tr_util_to_vk_shader_stages(tr_shader_stage shader_stages)
         if (tr_shader_stage_vert == (shader_stages & tr_shader_stage_vert)) {
             result |= VK_SHADER_STAGE_VERTEX_BIT;
         }
-        if (tr_shader_stage_tess_ctrl == (shader_stages & tr_shader_stage_tess_ctrl)) {
+        if (tr_shader_stage_tesc == (shader_stages & tr_shader_stage_tesc)) {
             result |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
         }
-        if (tr_shader_stage_tess_eval == (shader_stages & tr_shader_stage_tess_eval)) {
+        if (tr_shader_stage_tese == (shader_stages & tr_shader_stage_tese)) {
             result |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
         }
         if (tr_shader_stage_geom == (shader_stages & tr_shader_stage_geom)) {
@@ -3191,6 +3203,7 @@ void tr_internal_vk_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         create_info.bindingCount = p_descriptor_set->descriptor_count;
         create_info.pBindings    = bindings;
         VkResult vk_res = vkCreateDescriptorSetLayout(p_renderer->vk_device, &create_info, NULL, &(p_descriptor_set->vk_descriptor_set_layout));
+        assert(VK_SUCCESS == vk_res);
     }
 
     // Allocate descriptor set
@@ -3277,6 +3290,11 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
 
+    // Align the buffer size to multiples of the dynamic uniform buffer minimum size
+    if (p_buffer->usage & tr_buffer_usage_uniform) {
+        p_buffer->size = tr_round_up(p_buffer->size, p_renderer->vk_active_gpu_properties.limits.minUniformBufferOffsetAlignment);
+    }
+
     TINY_RENDERER_DECLARE_ZERO(VkBufferCreateInfo, create_info);
     create_info.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     create_info.pNext                 = NULL;
@@ -3314,6 +3332,12 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     if (p_buffer->host_visible) {
         vk_res = vkMapMemory(p_renderer->vk_device, p_buffer->vk_memory, 0, VK_WHOLE_SIZE, 0, &(p_buffer->cpu_mapped_address));
         assert(VK_SUCCESS == vk_res);
+    }
+
+    if (p_buffer->usage & tr_buffer_usage_uniform) {
+        p_buffer->vk_buffer_view.buffer = p_buffer->vk_buffer;
+        p_buffer->vk_buffer_view.offset = 0;
+        p_buffer->vk_buffer_view.range  = VK_WHOLE_SIZE;
     }
 }
 
@@ -3512,7 +3536,7 @@ void tr_internal_vk_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampl
     vkDestroySampler(p_renderer->vk_device, p_sampler->vk_sampler, NULL);
 }
 
-void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tctl_size, const void* tctl_code, const char* tctl_enpt, uint32_t tevl_size, const void* tevl_code, const char* tevl_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program)
+void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
 
@@ -3530,16 +3554,16 @@ void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert
                     VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_vert));
                     assert(VK_SUCCESS == vk_res);
                 } break;
-                case tr_shader_stage_tess_ctrl: {
-                    create_info.codeSize = tctl_size;
-                    create_info.pCode = (const uint32_t*)tctl_code;
-                    VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_tess_ctrl));
+                case tr_shader_stage_tesc: {
+                    create_info.codeSize = tesc_size;
+                    create_info.pCode = (const uint32_t*)tesc_code;
+                    VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_tesc));
                     assert(VK_SUCCESS == vk_res);
                 } break;
-                case tr_shader_stage_tess_eval: {
-                    create_info.codeSize = tevl_size;
-                    create_info.pCode = (const uint32_t*)tevl_code;
-                    VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_tess_eval));
+                case tr_shader_stage_tese: {
+                    create_info.codeSize = tese_size;
+                    create_info.pCode = (const uint32_t*)tese_code;
+                    VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_tese));
                     assert(VK_SUCCESS == vk_res);
                 } break;
                 case tr_shader_stage_geom: {
@@ -3567,12 +3591,12 @@ void tr_internal_vk_destroy_shader_program(tr_renderer* p_renderer, tr_shader_pr
         vkDestroyShaderModule(p_renderer->vk_device, p_shader_program->vk_vert, NULL);
     }
 
-    if (VK_NULL_HANDLE != p_shader_program->vk_tess_ctrl) {
-        vkDestroyShaderModule(p_renderer->vk_device, p_shader_program->vk_tess_ctrl, NULL);
+    if (VK_NULL_HANDLE != p_shader_program->vk_tesc) {
+        vkDestroyShaderModule(p_renderer->vk_device, p_shader_program->vk_tesc, NULL);
     }
 
-    if (VK_NULL_HANDLE != p_shader_program->vk_tess_eval) {
-        vkDestroyShaderModule(p_renderer->vk_device, p_shader_program->vk_tess_eval, NULL);
+    if (VK_NULL_HANDLE != p_shader_program->vk_tese) {
+        vkDestroyShaderModule(p_renderer->vk_device, p_shader_program->vk_tese, NULL);
     }
 
     if (VK_NULL_HANDLE != p_shader_program->vk_geom) {
@@ -3587,7 +3611,7 @@ void tr_internal_vk_destroy_shader_program(tr_renderer* p_renderer, tr_shader_pr
 void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
-    assert((VK_NULL_HANDLE != p_shader_program->vk_vert) || (VK_NULL_HANDLE != p_shader_program->vk_tess_ctrl) || (VK_NULL_HANDLE != p_shader_program->vk_tess_eval) || (VK_NULL_HANDLE != p_shader_program->vk_geom) || (VK_NULL_HANDLE != p_shader_program->vk_frag));
+    assert((VK_NULL_HANDLE != p_shader_program->vk_vert) || (VK_NULL_HANDLE != p_shader_program->vk_tesc) || (VK_NULL_HANDLE != p_shader_program->vk_tese) || (VK_NULL_HANDLE != p_shader_program->vk_geom) || (VK_NULL_HANDLE != p_shader_program->vk_frag));
     assert(VK_NULL_HANDLE != p_render_target->vk_render_pass);
 
     // Pipeline layout
@@ -3621,13 +3645,13 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
                         stages[stage_count].stage  = VK_SHADER_STAGE_VERTEX_BIT; 
                         stages[stage_count].module = p_shader_program->vk_vert;
                     } break;
-                    case tr_shader_stage_tess_ctrl: {
+                    case tr_shader_stage_tesc: {
                         stages[stage_count].stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT; 
-                        stages[stage_count].module = p_shader_program->vk_tess_ctrl;
+                        stages[stage_count].module = p_shader_program->vk_tesc;
                     } break;
-                    case tr_shader_stage_tess_eval: {
+                    case tr_shader_stage_tese: {
                         stages[stage_count].stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-                        stages[stage_count].module = p_shader_program->vk_tess_eval;
+                        stages[stage_count].module = p_shader_program->vk_tese;
                     } break;
                     case tr_shader_stage_geom: {
                         stages[stage_count].stage = VK_SHADER_STAGE_GEOMETRY_BIT; 
@@ -4151,6 +4175,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         switch (descriptor->type) {
             case tr_descriptor_type_sampler: {
                 assert(NULL != descriptor->samplers);
+
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
                 writes[write_index].pImageInfo = &(sampler_views[sampler_veww_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
@@ -4164,6 +4189,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
             case tr_descriptor_type_texture: {
                 assert(NULL != descriptor->textures);
+
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
                 writes[write_index].pImageInfo = &(texture_views[texture_view_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
@@ -4177,6 +4203,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
             case tr_descriptor_type_uniform_buffer: {
                 assert(NULL != descriptor->uniform_buffers);
+
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 writes[write_index].pBufferInfo = &(uniform_buffer_views[uniform_buffer_view_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
