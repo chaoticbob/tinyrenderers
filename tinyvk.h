@@ -2269,12 +2269,6 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         uint32_t dst_row_stride = subres_layout->rowPitch;
         uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + subres_layout->offset;
         resize_fn(src_width, src_height, src_row_stride, p_src_data, dst_width, dst_height, dst_row_stride, p_dst_data, dst_channel_count, p_user_data);
-
-        if (mip_level == 1) {
-            ci::Surface surf = ci::Surface(p_dst_data, dst_width, dst_height, dst_row_stride, ci::SurfaceChannelOrder::RGBA);
-            ci::writeImage("testme.png", surf);
-        }
-
         dst_width >>= 1;
         dst_height >>= 1;
     }
