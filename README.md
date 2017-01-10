@@ -12,6 +12,7 @@
  - Configurable swapchain multi-sample
  - Configurable swapchain imagecount
  - Configurable swapchain depth/stencil attachment
+ - Samples using Cinder and GLFW
  - ...more to come soon
 
 #### Notes
