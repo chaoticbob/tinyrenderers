@@ -3289,7 +3289,9 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     // Align the buffer size to multiples of the dynamic uniform buffer minimum size
     if (p_buffer->usage & tr_buffer_usage_uniform) {
-        p_buffer->size = tr_round_up(p_buffer->size, p_renderer->vk_active_gpu_properties.limits.minUniformBufferOffsetAlignment);
+        // Make minimum size 256 bytes to match D3D12
+        p_buffer->size = tr_round_up(tr_max(p_buffer->size, 256), 
+                                     p_renderer->vk_active_gpu_properties.limits.minUniformBufferOffsetAlignment);
     }
 
     TINY_RENDERER_DECLARE_ZERO(VkBufferCreateInfo, create_info);

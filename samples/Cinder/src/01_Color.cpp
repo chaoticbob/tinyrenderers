@@ -130,8 +130,8 @@ void ColorApp::setup()
 #elif defined(TINY_RENDERER_DX)
 	auto hlsl = loadFile(getAssetPath("color.hlsl"))->getBuffer();	
 	tr_create_shader_program(m_renderer, 
-                             hlsl->getSize(), (uint32_t*)(hlsl->getData()), "VSMain", 
-		                     hlsl->getSize(), (uint32_t*)(hlsl->getData()), "PSMain", &m_shader);
+                             hlsl->getSize(), hlsl->getData(), "VSMain", 
+		                     hlsl->getSize(), hlsl->getData(), "PSMain", &m_shader);
 #endif
 
 	tr_vertex_layout vertex_layout = {};

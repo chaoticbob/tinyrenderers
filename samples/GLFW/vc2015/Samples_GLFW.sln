@@ -5,6 +5,10 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "01_Color", "01_Color.vcxproj", "{2197C576-52A3-4663-9026-4D0D620F27BE}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "02_Texture", "02_Texture.vcxproj", "{1B892A2E-BA71-42AB-B867-2D3628493DCE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "03_UniformBuffer", "03_UniformBuffer.vcxproj", "{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		DebugDx|x64 = DebugDx|x64
@@ -21,6 +25,22 @@ Global
 		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
 		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
 		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.DebugDx|x64.Build.0 = DebugDx|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.DebugVk|x64.Build.0 = DebugVk|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.ReleaseDx|x64.ActiveCfg = ReleaseDx|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
+		{1B892A2E-BA71-42AB-B867-2D3628493DCE}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.DebugDx|x64.Build.0 = DebugDx|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.DebugVk|x64.Build.0 = DebugVk|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.ReleaseDx|x64.ActiveCfg = ReleaseDx|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
+		{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
