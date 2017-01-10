@@ -13,7 +13,9 @@
  - Configurable swapchain imagecount
  - Configurable swapchain depth/stencil attachment
  - Samples using Cinder and GLFW
-   - GLFW works for both Vulkan and D3D12 - renderer takes over after window handle is obtained
+   - GLFW
+     - Works for both Vulkan and D3D12 - renderer takes over after window handle is obtained
+     - Image loading done via [stb_image](https://github.com/nothings/stb)
  - ...more to come soon
 
 #### Notes
