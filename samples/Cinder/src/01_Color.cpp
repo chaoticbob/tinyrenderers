@@ -78,19 +78,23 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 void ColorApp::setup()
 {
 	std::vector<const char*> instance_layers = {
+#if defined(_DEBUG)
 		"VK_LAYER_LUNARG_api_dump",
 		"VK_LAYER_LUNARG_core_validation",
 		"VK_LAYER_LUNARG_swapchain",
 		"VK_LAYER_LUNARG_image",
 		"VK_LAYER_LUNARG_parameter_validation"
+#endif
 	};
 
 	std::vector<const char*> device_layers = {
+#if defined(_DEBUG)
 		"VK_LAYER_LUNARG_api_dump",
 		"VK_LAYER_LUNARG_core_validation",
 		"VK_LAYER_LUNARG_swapchain",
 		"VK_LAYER_LUNARG_image",
 		"VK_LAYER_LUNARG_parameter_validation"
+#endif
 	};
 
 	tr_renderer_settings settings = {0};

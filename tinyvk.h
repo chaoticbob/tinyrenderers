@@ -3313,7 +3313,8 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     }
 
     uint32_t memory_type_index = UINT32_MAX;
-    assert(tr_util_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index));
+    bool found_memmory = tr_util_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index);
+    assert(found_memmory);
 
     TINY_RENDERER_DECLARE_ZERO(VkMemoryAllocateInfo, alloc_info);
     alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -3417,7 +3418,8 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         }
 
         uint32_t memory_type_index = UINT32_MAX;
-        assert(tr_util_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index));
+        bool found_memory = tr_util_vk_get_memory_type(&p_renderer->vk_memory_properties, mem_reqs.memoryTypeBits, mem_flags, &memory_type_index);
+        assert(found_memory);
 
         TINY_RENDERER_DECLARE_ZERO(VkMemoryAllocateInfo, alloc_info);
         alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;

@@ -395,7 +395,7 @@ typedef struct tr_renderer {
     tr_fence**                          image_acquired_fences;
     tr_semaphore**                      image_acquired_semaphores;
     tr_semaphore**                      render_complete_semaphores;
-#if defined( _DEBUG )
+#if defined(_DEBUG)
     ID3D12Debug*                        dx_debug_ctrl;
 #endif
     IDXGIFactory5*                      dx_factory;
@@ -2508,7 +2508,9 @@ void tr_internal_dx_destroy_device(tr_renderer* p_renderer)
     }
 
     TINY_RENDERER_SAFE_RELEASE(p_renderer->dx_factory);
+#if defined(_DEBUG)
     TINY_RENDERER_SAFE_RELEASE(p_renderer->dx_debug_ctrl);
+#endif
 }
 
 void tr_internal_dx_destroy_swapchain(tr_renderer* p_renderer)
