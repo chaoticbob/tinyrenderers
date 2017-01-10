@@ -15,10 +15,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{B1515861-7FB3-4911-895B-9A0F966A68D3}</ProjectGuid>
+    <ProjectGuid>{C180917C-3948-4DA3-99E0-305451E98DEA}</ProjectGuid>
     <RootNamespace>tinyci</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <ProjectName>01_Color</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -57,6 +58,15 @@
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='DebugVk|x64'">true</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='DebugDx|x64'">true</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugDx|x64'">
+    <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugVk|x64'">
+    <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IntDir>$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugVk|x64'">
     <ClCompile>
@@ -141,11 +151,10 @@
   <ItemGroup>
     <ResourceCompile Include="Resources.rc" />
   </ItemGroup>
-  <ItemGroup />
-  <ItemGroup />
   <ItemGroup>
-    <ClCompile Include="..\src\TinyCiApp.cpp" />
+    <ClCompile Include="..\src\01_Color.cpp" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <ClInclude Include="..\..\..\tinyci.h" />
     <ClInclude Include="..\..\..\tinydx.h" />

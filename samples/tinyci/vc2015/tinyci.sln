@@ -2,7 +2,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tinyci", "tinyci.vcxproj", "{B1515861-7FB3-4911-895B-9A0F966A68D3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "03_UniformBuffer", "01_Color.vcxproj", "{B1515861-7FB3-4911-895B-9A0F966A68D3}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "02_Texture", "02_Texture.vcxproj", "{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "01_Color", "03_UniformBuffer.vcxproj", "{C180917C-3948-4DA3-99E0-305451E98DEA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,6 +21,18 @@ Global
 		{B1515861-7FB3-4911-895B-9A0F966A68D3}.DebugVk|x64.Build.0 = DebugVk|x64
 		{B1515861-7FB3-4911-895B-9A0F966A68D3}.Release|x64.ActiveCfg = Release|x64
 		{B1515861-7FB3-4911-895B-9A0F966A68D3}.Release|x64.Build.0 = Release|x64
+		{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}.DebugDx|x64.Build.0 = DebugDx|x64
+		{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}.DebugVk|x64.Build.0 = DebugVk|x64
+		{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}.Release|x64.ActiveCfg = Release|x64
+		{8BAF4C9E-BFC5-4603-8246-24DEC4653C26}.Release|x64.Build.0 = Release|x64
+		{C180917C-3948-4DA3-99E0-305451E98DEA}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{C180917C-3948-4DA3-99E0-305451E98DEA}.DebugDx|x64.Build.0 = DebugDx|x64
+		{C180917C-3948-4DA3-99E0-305451E98DEA}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{C180917C-3948-4DA3-99E0-305451E98DEA}.DebugVk|x64.Build.0 = DebugVk|x64
+		{C180917C-3948-4DA3-99E0-305451E98DEA}.Release|x64.ActiveCfg = Release|x64
+		{C180917C-3948-4DA3-99E0-305451E98DEA}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

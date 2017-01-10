@@ -283,7 +283,7 @@ typedef enum tr_semantic {
     tr_semantic_undefined = 0,
     tr_semantic_position,
     tr_semantic_normal,
-    tr_seamntic_color,
+    tr_semantic_color,
     tr_semantic_tangent,
     tr_semantic_bitangent,
     tr_semantic_texcoord0,
@@ -604,7 +604,7 @@ tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uin
 tr_api_export void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
-tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
+tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
 tr_api_export void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
 tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
@@ -736,10 +736,10 @@ void tr_internal_dx_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint3
 void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
-void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
+void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
 void tr_internal_dx_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 void tr_internal_dx_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
-void tr_internal_dx_cmd_draw_indexed(uint32_t index_count, uint32_t first_index);
+void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
 void tr_internal_dx_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
@@ -1720,12 +1720,12 @@ void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_desc
     tr_internal_dx_cmd_bind_descriptor_sets(p_cmd, p_pipeline, p_descriptor_set);
 }
 
-void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
+void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer)
 {
     assert(NULL != p_cmd);
     assert(NULL != p_buffer);
 
-    tr_internal_dx_cmd_bind_index_buffer(p_cmd, p_buffer, index_type);
+    tr_internal_dx_cmd_bind_index_buffer(p_cmd, p_buffer);
 }
 
 void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers)
@@ -1742,6 +1742,14 @@ void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex)
     assert(NULL != p_cmd);
 
     tr_internal_dx_cmd_draw(p_cmd, vertex_count, first_vertex);
+}
+
+
+void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index)
+{
+    assert(NULL != p_cmd);
+
+    tr_internal_dx_cmd_draw_indexed(p_cmd, index_count, first_index);
 }
 
 void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
@@ -2222,96 +2230,6 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
     TINY_RENDERER_SAFE_FREE(subres_layouts);
     TINY_RENDERER_SAFE_FREE(subres_rowcounts);
     TINY_RENDERER_SAFE_FREE(subres_row_strides);
-
-/*
-    // Create temporary buffer big enough to fit all mip levels
-    TINY_RENDERER_DECLARE_ZERO(VkMemoryRequirements, mem_reqs);
-    vkGetImageMemoryRequirements(p_texture->renderer->vk_device, p_texture->vk_image, &mem_reqs);
-    tr_buffer* buffer = NULL;
-    tr_create_buffer(p_texture->renderer, tr_buffer_usage_transfer_src, mem_reqs.size, true, &buffer);
-    // Get resource layout for all mip levels
-    VkSubresourceLayout* subres_layouts = (VkSubresourceLayout*)calloc(p_texture->mip_levels, sizeof(*subres_layouts));
-    assert(NULL != subres_layouts);
-    VkImageAspectFlags aspect_mask = tr_util_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
-    for (uint32_t i = 0; i < p_texture->mip_levels; ++i) {
-        TINY_RENDERER_DECLARE_ZERO(VkImageSubresource, img_sub_res);
-        img_sub_res.aspectMask = aspect_mask;
-        img_sub_res.mipLevel   = i;
-        img_sub_res.arrayLayer = 0;
-        vkGetImageSubresourceLayout(p_texture->renderer->vk_device, p_texture->vk_image, &img_sub_res, &(subres_layouts[i]));
-    }    
-    // Use default simple resize if a resize function was not supplied
-    if (NULL == resize_fn) {
-        resize_fn = &tr_image_resize_uint8_t;
-    }
-    // Resize image into appropriate mip level
-    uint32_t dst_width = p_texture->width;
-    uint32_t dst_height = p_texture->height;
-    for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
-        VkSubresourceLayout* subres_layout = &subres_layouts[mip_level];
-        uint32_t dst_row_stride = subres_layout->rowPitch;
-        uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + subres_layout->offset;
-        resize_fn(src_width, src_height, src_row_stride, p_src_data, dst_width, dst_height, dst_row_stride, p_dst_data, dst_channel_count, p_user_data);
-
-        if (mip_level == 1) {
-            ci::Surface surf = ci::Surface(p_dst_data, dst_width, dst_height, dst_row_stride, ci::SurfaceChannelOrder::RGBA);
-            ci::writeImage("testme.png", surf);
-        }
-
-        dst_width >>= 1;
-        dst_height >>= 1;
-    }
-
-    {
-        const uint32_t region_count = p_texture->mip_levels;
-        VkBufferImageCopy* regions = (VkBufferImageCopy*)calloc(region_count, sizeof(*regions));
-        assert(NULL != regions);
-
-        dst_width = p_texture->width;
-        dst_height = p_texture->height;
-        for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
-            regions[mip_level].bufferOffset                    = subres_layouts[mip_level].offset;
-            regions[mip_level].bufferRowLength                 = dst_width;
-            regions[mip_level].bufferImageHeight               = dst_height;
-            regions[mip_level].imageSubresource.aspectMask     = aspect_mask;
-            regions[mip_level].imageSubresource.mipLevel       = mip_level;
-            regions[mip_level].imageSubresource.baseArrayLayer = 0;
-            regions[mip_level].imageSubresource.layerCount     = 1;
-            regions[mip_level].imageOffset.x                   = 0;
-            regions[mip_level].imageOffset.y                   = 0;
-            regions[mip_level].imageOffset.z                   = 0;
-            regions[mip_level].imageExtent.width               = dst_width;
-            regions[mip_level].imageExtent.height              = dst_height;
-            regions[mip_level].imageExtent.depth               = 1;
-            dst_width >>= 1;
-            dst_height >>= 1;
-        }
-        
-        tr_cmd_pool* p_cmd_pool = NULL;
-        tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
-
-        tr_cmd* p_cmd = NULL;
-        tr_create_cmd(p_cmd_pool, false, &p_cmd);
-
-        tr_begin_cmd(p_cmd);
-        tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_undefined, tr_texture_usage_transfer_dst);
-        vkCmdCopyBufferToImage(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_texture->vk_image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region_count, regions);
-        tr_internal_vk_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
-        tr_end_cmd(p_cmd);
-
-        tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
-        tr_queue_wait_idle(p_queue);
-
-        tr_destroy_cmd(p_cmd_pool, p_cmd);
-        tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
-
-        TINY_RENDERER_SAFE_FREE(regions);
-    }
-
-    TINY_RENDERER_SAFE_FREE(subres_layouts);
-    TINY_RENDERER_SAFE_FREE(p_expanded_src_data);
-*/
 }
 
 void tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data)
@@ -3325,7 +3243,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
             switch (attrib->semantic) {
                 case tr_semantic_position  : sprintf_s(name, "POSITION"); break;
                 case tr_semantic_normal    : sprintf_s(name, "NORMAL"); break;
-                case tr_seamntic_color     : sprintf_s(name, "COLOR"); break;
+                case tr_semantic_color     : sprintf_s(name, "COLOR"); break;
                 case tr_semantic_tangent   : sprintf_s(name, "TANGENT"); break;
                 case tr_semantic_bitangent : sprintf_s(name, "BITANGENT"); break;
                 case tr_semantic_texcoord0 : sprintf_s(name, "TEXCOORD"); break;
@@ -3776,7 +3694,7 @@ void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
     }
 }
 
-void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
+void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer)
 {
     assert(NULL != p_cmd->dx_cmd_list);
 
@@ -3807,6 +3725,19 @@ void tr_internal_dx_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t firs
         (UINT)vertex_count,
         (UINT)1,
         (UINT)first_vertex,
+        (UINT)0
+    );
+}
+
+void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index)
+{
+    assert(NULL != p_cmd->dx_cmd_list);
+
+    p_cmd->dx_cmd_list->DrawIndexedInstanced(
+        (UINT)index_count,
+        (UINT)1,
+        (UINT)first_index,
+        (UINT)0,
         (UINT)0
     );
 }

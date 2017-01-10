@@ -274,7 +274,7 @@ typedef enum tr_semantic {
     tr_semantic_undefined = 0,
     tr_semantic_position,
     tr_semantic_normal,
-    tr_seamntic_color,
+    tr_semantic_color,
     tr_semantic_tangent,
     tr_semantic_bitangent,
     tr_semantic_texcoord0,
@@ -595,7 +595,7 @@ tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float widt
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
-tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
+tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
 tr_api_export void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
 tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
@@ -727,10 +727,10 @@ void tr_internal_vk_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint3
 void tr_cmd_internal_vk_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 void tr_internal_vk_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
-void tr_internal_vk_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type);
+void tr_internal_vk_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
 void tr_internal_vk_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 void tr_internal_vk_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
-void tr_internal_vk_cmd_draw_indexed(uint32_t index_count, uint32_t first_index);
+void tr_internal_vk_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
 void tr_internal_vk_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
@@ -1768,12 +1768,12 @@ void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_desc
     tr_internal_vk_cmd_bind_descriptor_sets(p_cmd, p_pipeline, p_descriptor_set);
 }
 
-void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
+void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer)
 {
     assert(NULL != p_cmd);
     assert(NULL != p_buffer);
 
-    tr_internal_vk_cmd_bind_index_buffer(p_cmd, p_buffer, index_type);
+    tr_internal_vk_cmd_bind_index_buffer(p_cmd, p_buffer);
 }
 
 void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers)
@@ -1790,6 +1790,13 @@ void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex)
     assert(NULL != p_cmd);
 
     tr_internal_vk_cmd_draw(p_cmd, vertex_count, first_vertex);
+}
+
+void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index)
+{
+    assert(NULL != p_cmd);
+
+    tr_internal_vk_cmd_draw_indexed(p_cmd, index_count, first_index);
 }
 
 void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
@@ -4376,11 +4383,11 @@ void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
                             1, &(p_descriptor_set->vk_descriptor_set), 0, NULL);
 }
 
-void tr_internal_vk_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_index_type index_type)
+void tr_internal_vk_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer)
 {
     assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
 
-    VkIndexType vk_index_type = (tr_index_type_uint16 == index_type) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
+    VkIndexType vk_index_type = (tr_index_type_uint16 == p_buffer->index_type) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
     vkCmdBindIndexBuffer(p_cmd->vk_cmd_buf, p_buffer->vk_buffer, 0, vk_index_type);
 }
 
@@ -4408,7 +4415,14 @@ void tr_internal_vk_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t firs
 {
     assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
 
-    vkCmdDraw(p_cmd->vk_cmd_buf, vertex_count, 1, 0, 0);
+    vkCmdDraw(p_cmd->vk_cmd_buf, vertex_count, 1, first_vertex, 0);
+}
+
+void tr_internal_vk_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index)
+{
+    assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
+
+    vkCmdDrawIndexed(p_cmd->vk_cmd_buf, index_count, 1, first_index, 0, 0);
 }
 
 void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)

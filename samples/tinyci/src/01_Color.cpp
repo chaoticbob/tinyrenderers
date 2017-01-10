@@ -13,12 +13,9 @@ using namespace ci::app;
 	#include "tinyvk.h"
 #endif
 
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include "stb_image_resize.h"
-
 const uint32_t kImageCount = 3;
 
-class TinyCiApp : public App {
+class ColorApp : public App {
 public:
 	void setup() override;
 	void cleanup() override;
@@ -28,16 +25,13 @@ public:
 
 private:
 	tr_renderer*		m_renderer = nullptr;
-	tr_descriptor_set*	m_desc_set = nullptr;
-	tr_cmd_pool*		m_cmd_pool;
-	tr_cmd**			m_cmds;
-	tr_shader_program*	m_shader;
-	tr_buffer*			m_vertex_buffer;
-	tr_pipeline*		m_pipeline;
-
-    tr_texture*         m_texture;
-    tr_sampler*         m_sampler;
-    tr_buffer*          m_uniform_buffer;
+	tr_cmd_pool*		m_cmd_pool = nullptr;
+	tr_cmd**			m_cmds = nullptr;
+	tr_shader_program*	m_shader = nullptr;
+	tr_buffer*			m_tri_vertex_buffer = nullptr;
+	tr_buffer*			m_rect_index_buffer = nullptr;
+	tr_buffer*			m_rect_vertex_buffer = nullptr;
+	tr_pipeline*		m_pipeline = nullptr;
 };
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
@@ -81,7 +75,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 }
 #endif
 
-void TinyCiApp::setup()
+void ColorApp::setup()
 {
 	std::vector<const char*> instance_layers = {
 		"VK_LAYER_LUNARG_api_dump",
@@ -107,7 +101,7 @@ void TinyCiApp::setup()
 	settings.swapchain.image_count          = kImageCount;
 	settings.swapchain.sample_count         = tr_sample_count_8;
 	settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
-	settings.swapchain.depth_stencil_format = tr_format_d16_unorm;
+	settings.swapchain.depth_stencil_format = tr_format_undefined;
 	settings.log_fn							= renderer_log;
 #if defined(TINY_RENDERER_VK)
 	settings.vk_debug_fn                    = vulkan_debug;
@@ -116,38 +110,23 @@ void TinyCiApp::setup()
 	settings.device_layers.count			= static_cast<uint32_t>(device_layers.size());
 	settings.device_layers.names			= device_layers.data();
 #endif
-	tr_create_renderer("myappTinyCiApp", &settings, &m_renderer);
+	tr_create_renderer("ColorApp", &settings, &m_renderer);
 
 	tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
 	tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
 	
 #if defined(TINY_RENDERER_VK)
-	auto vert = loadFile(getAssetPath("basic_vert.spv"))->getBuffer();
-	auto frag = loadFile(getAssetPath("basic_frag.spv"))->getBuffer();
+	auto vert = loadFile(getAssetPath("color_vert.spv"))->getBuffer();
+	auto frag = loadFile(getAssetPath("color_frag.spv"))->getBuffer();
 	tr_create_shader_program(m_renderer, 
 		                     vert->getSize(), (uint32_t*)(vert->getData()), "main", 
 		                     frag->getSize(), (uint32_t*)(frag->getData()), "main", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-	auto hlsl = loadFile(getAssetPath("basic.hlsl"))->getBuffer();	
+	auto hlsl = loadFile(getAssetPath("color.hlsl"))->getBuffer();	
 	tr_create_shader_program(m_renderer, 
                              hlsl->getSize(), (uint32_t*)(hlsl->getData()), "VSMain", 
 		                     hlsl->getSize(), (uint32_t*)(hlsl->getData()), "PSMain", &m_shader);
 #endif
-
-	std::vector<tr_descriptor> descriptors(3);
-	descriptors[0].type  = tr_descriptor_type_uniform_buffer;
-	descriptors[0].count = 1;
-	descriptors[0].binding = 0;
-    descriptors[0].shader_stages = tr_shader_stage_vert;
-	descriptors[1].type  = tr_descriptor_type_texture;
-	descriptors[1].count = 1;
-	descriptors[1].binding = 1;
-    descriptors[1].shader_stages = tr_shader_stage_frag;
-	descriptors[2].type  = tr_descriptor_type_sampler;
-	descriptors[2].count = 1;
-	descriptors[2].binding = 2;
-    descriptors[2].shader_stages = tr_shader_stage_frag;
-	tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
 	tr_vertex_layout vertex_layout = {};
 	vertex_layout.attrib_count = 2;
@@ -156,69 +135,93 @@ void TinyCiApp::setup()
 	vertex_layout.attribs[0].binding  = 0;
 	vertex_layout.attribs[0].location = 0;
 	vertex_layout.attribs[0].offset   = 0;
-	vertex_layout.attribs[1].semantic = tr_semantic_texcoord0;
-	vertex_layout.attribs[1].format   = tr_format_r32g32_float;
+	vertex_layout.attribs[1].semantic = tr_semantic_color;
+	vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
 	vertex_layout.attribs[1].binding  = 0;
 	vertex_layout.attribs[1].location = 1;
 	vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
-	tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_strip};
-	tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+	tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
+	tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
-	std::vector<float> data = {
-		-0.5f, -0.5f, 0.0f,	1.0f, 0.0f, 0.0f,
-		-0.5f,  0.5f, 0.0f,	1.0f, 0.0f, 1.0f,
-		 0.5f, -0.5f, 0.0f,	1.0f, 1.0f, 0.0f,
-		 0.5f,  0.5f, 0.0f,	1.0f, 1.0f, 1.0f,
-	};
+    // tri
+    {
+	    std::vector<float> vertexData = {
+		     0.00f, -0.25f, 0.0f,	1.0f, 1.0f, 0.0f, 0.0f,
+		    -0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 1.0f, 0.0f,
+		     0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 0.0f, 1.0f,
+	    };
 
-	uint64_t dataSize = sizeof(float) * data.size();
-	uint64_t strideSize = sizeof(float) * 6;
-	tr_create_vertex_buffer(m_renderer, dataSize, true, strideSize, &m_vertex_buffer);
-	memcpy(m_vertex_buffer->cpu_mapped_address, data.data(), dataSize);
-
-    Surface surf = loadImage(getAssetPath("texture.jpg"));
-    tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
-    tr_util_update_texture_uint8(m_renderer->graphics_queue, surf.getWidth(), surf.getHeight(), surf.getRowBytes(), surf.getData(), surf.hasAlpha() ? 4 : 3, m_texture, NULL, NULL);
-
-    tr_create_sampler(m_renderer, &m_sampler);
-
-    tr_create_uniform_buffer(m_renderer, sizeof(mat4), true, &m_uniform_buffer);
 #if defined(TINY_RENDERER_DX)
-    mat4 flip = mat4( 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-#elif defined(TINY_RENDERER_VK)
-    mat4 flip = mat4( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+        // Flip the y so they're the same in both renderer
+        vertexData[7*0 + 1] *= -1.0f;
+        vertexData[7*1 + 1] *= -1.0f;
+        vertexData[7*2 + 1] *= -1.0f;
 #endif
-    mat4 proj = glm::perspective(toRadians(60.0f), getWindowAspectRatio(), 0.1f, 10000.0f);
-    mat4 view = glm::lookAt(vec3(0, 0, 1), vec3(0, 0, 0), vec3(0, 1, 0));
-    mat4 modl = glm::rotate(toRadians(00.0f), vec3(0, 0, 1)); 
-    mat4 mvp = flip * proj * view * modl;
-    memcpy(m_uniform_buffer->cpu_mapped_address, &mvp, sizeof(mvp));
 
-    m_desc_set->descriptors[0].uniform_buffers[0] = m_uniform_buffer;
-    m_desc_set->descriptors[1].textures[0]        = m_texture;
-    m_desc_set->descriptors[2].samplers[0]        = m_sampler;
-    tr_update_descriptor_set(m_renderer, m_desc_set);
+        vertexData[7*0 + 0] += -0.5f;
+        vertexData[7*1 + 0] += -0.5f;
+        vertexData[7*2 + 0] += -0.5f;
+
+	    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
+	    uint64_t vertexStride = sizeof(float) * 7;
+	    tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_tri_vertex_buffer);
+	    memcpy(m_tri_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
+    }
+
+    // quad
+    {
+	    std::vector<float> vertexData = {
+		    -0.25f, -0.25f, 0.0f,	1.0f, 1.0f, 0.0f, 0.0f,
+		    -0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 1.0f, 0.0f,
+		     0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 0.0f, 1.0f,
+		     0.25f, -0.25f, 0.0f,	1.0f, 1.0f, 1.0f, 1.0f,
+	    };
+
+#if defined(TINY_RENDERER_DX)
+        // Flip the y so they're the same in both renderer
+        vertexData[7*0 + 1] *= -1.0f;
+        vertexData[7*1 + 1] *= -1.0f;
+        vertexData[7*2 + 1] *= -1.0f;
+        vertexData[7*3 + 1] *= -1.0f;
+#endif
+
+        vertexData[7*0 + 0] += 0.5f;
+        vertexData[7*1 + 0] += 0.5f;
+        vertexData[7*2 + 0] += 0.5f;
+        vertexData[7*3 + 0] += 0.5f;
+
+	    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
+	    uint64_t vertexStride = sizeof(float) * 7;
+	    tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
+	    memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
+        
+        std::vector<uint16_t> indexData = {
+            0, 1, 2,
+            0, 2, 3
+        };
+        
+        uint64_t indexDataSize = sizeof(uint16_t) * indexData.size();
+        tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
+        memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
+    }
 }
 
-void TinyCiApp::cleanup()
+void ColorApp::cleanup()
 {
 	if (nullptr != m_renderer) {
-		//tr_destroy_pipeline(m_renderer, m_pipeline);
-		//tr_destroy_descriptor_set(m_renderer, m_desc_set);
-		//tr_destroy_buffer(m_renderer, m_vertex_buffer);	
 		tr_destroy_renderer(m_renderer);
 	}
 }
 
-void TinyCiApp::mouseDown( MouseEvent event )
+void ColorApp::mouseDown( MouseEvent event )
 {
 }
 
-void TinyCiApp::update()
+void ColorApp::update()
 {
 }
 
-void TinyCiApp::draw()
+void ColorApp::draw()
 {
 	uint32_t frameIdx = getElapsedFrames() % m_renderer->settings.swapchain.image_count;
 
@@ -228,23 +231,8 @@ void TinyCiApp::draw()
 
 	tr_acquire_next_image(m_renderer, image_acquired_semaphore, image_acquired_fence);
 
-	float t = static_cast<float>(getElapsedSeconds());
-	float t0 = fmod(t, 1.0f);
-
 	uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
 	tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
-	//tr_render_target_set_color_clear_value(render_target, 0, 0.0f, 0.0f, 0.0f, 0.0f );
-
-#if defined(TINY_RENDERER_DX)
-    mat4 flip = mat4( 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-#elif defined(TINY_RENDERER_VK)
-    mat4 flip = mat4( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-#endif
-    mat4 proj = glm::perspective(toRadians(60.0f), getWindowAspectRatio(), 0.1f, 10000.0f);
-    mat4 view = glm::lookAt(vec3(0, 0, 1), vec3(0, 0, 0), vec3(0, 1, 0));
-    mat4 modl = glm::rotate(t, vec3(0, 0, 1)); 
-    mat4 mvp = flip * proj * view * modl;
-    memcpy(m_uniform_buffer->cpu_mapped_address, &mvp, sizeof(mvp));
 
 	tr_cmd* cmd = m_cmds[frameIdx];
 
@@ -256,9 +244,11 @@ void TinyCiApp::draw()
 	tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
 	tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
 	tr_cmd_bind_pipeline(cmd, m_pipeline);
-	tr_cmd_bind_vertex_buffers(cmd, 1, &m_vertex_buffer);
-	tr_cmd_bind_descriptor_sets(cmd, m_pipeline, m_desc_set);
-	tr_cmd_draw(cmd, 4, 0);
+	tr_cmd_bind_vertex_buffers(cmd, 1, &m_tri_vertex_buffer);
+	tr_cmd_draw(cmd, 3, 0);
+    tr_cmd_bind_index_buffer(cmd, m_rect_index_buffer);
+    tr_cmd_bind_vertex_buffers(cmd, 1, &m_rect_vertex_buffer);
+    tr_cmd_draw_indexed(cmd, 6, 0);
 	tr_cmd_end_render(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
 	tr_end_cmd(cmd);
@@ -269,4 +259,4 @@ void TinyCiApp::draw()
 	tr_queue_wait_idle(m_renderer->graphics_queue);
 }
 
-CINDER_APP(TinyCiApp, TinyRenderer)
+CINDER_APP(ColorApp, TinyRenderer)
