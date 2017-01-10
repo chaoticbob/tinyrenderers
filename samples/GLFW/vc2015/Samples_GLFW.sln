@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "01_Color", "01_Color.vcxproj", "{2197C576-52A3-4663-9026-4D0D620F27BE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		DebugDx|x64 = DebugDx|x64
+		DebugVk|x64 = DebugVk|x64
+		ReleaseDx|x64 = ReleaseDx|x64
+		ReleaseVk|x64 = ReleaseVk|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.DebugDx|x64.Build.0 = DebugDx|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.DebugVk|x64.Build.0 = DebugVk|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseDx|x64.ActiveCfg = ReleaseDx|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
+		{2197C576-52A3-4663-9026-4D0D620F27BE}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

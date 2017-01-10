@@ -80,6 +80,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 
 void TextureApp::setup()
 {
+    addAssetDirectory("../../..");
+
 	std::vector<const char*> instance_layers = {
 		"VK_LAYER_LUNARG_api_dump",
 		"VK_LAYER_LUNARG_core_validation",
