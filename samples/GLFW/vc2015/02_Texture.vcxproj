@@ -21,6 +21,11 @@
   <ItemGroup>
     <ClCompile Include="..\src\02_Texture.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\lc_image.h" />
+    <ClInclude Include="..\..\..\tinydx.h" />
+    <ClInclude Include="..\..\..\tinyvk.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1B892A2E-BA71-42AB-B867-2D3628493DCE}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

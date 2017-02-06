@@ -13,8 +13,8 @@
 	#include "tinyvk.h"
 #endif
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#define LC_IMAGE_IMPLEMENTATION
+#include "lc_image.h"
 
 #pragma comment(lib, "glfw3.lib")
 
@@ -218,12 +218,12 @@ void init_tiny_renderer(GLFWwindow* window)
     int image_width = 0;
     int image_height = 0;
     int image_channels = 0;
-    stbi_uc* image_data = stbi_load("../../assets/box_panel.jpg", &image_width, &image_height, &image_channels, 0);
+    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &image_width, &image_height, &image_channels, 0);
     assert(NULL != image_data);
     int image_row_stride = image_width * image_channels;
     tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
-    stbi_image_free(image_data);
+    lc_free_image(image_data);
 
     tr_create_sampler(m_renderer, &m_sampler);
 

@@ -21,6 +21,12 @@
   <ItemGroup>
     <ClCompile Include="..\src\03_UniformBuffer.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\lc_image.h" />
+    <ClInclude Include="..\..\..\lc_image_resize.h" />
+    <ClInclude Include="..\..\..\tinydx.h" />
+    <ClInclude Include="..\..\..\tinyvk.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1E464C76-C68F-4B48-99E8-A2FE849CCFD1}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
