@@ -38,7 +38,9 @@
 
 #pragma once
 
-#include "cinder/app/Renderer.h"
+#if ! defined(TINYCI_H)
+  #include "cinder/app/Renderer.h"
+#endif
 
 #if defined(CINDER_MSW)
 	#if ! defined(NOMINMAX)
