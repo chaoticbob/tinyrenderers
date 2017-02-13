@@ -106,6 +106,8 @@ void lc_free_image(unsigned char* data);
 /* IMPLEMENTATION                                                                                 */
 /**************************************************************************************************/
 #if defined(LC_IMAGE_IMPLEMENTATION)
+#include <assert.h>
+#include <stdlib.h>
 
 #if defined(_WIN32)
     /* Pull in minimal Windows headers */

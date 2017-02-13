@@ -1,45 +1,42 @@
-#include "GLFW/glfw3.h"
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include "GLFW/glfw3native.h"
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <vector>
+#define LC_IMAGE_IMPLEMENTATION
+#include "lc_image.h"
 
+#define TINYCI_IMPLEMENTATION
+#include "tinyci.hpp"
+using namespace ci;
+using namespace ci::app;
 #define TINY_RENDERER_IMPLEMENTATION
+
+#include "tinyci_renderer.hpp"
 #if defined(TINY_RENDERER_DX)
     #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
     #include "tinyvk.h"
 #endif
 
-#define LC_IMAGE_IMPLEMENTATION
-#include "lc_image.h"
-
-#pragma comment(lib, "glfw3.lib")
-
 const uint32_t kImageCount = 3;
 
-tr_renderer*        m_renderer = nullptr;
-tr_descriptor_set*  m_desc_set = nullptr;
-tr_cmd_pool*        m_cmd_pool = nullptr;
-tr_cmd**            m_cmds = nullptr;
-tr_shader_program*  m_shader = nullptr;
-tr_buffer*          m_rect_index_buffer = nullptr;
-tr_buffer*          m_rect_vertex_buffer = nullptr;
-tr_pipeline*        m_pipeline = nullptr;
-tr_texture*         m_texture = nullptr;
-tr_sampler*         m_sampler = nullptr;
-tr_buffer*          m_uniform_buffer = nullptr;
+class TextureApp : public App {
+public:
+    void setup() override;
+    void cleanup() override;
+    void mouseDown( MouseEvent event ) override;
+    void update() override;
+    void draw() override;
 
-uint32_t            s_window_width;
-uint32_t            s_window_height;
-uint64_t            s_frame_count = 0;
-
-static void app_glfw_error(int error, const char* description)
-{
-    fprintf(stderr, "Error: %s\n", description);
-}
+private:
+    tr_renderer*        m_renderer = nullptr;
+    tr_descriptor_set*  m_desc_set = nullptr;
+    tr_cmd_pool*        m_cmd_pool = nullptr;
+    tr_cmd**            m_cmds = nullptr;
+    tr_shader_program*  m_shader = nullptr;
+    tr_buffer*          m_rect_index_buffer = nullptr;
+    tr_buffer*          m_rect_vertex_buffer = nullptr;
+    tr_pipeline*        m_pipeline = nullptr;
+    tr_texture*         m_texture = nullptr;
+    tr_sampler*         m_sampler = nullptr;
+    tr_buffer*          m_uniform_buffer = nullptr;
+};
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
@@ -82,24 +79,10 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 }
 #endif
 
-std::vector<uint8_t> load_file(const std::string& path)
+void TextureApp::setup()
 {
-    std::ifstream is;
-    is.open(path.c_str(), std::ios::in | std::ios::binary);
-    assert(is.is_open());
+    addAssetDirectory("../../..");
 
-    is.seekg(0, std::ios::end);
-    std::vector<uint8_t> buffer(is.tellg());
-    assert(0 != buffer.size());
-
-    is.seekg(0, std::ios::beg);
-    is.read((char*)buffer.data(), buffer.size());
-
-    return buffer;
-}
-
-void init_tiny_renderer(GLFWwindow* window)
-{
     std::vector<const char*> instance_layers = {
 #if defined(_DEBUG)
         "VK_LAYER_LUNARG_api_dump",
@@ -120,17 +103,11 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
     };
 
-    int width = 0;
-    int height = 0;
-    glfwGetWindowSize(window, &width, &height);
-    s_window_width = static_cast<uint32_t>(width);
-    s_window_height = static_cast<uint32_t>(height);
-
     tr_renderer_settings settings = {0};
-    settings.handle.hinstance               = ::GetModuleHandle(NULL);
-    settings.handle.hwnd                    = glfwGetWin32Window(window);
-    settings.width                          = s_window_width;
-    settings.height                         = s_window_height;
+    settings.handle.hinstance               = static_cast<TinyRenderer*>(getRenderer().get())->getHinstance();
+    settings.handle.hwnd                    = static_cast<TinyRenderer*>(getRenderer().get())->getHwnd();
+    settings.width                          = getWindowWidth();
+    settings.height                         = getWindowHeight();
     settings.swapchain.image_count          = kImageCount;
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
@@ -143,22 +120,22 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
     settings.device_layers.names            = device_layers.data();
 #endif
-    tr_create_renderer("UniformBufferApp", &settings, &m_renderer);
+    tr_create_renderer("ColorApp", &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto vert = load_file("../../assets/uniformbuffer_vert.spv");
-    auto frag = load_file("../../assets/uniformbuffer_frag.spv");
+    auto vert = loadFile(getAssetPath("uniformbuffer_vert.spv"))->getBuffer();
+    auto frag = loadFile(getAssetPath("uniformbuffer_frag.spv"))->getBuffer();
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "main", 
-                             frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
+                             vert->getSize(), (uint32_t*)(vert->getData()), "main", 
+                             frag->getSize(), (uint32_t*)(frag->getData()), "main", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file("../../assets/uniformbuffer.hlsl");
+    auto hlsl = loadFile(getAssetPath("uniformbuffer.hlsl"))->getBuffer();  
     tr_create_shader_program(m_renderer, 
-                             hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", &m_shader);
+                             hlsl->getSize(), hlsl->getData(), "VSMain", 
+                             hlsl->getSize(), hlsl->getData(), "PSMain", &m_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(3);
@@ -212,16 +189,10 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
-    int image_width = 0;
-    int image_height = 0;
-    int image_channels = 0;
-    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &image_width, &image_height, &image_channels, 0);
-    assert(NULL != image_data);
-    int image_row_stride = image_width * image_channels;
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
-    tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
-    lc_free_image(image_data);
-
+    Surface surf = loadImage(getAssetPath("box_panel.jpg"));
+    tr_create_texture_2d(m_renderer, surf.getWidth(), surf.getHeight(), tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_util_update_texture_uint8(m_renderer->graphics_queue, surf.getWidth(), surf.getHeight(), surf.getRowBytes(), surf.getData(), surf.hasAlpha() ? 4 : 3, m_texture, NULL, NULL);
+    
     tr_create_sampler(m_renderer, &m_sampler);
 
     tr_create_uniform_buffer(m_renderer, 16 * sizeof(float), true, &m_uniform_buffer);
@@ -232,14 +203,24 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_update_descriptor_set(m_renderer, m_desc_set);
 }
 
-void destroy_tiny_renderer()
+void TextureApp::cleanup()
 {
-    tr_destroy_renderer(m_renderer);
+    if (nullptr != m_renderer) {
+        tr_destroy_renderer(m_renderer);
+    }
 }
 
-void draw_frame()
+void TextureApp::mouseDown( MouseEvent event )
 {
-    uint32_t frameIdx = s_frame_count % m_renderer->settings.swapchain.image_count;
+}
+
+void TextureApp::update()
+{
+}
+
+void TextureApp::draw()
+{
+    uint32_t frameIdx = getElapsedFrames() % m_renderer->settings.swapchain.image_count;
 
     tr_fence* image_acquired_fence = m_renderer->image_acquired_fences[frameIdx];
     tr_semaphore* image_acquired_semaphore = m_renderer->image_acquired_semaphores[frameIdx];
@@ -250,8 +231,8 @@ void draw_frame()
     uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
     tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
 
-    // No projection or view for GLFW since we don't have a math library
-    float t = static_cast<float>(glfwGetTime());
+    // No projection or view for tinyci since we don't have a math library
+    float t = static_cast<float>(getElapsedSeconds());
     std::vector<float> mvp(16);
     std::fill(std::begin(mvp), std::end(mvp), 0.0f);
     mvp[ 0] =  cos(t); 
@@ -271,8 +252,8 @@ void draw_frame()
 
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
-    tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
+    tr_cmd_set_viewport(cmd, 0, 0, getWindowWidth(), getWindowHeight(), 0.0f, 1.0f);
+    tr_cmd_set_scissor(cmd, 0, 0, getWindowWidth(), getWindowHeight());
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
     tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
@@ -291,24 +272,4 @@ void draw_frame()
     tr_queue_wait_idle(m_renderer->graphics_queue);
 }
 
-int main(int argc, char **argv)
-{
-    glfwSetErrorCallback(app_glfw_error);
-    if (! glfwInit()) {
-        exit(EXIT_FAILURE);
-    }
-
-    GLFWwindow* window = glfwCreateWindow(640, 480, "03_UniformBuffer", NULL, NULL);
-    init_tiny_renderer(window);
-
-    while (! glfwWindowShouldClose(window)) {
-        draw_frame();
-        glfwPollEvents();
-    }
-    
-    destroy_tiny_renderer();
-
-    glfwDestroyWindow(window);
-    glfwTerminate();
-    return EXIT_SUCCESS;
-}
+CINDER_APP(TextureApp, TinyRenderer)

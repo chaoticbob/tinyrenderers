@@ -8,23 +8,23 @@
 
 #define TINY_RENDERER_IMPLEMENTATION
 #if defined(TINY_RENDERER_DX)
-	#include "tinydx.h"
+    #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
-	#include "tinyvk.h"
+    #include "tinyvk.h"
 #endif
 
 #pragma comment(lib, "glfw3.lib")
 
 const uint32_t kImageCount = 3;
 
-tr_renderer*		m_renderer = nullptr;
-tr_cmd_pool*		m_cmd_pool = nullptr;
-tr_cmd**			m_cmds = nullptr;
-tr_shader_program*	m_shader = nullptr;
-tr_buffer*			m_tri_vertex_buffer = nullptr;
-tr_buffer*			m_rect_index_buffer = nullptr;
-tr_buffer*			m_rect_vertex_buffer = nullptr;
-tr_pipeline*		m_pipeline = nullptr;
+tr_renderer*        m_renderer = nullptr;
+tr_cmd_pool*        m_cmd_pool = nullptr;
+tr_cmd**            m_cmds = nullptr;
+tr_shader_program*  m_shader = nullptr;
+tr_buffer*          m_tri_vertex_buffer = nullptr;
+tr_buffer*          m_rect_index_buffer = nullptr;
+tr_buffer*          m_rect_vertex_buffer = nullptr;
+tr_pipeline*        m_pipeline = nullptr;
 
 uint32_t            s_window_width;
 uint32_t            s_window_height;
@@ -37,12 +37,12 @@ static void app_glfw_error(int error, const char* description)
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
-	switch(type) {
-		//case tr_log_type_info  : {CI_LOG_I("[" << component << "] : " << msg);} break;
-		//case tr_log_type_warn  : {CI_LOG_W("[" << component << "] : " << msg);} break;
-		//case tr_log_type_debug : {CI_LOG_E("[" << component << "] : " << msg);} break;
-		//case tr_log_type_error : {CI_LOG_D("[" << component << "] : " << msg);} break;
-	}
+    switch(type) {
+        //case tr_log_type_info  : {CI_LOG_I("[" << component << "] : " << msg);} break;
+        //case tr_log_type_warn  : {CI_LOG_W("[" << component << "] : " << msg);} break;
+        //case tr_log_type_debug : {CI_LOG_E("[" << component << "] : " << msg);} break;
+        //case tr_log_type_error : {CI_LOG_D("[" << component << "] : " << msg);} break;
+    }
 }
 
 #if defined(TINY_RENDERER_VK)
@@ -57,22 +57,22 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
     void*                      pUserData
 )
 {
-	if( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT ) {
-		//CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
-	}
-	else if( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT ) {
-		//CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
-	}
-	else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-		//CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
-	}
-	else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
-		//CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
-	}
-	else if( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
-		//CI_LOG_D( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
-	}
-	return VK_FALSE;
+    if( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT ) {
+        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+    }
+    else if( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT ) {
+        //CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+    }
+    else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
+        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+    }
+    else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
+        //CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+    }
+    else if( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
+        //CI_LOG_D( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+    }
+    return VK_FALSE;
 }
 #endif
 
@@ -94,25 +94,25 @@ std::vector<uint8_t> load_file(const std::string& path)
 
 void init_tiny_renderer(GLFWwindow* window)
 {
-	std::vector<const char*> instance_layers = {
+    std::vector<const char*> instance_layers = {
 #if defined(_DEBUG)
-		"VK_LAYER_LUNARG_api_dump",
-		"VK_LAYER_LUNARG_core_validation",
-		"VK_LAYER_LUNARG_swapchain",
-		"VK_LAYER_LUNARG_image",
-		"VK_LAYER_LUNARG_parameter_validation"
+        "VK_LAYER_LUNARG_api_dump",
+        "VK_LAYER_LUNARG_core_validation",
+        "VK_LAYER_LUNARG_swapchain",
+        "VK_LAYER_LUNARG_image",
+        "VK_LAYER_LUNARG_parameter_validation"
 #endif
-	};
+    };
 
-	std::vector<const char*> device_layers = {
+    std::vector<const char*> device_layers = {
 #if defined(_DEBUG)
-		"VK_LAYER_LUNARG_api_dump",
-		"VK_LAYER_LUNARG_core_validation",
-		"VK_LAYER_LUNARG_swapchain",
-		"VK_LAYER_LUNARG_image",
-		"VK_LAYER_LUNARG_parameter_validation"
+        "VK_LAYER_LUNARG_api_dump",
+        "VK_LAYER_LUNARG_core_validation",
+        "VK_LAYER_LUNARG_swapchain",
+        "VK_LAYER_LUNARG_image",
+        "VK_LAYER_LUNARG_parameter_validation"
 #endif
-	};
+    };
 
     int width = 0;
     int height = 0;
@@ -120,63 +120,63 @@ void init_tiny_renderer(GLFWwindow* window)
     s_window_width = static_cast<uint32_t>(width);
     s_window_height = static_cast<uint32_t>(height);
 
-	tr_renderer_settings settings = {0};
-	settings.handle.hinstance               = ::GetModuleHandle(NULL);
-	settings.handle.hwnd                    = glfwGetWin32Window(window);
-	settings.width                          = s_window_width;
-	settings.height                         = s_window_height;
-	settings.swapchain.image_count          = kImageCount;
-	settings.swapchain.sample_count         = tr_sample_count_8;
-	settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
-	settings.swapchain.depth_stencil_format = tr_format_undefined;
-	settings.log_fn							= renderer_log;
+    tr_renderer_settings settings = {0};
+    settings.handle.hinstance               = ::GetModuleHandle(NULL);
+    settings.handle.hwnd                    = glfwGetWin32Window(window);
+    settings.width                          = s_window_width;
+    settings.height                         = s_window_height;
+    settings.swapchain.image_count          = kImageCount;
+    settings.swapchain.sample_count         = tr_sample_count_8;
+    settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
+    settings.swapchain.depth_stencil_format = tr_format_undefined;
+    settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
-	settings.vk_debug_fn                    = vulkan_debug;
-	settings.instance_layers.count			= static_cast<uint32_t>(instance_layers.size());
-	settings.instance_layers.names			= instance_layers.empty() ? nullptr : instance_layers.data();
-	settings.device_layers.count			= static_cast<uint32_t>(device_layers.size());
-	settings.device_layers.names			= device_layers.data();
+    settings.vk_debug_fn                    = vulkan_debug;
+    settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
+    settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
+    settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
+    settings.device_layers.names            = device_layers.data();
 #endif
-	tr_create_renderer("ColorApp", &settings, &m_renderer);
+    tr_create_renderer("ColorApp", &settings, &m_renderer);
 
-	tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
-	tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
-	
+    tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
+    tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
+    
 #if defined(TINY_RENDERER_VK)
-	auto vert = load_file("../../assets/color_vert.spv");
-	auto frag = load_file("../../assets/color_frag.spv");
-	tr_create_shader_program(m_renderer, 
-		                     vert.size(), (uint32_t*)(vert.data()), "main", 
-		                     frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
+    auto vert = load_file("../../assets/color_vert.spv");
+    auto frag = load_file("../../assets/color_frag.spv");
+    tr_create_shader_program(m_renderer, 
+                             vert.size(), (uint32_t*)(vert.data()), "main", 
+                             frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-	auto hlsl = load_file("../../assets/color.hlsl");
-	tr_create_shader_program(m_renderer, 
+    auto hlsl = load_file("../../assets/color.hlsl");
+    tr_create_shader_program(m_renderer, 
                              hlsl.size(), hlsl.data(), "VSMain", 
-		                     hlsl.size(), hlsl.data(), "PSMain", &m_shader);
+                             hlsl.size(), hlsl.data(), "PSMain", &m_shader);
 #endif
 
-	tr_vertex_layout vertex_layout = {};
-	vertex_layout.attrib_count = 2;
-	vertex_layout.attribs[0].semantic = tr_semantic_position;
-	vertex_layout.attribs[0].format   = tr_format_r32g32b32a32_float;
-	vertex_layout.attribs[0].binding  = 0;
-	vertex_layout.attribs[0].location = 0;
-	vertex_layout.attribs[0].offset   = 0;
-	vertex_layout.attribs[1].semantic = tr_semantic_color;
-	vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
-	vertex_layout.attribs[1].binding  = 0;
-	vertex_layout.attribs[1].location = 1;
-	vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
-	tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
-	tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+    tr_vertex_layout vertex_layout = {};
+    vertex_layout.attrib_count = 2;
+    vertex_layout.attribs[0].semantic = tr_semantic_position;
+    vertex_layout.attribs[0].format   = tr_format_r32g32b32a32_float;
+    vertex_layout.attribs[0].binding  = 0;
+    vertex_layout.attribs[0].location = 0;
+    vertex_layout.attribs[0].offset   = 0;
+    vertex_layout.attribs[1].semantic = tr_semantic_color;
+    vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
+    vertex_layout.attribs[1].binding  = 0;
+    vertex_layout.attribs[1].location = 1;
+    vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
+    tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
+    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
     // tri
     {
-	    std::vector<float> vertexData = {
-		     0.00f, -0.25f, 0.0f,	1.0f, 1.0f, 0.0f, 0.0f,
-		    -0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 1.0f, 0.0f,
-		     0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 0.0f, 1.0f,
-	    };
+        std::vector<float> vertexData = {
+             0.00f, -0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
+            -0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
+             0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+        };
 
 #if defined(TINY_RENDERER_DX)
         // Flip the y so they're the same in both renderer
@@ -189,20 +189,20 @@ void init_tiny_renderer(GLFWwindow* window)
         vertexData[7*1 + 0] += -0.5f;
         vertexData[7*2 + 0] += -0.5f;
 
-	    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-	    uint64_t vertexStride = sizeof(float) * 7;
-	    tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_tri_vertex_buffer);
-	    memcpy(m_tri_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
+        uint64_t vertexDataSize = sizeof(float) * vertexData.size();
+        uint64_t vertexStride = sizeof(float) * 7;
+        tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_tri_vertex_buffer);
+        memcpy(m_tri_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
     }
 
     // quad
     {
-	    std::vector<float> vertexData = {
-		    -0.25f, -0.25f, 0.0f,	1.0f, 1.0f, 0.0f, 0.0f,
-		    -0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 1.0f, 0.0f,
-		     0.25f,  0.25f, 0.0f,	1.0f, 0.0f, 0.0f, 1.0f,
-		     0.25f, -0.25f, 0.0f,	1.0f, 1.0f, 1.0f, 1.0f,
-	    };
+        std::vector<float> vertexData = {
+            -0.25f, -0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
+            -0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
+             0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+             0.25f, -0.25f, 0.0f,   1.0f, 1.0f, 1.0f, 1.0f,
+        };
 
 #if defined(TINY_RENDERER_DX)
         // Flip the y so they're the same in both renderer
@@ -217,10 +217,10 @@ void init_tiny_renderer(GLFWwindow* window)
         vertexData[7*2 + 0] += 0.5f;
         vertexData[7*3 + 0] += 0.5f;
 
-	    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-	    uint64_t vertexStride = sizeof(float) * 7;
-	    tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
-	    memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
+        uint64_t vertexDataSize = sizeof(float) * vertexData.size();
+        uint64_t vertexStride = sizeof(float) * 7;
+        tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
+        memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
         
         std::vector<uint16_t> indexData = {
             0, 1, 2,
@@ -240,40 +240,40 @@ void destroy_tiny_renderer()
 
 void draw_frame()
 {
-	uint32_t frameIdx = s_frame_count % m_renderer->settings.swapchain.image_count;
+    uint32_t frameIdx = s_frame_count % m_renderer->settings.swapchain.image_count;
 
-	tr_fence* image_acquired_fence = m_renderer->image_acquired_fences[frameIdx];
-	tr_semaphore* image_acquired_semaphore = m_renderer->image_acquired_semaphores[frameIdx];
-	tr_semaphore* render_complete_semaphores = m_renderer->render_complete_semaphores[frameIdx];
+    tr_fence* image_acquired_fence = m_renderer->image_acquired_fences[frameIdx];
+    tr_semaphore* image_acquired_semaphore = m_renderer->image_acquired_semaphores[frameIdx];
+    tr_semaphore* render_complete_semaphores = m_renderer->render_complete_semaphores[frameIdx];
 
-	tr_acquire_next_image(m_renderer, image_acquired_semaphore, image_acquired_fence);
+    tr_acquire_next_image(m_renderer, image_acquired_semaphore, image_acquired_fence);
 
-	uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
-	tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
+    uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
+    tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
 
-	tr_cmd* cmd = m_cmds[frameIdx];
+    tr_cmd* cmd = m_cmds[frameIdx];
 
-	tr_begin_cmd(cmd);
+    tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-	tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
-	tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
-	tr_cmd_begin_render(cmd, render_target);
-	tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
-	tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
-	tr_cmd_bind_pipeline(cmd, m_pipeline);
-	tr_cmd_bind_vertex_buffers(cmd, 1, &m_tri_vertex_buffer);
-	tr_cmd_draw(cmd, 3, 0);
+    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
+    tr_cmd_begin_render(cmd, render_target);
+    tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
+    tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
+    tr_cmd_bind_pipeline(cmd, m_pipeline);
+    tr_cmd_bind_vertex_buffers(cmd, 1, &m_tri_vertex_buffer);
+    tr_cmd_draw(cmd, 3, 0);
     tr_cmd_bind_index_buffer(cmd, m_rect_index_buffer);
     tr_cmd_bind_vertex_buffers(cmd, 1, &m_rect_vertex_buffer);
     tr_cmd_draw_indexed(cmd, 6, 0);
-	tr_cmd_end_render(cmd);
+    tr_cmd_end_render(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
-	tr_end_cmd(cmd);
+    tr_end_cmd(cmd);
 
-	tr_queue_submit(m_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
-	tr_queue_present(m_renderer->present_queue, 1, &render_complete_semaphores);
+    tr_queue_submit(m_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
+    tr_queue_present(m_renderer->present_queue, 1, &render_complete_semaphores);
 
-	tr_queue_wait_idle(m_renderer->graphics_queue);
+    tr_queue_wait_idle(m_renderer->graphics_queue);
 }
 
 int main(int argc, char **argv)
