@@ -2307,24 +2307,23 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
     hres = D3D12CreateDevice(p_renderer->dx_active_gpu, D3D_FEATURE_LEVEL_12_0, __uuidof(p_renderer->dx_device), (void**)(&p_renderer->dx_device));
     assert(SUCCEEDED(hres));
 
-
     // Load functions
     {
         HMODULE module = ::GetModuleHandle( TEXT( "d3d12.dll" ) );
         fnD3D12CreateRootSignatureDeserializer 
             = (PFN_D3D12_CREATE_ROOT_SIGNATURE_DESERIALIZER)GetProcAddress(module, 
                                                                            "D3D12SerializeVersionedRootSignature");
-        assert(NULL != D3D12CreateRootSignatureDeserializer);
+        assert(NULL != fnD3D12CreateRootSignatureDeserializer);
 
         fnD3D12SerializeVersionedRootSignature 
             = (PFN_D3D12_SERIALIZE_VERSIONED_ROOT_SIGNATURE)GetProcAddress(module,
                                                                            "D3D12SerializeVersionedRootSignature");
-        assert(NULL != D3D12SerializeVersionedRootSignature);
+        assert(NULL != fnD3D12SerializeVersionedRootSignature);
 
         fnD3D12CreateVersionedRootSignatureDeserializer 
             = (PFN_D3D12_CREATE_VERSIONED_ROOT_SIGNATURE_DESERIALIZER)GetProcAddress(module, 
                                                                                      "D3D12CreateVersionedRootSignatureDeserializer");
-        assert(NULL != D3D12CreateVersionedRootSignatureDeserializer);
+        assert(NULL != fnD3D12CreateVersionedRootSignatureDeserializer);
     }
 
     // Queues
