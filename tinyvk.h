@@ -474,6 +474,12 @@ typedef struct tr_shader_program {
     VkShaderModule                      vk_geom;
     VkShaderModule                      vk_frag;
     VkShaderModule                      vk_comp;
+    const char*                         vert_entry_point;
+    const char*                         tesc_entry_point;
+    const char*                         tese_entry_point;
+    const char*                         geom_entry_point;
+    const char*                         frag_entry_point;
+    const char*                         comp_entry_point;
 } tr_shader_program;
 
 typedef struct tr_vertex_attrib {
@@ -1530,6 +1536,18 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
 
     tr_internal_vk_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, tesc_size, tesc_code, tesc_enpt, tese_size, tese_code, tese_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, p_shader_program);
 
+    if (strlen(vert_enpt) > 0) {
+      p_shader_program->vert_entry_point = (const char*)calloc(strlen(vert_enpt) + 1, sizeof(char));
+      assert(p_shader_program->vert_entry_point != NULL);
+      strncpy((char*)p_shader_program->vert_entry_point, vert_enpt, strlen(vert_enpt));
+    }
+
+    if (strlen(frag_enpt) > 0) {
+      p_shader_program->frag_entry_point = (const char*)calloc(strlen(frag_enpt) + 1, sizeof(char));
+      assert(p_shader_program->frag_entry_point != NULL);
+      strncpy((char*)p_shader_program->frag_entry_point, frag_enpt, strlen(frag_enpt));
+    }
+
     *pp_shader_program = p_shader_program;
 }
 
@@ -2246,17 +2264,30 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
     // Create temporary buffer big enough to fit all mip levels
     tr_buffer* buffer = NULL;
     tr_create_buffer(p_texture->renderer, tr_buffer_usage_transfer_src, mem_reqs.size, true, &buffer);
-    // Get resource layout for all mip levels
-    VkSubresourceLayout* subres_layouts = (VkSubresourceLayout*)calloc(p_texture->mip_levels, sizeof(*subres_layouts));
-    assert(NULL != subres_layouts);
-    VkImageAspectFlags aspect_mask = tr_util_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
-    for (uint32_t i = 0; i < p_texture->mip_levels; ++i) {
-        TINY_RENDERER_DECLARE_ZERO(VkImageSubresource, img_sub_res);
-        img_sub_res.aspectMask = aspect_mask;
-        img_sub_res.mipLevel   = i;
-        img_sub_res.arrayLayer = 0;
-        vkGetImageSubresourceLayout(p_texture->renderer->vk_device, p_texture->vk_image, &img_sub_res, &(subres_layouts[i]));
-    }    
+    //
+    // If you're coming from D3D12, you might want to do something like:
+    //
+    //   // Get resource layout for all mip levels
+    //   VkSubresourceLayout* subres_layouts = (VkSubresourceLayout*)calloc(p_texture->mip_levels, sizeof(*subres_layouts));
+    //   assert(NULL != subres_layouts);
+    //   VkImageAspectFlags aspect_mask = tr_util_vk_determine_aspect_mask(tr_util_to_vk_format(p_texture->format));
+    //   for (uint32_t i = 0; i < p_texture->mip_levels; ++i) {
+    //       TINY_RENDERER_DECLARE_ZERO(VkImageSubresource, img_sub_res);
+    //       img_sub_res.aspectMask = aspect_mask;
+    //       img_sub_res.mipLevel   = i;
+    //       img_sub_res.arrayLayer = 0;
+    //       vkGetImageSubresourceLayout(p_texture->renderer->vk_device, p_texture->vk_image, &img_sub_res, &(subres_layouts[i]));
+    //   } 
+    //
+    // ...unfortunately, in Vulkan this approach may be slightly 
+    // problematic, because you can only call vkGetImageSubresourceLayout on
+    // an image that was created with VK_IMAGE_TILING_LINEAR. The validation
+    // layers will issue an error if vkGetImageSubresourceLayout get called
+    // on an image created with VK_IMAGE_TILING_OPTIMAL. For now, since the
+    // total size of the memory is correct, we'll just calculate the row pitch
+    // and offset for each mip level manually.
+    // 
+    
     // Use default simple resize if a resize function was not supplied
     if (NULL == resize_fn) {
         resize_fn = &tr_image_resize_uint8_t;
@@ -2264,16 +2295,20 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
     // Resize image into appropriate mip level
     uint32_t dst_width = p_texture->width;
     uint32_t dst_height = p_texture->height;
+    VkDeviceSize buffer_offset = 0;
     for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
-        VkSubresourceLayout* subres_layout = &subres_layouts[mip_level];
-        uint32_t dst_row_stride = subres_layout->rowPitch;
-        uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + subres_layout->offset;
+        uint32_t dst_row_stride = src_row_stride >> mip_level;
+        uint8_t* p_dst_data = (uint8_t*)buffer->cpu_mapped_address + buffer_offset;
         resize_fn(src_width, src_height, src_row_stride, p_src_data, dst_width, dst_height, dst_row_stride, p_dst_data, dst_channel_count, p_user_data);
+        buffer_offset += dst_row_stride * dst_height;
         dst_width >>= 1;
         dst_height >>= 1;
     }
 
     // Copy buffer to texture
+    buffer_offset = 0;
+    VkFormat format = tr_util_to_vk_format(p_texture->format);
+    VkImageAspectFlags aspect_mask = tr_util_vk_determine_aspect_mask(format);
     {
         const uint32_t region_count = p_texture->mip_levels;
         VkBufferImageCopy* regions = (VkBufferImageCopy*)calloc(region_count, sizeof(*regions));
@@ -2282,7 +2317,7 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         dst_width = p_texture->width;
         dst_height = p_texture->height;
         for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
-            regions[mip_level].bufferOffset                    = subres_layouts[mip_level].offset;
+            regions[mip_level].bufferOffset                    = buffer_offset;
             regions[mip_level].bufferRowLength                 = dst_width;
             regions[mip_level].bufferImageHeight               = dst_height;
             regions[mip_level].imageSubresource.aspectMask     = aspect_mask;
@@ -2295,6 +2330,7 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
             regions[mip_level].imageExtent.width               = dst_width;
             regions[mip_level].imageExtent.height              = dst_height;
             regions[mip_level].imageExtent.depth               = 1;
+            buffer_offset += (src_row_stride >> mip_level) * dst_height;
             dst_width >>= 1;
             dst_height >>= 1;
         }
@@ -2324,7 +2360,6 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         TINY_RENDERER_SAFE_FREE(regions);
     }
 
-    TINY_RENDERER_SAFE_FREE(subres_layouts);
     TINY_RENDERER_SAFE_FREE(p_expanded_src_data);
 }
 
@@ -3639,26 +3674,30 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
                 stages[stage_count].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
                 stages[stage_count].pNext = NULL;
                 stages[stage_count].flags = 0;
-                stages[stage_count].pName = "main";
                 stages[stage_count].pSpecializationInfo = NULL;         
                 switch(stage_mask) {
                     case tr_shader_stage_vert: {
+                        stages[stage_count].pName  = p_shader_program->vert_entry_point;
                         stages[stage_count].stage  = VK_SHADER_STAGE_VERTEX_BIT; 
                         stages[stage_count].module = p_shader_program->vk_vert;
                     } break;
                     case tr_shader_stage_tesc: {
+                        stages[stage_count].pName  = p_shader_program->tesc_entry_point;
                         stages[stage_count].stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT; 
                         stages[stage_count].module = p_shader_program->vk_tesc;
                     } break;
                     case tr_shader_stage_tese: {
+                        stages[stage_count].pName  = p_shader_program->tese_entry_point;
                         stages[stage_count].stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
                         stages[stage_count].module = p_shader_program->vk_tese;
                     } break;
                     case tr_shader_stage_geom: {
+                        stages[stage_count].pName  = p_shader_program->geom_entry_point;
                         stages[stage_count].stage = VK_SHADER_STAGE_GEOMETRY_BIT; 
                         stages[stage_count].module = p_shader_program->vk_geom;
                     } break;
                     case tr_shader_stage_frag: {
+                        stages[stage_count].pName  = p_shader_program->frag_entry_point;
                         stages[stage_count].stage = VK_SHADER_STAGE_FRAGMENT_BIT; 
                         stages[stage_count].module = p_shader_program->vk_frag;
                     } break;
