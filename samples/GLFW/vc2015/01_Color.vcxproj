@@ -99,7 +99,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalOptions>/ENTRY:mainCRTStartup %(AdditionalOptions)</AdditionalOptions>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
-      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VK_SDK_PATH)\Bin</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -130,7 +130,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;TINY_RENDERER_VK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\;$(GLFW_DIR)\include;$(VK_SDK_PATH)\Include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\;$(GLFW_DIR)\include;$(VULKAN_SDK)\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -139,7 +139,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
       <AdditionalOptions>/ENTRY:mainCRTStartup %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VK_SDK_PATH)\Bin</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
