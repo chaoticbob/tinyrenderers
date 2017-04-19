@@ -1089,11 +1089,8 @@ void tr_create_renderer(const char *app_name, const tr_renderer_settings* settin
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
             for (uint32_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
                 tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-                // Color single sample
-                tr_util_transition_image(p_renderer->graphics_queue, 
-                                         render_target->color_attachments[0], 
-                                         tr_texture_usage_undefined, 
-                                         tr_texture_usage_present );
+                // Color single-sample images are swapchain images and are not transitioned
+
                 // Color multi-sample
                 tr_util_transition_image(p_renderer->graphics_queue, 
                                          render_target->color_attachments_multisample[0], 
@@ -1111,11 +1108,8 @@ void tr_create_renderer(const char *app_name, const tr_renderer_settings* settin
         else {
             for (uint32_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
                 tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-                // Color
-                tr_util_transition_image(p_renderer->graphics_queue,
-                                         render_target->color_attachments[0], 
-                                         tr_texture_usage_undefined, 
-                                         tr_texture_usage_present );
+                // Color images are swapchain images and are not transitioned
+
                 // Depth/stencil
                 if (tr_format_undefined != p_renderer->settings.swapchain.depth_stencil_format) {
                     tr_util_transition_image(p_renderer->graphics_queue, 
