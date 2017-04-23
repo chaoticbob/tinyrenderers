@@ -201,6 +201,8 @@ typedef enum tr_texture_usage {
     tr_texture_usage_present                    = 0x00000100,
 } tr_texture_usage;
 
+typedef uint32_t tr_texture_usage_flags;
+
 typedef enum tr_format {
     tr_format_undefined = 0,
     // 1 channel
@@ -243,6 +245,9 @@ typedef enum tr_descriptor_type {
     tr_descriptor_type_sampler,
     tr_descriptor_type_texture,
     tr_descriptor_type_uniform_buffer,
+    tr_descriptor_type_uniform_texel_buffer,  // StructuredBuffer
+    tr_descriptor_type_storage_texel_buffer,  // RWStructuredBuffer
+    tr_descriptor_type_storage_buffer,        // RWStructuredBuffer
 } tr_descriptor_type;
 
 typedef enum tr_sample_count {
@@ -254,15 +259,16 @@ typedef enum tr_sample_count {
 } tr_sample_count;
 
 typedef enum tr_shader_stage {
-    tr_shader_stage_vert         = 0x00000001,
-    tr_shader_stage_tesc         = 0x00000002,
-    tr_shader_stage_tese         = 0x00000004,
-    tr_shader_stage_geom         = 0x00000008,
-    tr_shader_stage_frag         = 0x00000010,
-    tr_shader_stage_comp         = 0x00000020,
-    tr_shader_stage_all_graphics = 0x0000001F,
-    tr_shader_stage_hull         = tr_shader_stage_tesc,
-    tr_shader_stage_domn         = tr_shader_stage_tese,
+    tr_shader_stage_vert          = 0x00000001,
+    tr_shader_stage_tesc          = 0x00000002,
+    tr_shader_stage_tese          = 0x00000004,
+    tr_shader_stage_geom          = 0x00000008,
+    tr_shader_stage_frag          = 0x00000010,
+    tr_shader_stage_comp          = 0x00000020,
+    tr_shader_stage_all_graphics  = 0x0000001F,
+    tr_shader_stage_hull          = tr_shader_stage_tesc,
+    tr_shader_stage_domn          = tr_shader_stage_tese,
+    tr_shader_stage_count         = 6,
 } tr_shader_stage;
 
 typedef enum tr_primitive_topo {
@@ -309,6 +315,12 @@ typedef enum tr_front_face {
     tr_front_face_ccw = 0,
     tr_fornt_face_cw
 } tr_front_face;
+
+typedef enum tr_pipeline_type {
+  tr_pipeline_type_undefined = 0,
+  tr_pipeline_type_compute,
+  tr_pipeline_type_graphics
+} tr_pipeline_type;
 
 typedef enum tr_dx_shader_target {
     tr_dx_shader_target_5_0 = 0,
@@ -399,7 +411,9 @@ typedef struct tr_renderer {
 #if defined(_DEBUG)
     ID3D12Debug*                        dx_debug_ctrl;
 #endif
-    IDXGIFactory5*                      dx_factory;
+    // Use IDXGIFactory4 for now since IDXGIFactory5
+    // isn't supported by older devices.
+    IDXGIFactory4*                      dx_factory;
     uint32_t                            dx_gpu_count;
     IDXGIAdapter3*                      dx_gpus[tr_max_gpus];
     IDXGIAdapter3*                      dx_active_gpu;
@@ -455,7 +469,7 @@ typedef struct tr_buffer {
 typedef struct tr_texture {
     tr_renderer*                        renderer;
     tr_texture_type                     type;
-    tr_texture_usage                    usage;
+    tr_texture_usage_flags              usage;
     uint32_t                            width;
     uint32_t                            height;
     uint32_t                            depth;
@@ -468,7 +482,8 @@ typedef struct tr_texture {
     void*                               cpu_mapped_address;
     uint32_t                            owns_image;
     ID3D12Resource*                     dx_resource;
-    D3D12_SHADER_RESOURCE_VIEW_DESC     dx_view_desc;
+    D3D12_SHADER_RESOURCE_VIEW_DESC     dx_srv_view_desc;
+    D3D12_UNORDERED_ACCESS_VIEW_DESC    dx_uav_view_desc;
 } tr_texture;
 
 typedef struct tr_sampler {
@@ -513,6 +528,7 @@ typedef struct tr_pipeline_settings {
 typedef struct tr_pipeline {
     tr_renderer*                        renderer;
     tr_pipeline_settings                settings;
+    tr_pipeline_type                    type;
     ID3D12RootSignature*                dx_root_signature;
     ID3D12PipelineState*                dx_pipeline_state;
 } tr_pipeline;
@@ -578,19 +594,21 @@ tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t siz
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
 tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
 tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 
-tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
+tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
+tr_api_export void tr_create_shader_program_compute(tr_renderer* p_renderer, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 
 tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
+tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
 tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, tr_format depth_stencil_format, tr_render_target** pp_render_target);
@@ -614,6 +632,7 @@ tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint
 tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z);  
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
 tr_api_export void tr_queue_submit(tr_queue* p_queue, uint32_t cmd_count, tr_cmd** pp_cmds, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores, uint32_t signal_semaphore_count, tr_semaphore** pp_signal_semaphores);
@@ -691,7 +710,7 @@ static inline uint32_t tr_round_up(uint32_t value, uint32_t multiple)
 }
 
 // Internal utility functions (may become external one day)
-D3D12_RESOURCE_STATES tr_util_to_dx_resource_state(tr_texture_usage usage);
+D3D12_RESOURCE_STATES tr_util_to_dx_resource_state(tr_texture_usage_flags usage);
 
 // Internal init functions
 void tr_internal_dx_create_device(tr_renderer* p_renderer);
@@ -720,8 +739,9 @@ void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_textu
 void tr_internal_dx_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_dx_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
+void tr_internal_dx_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_dx_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
-void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program);
+void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program* p_shader_program);
 void tr_internal_dx_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 void tr_internal_dx_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
@@ -746,6 +766,7 @@ void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32
 void tr_internal_dx_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z);
 
 // Internal queue/swapchain functions
 void tr_internal_dx_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -1323,7 +1344,7 @@ void tr_create_texture(
     uint32_t                 mip_levels,
     const tr_clear_value*    p_clear_value,  
     bool                     host_visible, 
-    tr_texture_usage         usage, 
+    tr_texture_usage_flags   usage, 
     tr_texture**             pp_texture
 )
 {
@@ -1368,13 +1389,13 @@ void tr_create_texture(
 }
 
 void tr_create_texture_1d(
-    tr_renderer*     p_renderer, 
-    uint32_t         width, 
-    tr_sample_count  sample_count, 
-    tr_format        format, 
-    bool             host_visible, 
-    tr_texture_usage usage, 
-    tr_texture**     pp_texture
+    tr_renderer*            p_renderer, 
+    uint32_t                width, 
+    tr_sample_count         sample_count, 
+    tr_format               format, 
+    bool                    host_visible, 
+    tr_texture_usage_flags  usage, 
+    tr_texture**            pp_texture
 )
 {
     tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
@@ -1389,7 +1410,7 @@ void tr_create_texture_2d(
     uint32_t                 mip_levels,
     const tr_clear_value*    p_clear_value,  
     bool                     host_visible,
-    tr_texture_usage         usage, 
+    tr_texture_usage_flags   usage, 
     tr_texture**             pp_texture
 )
 {
@@ -1401,15 +1422,15 @@ void tr_create_texture_2d(
 }
 
 void tr_create_texture_3d(
-    tr_renderer*     p_renderer, 
-    uint32_t         width, 
-    uint32_t         height, 
-    uint32_t         depth, 
-    tr_sample_count  sample_count, 
-    tr_format        format, 
-    bool             host_visible, 
-    tr_texture_usage usage, 
-    tr_texture**     pp_texture
+    tr_renderer*            p_renderer, 
+    uint32_t                width, 
+    uint32_t                height, 
+    uint32_t                depth, 
+    tr_sample_count         sample_count, 
+    tr_format               format, 
+    bool                    host_visible, 
+    tr_texture_usage_flags  usage, 
+    tr_texture**            pp_texture
 )
 {
     tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
@@ -1449,7 +1470,7 @@ void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
     TINY_RENDERER_SAFE_FREE(p_sampler);
 }
 
-void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
+void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     if (vert_size > 0) {
@@ -1467,6 +1488,9 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
     if (frag_size > 0) {
         assert(NULL != frag_code);
     }
+    if (comp_size > 0) {
+        assert(NULL != comp_code);
+    }
 
     tr_shader_program* p_shader_program = (tr_shader_program*)calloc(1, sizeof(*p_shader_program));
     assert(NULL != p_shader_program);
@@ -1477,15 +1501,21 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
     p_shader_program->shader_stages |= (domn_size > 0) ? tr_shader_stage_tese : 0;
     p_shader_program->shader_stages |= (geom_size > 0) ? tr_shader_stage_geom : 0;
     p_shader_program->shader_stages |= (frag_size > 0) ? tr_shader_stage_frag : 0;
+    p_shader_program->shader_stages |= (comp_size > 0) ? tr_shader_stage_comp : 0;
 
-    tr_internal_dx_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, hull_size, hull_code, hull_enpt, domn_size, domn_code, domn_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, p_shader_program);
+    tr_internal_dx_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, hull_size, hull_code, hull_enpt, domn_size, domn_code, domn_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, comp_size, comp_code, comp_enpt, p_shader_program);
 
     *pp_shader_program = p_shader_program;
 }
 
 void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
 {
-    tr_create_shader_program_n(p_renderer, vert_size, vert_code, vert_enpt, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, frag_size, frag_code, frag_enpt, pp_shader_program);
+    tr_create_shader_program_n(p_renderer, vert_size, vert_code, vert_enpt, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, frag_size, frag_code, frag_enpt, 0, NULL, NULL, pp_shader_program);
+}
+
+void tr_create_shader_program_compute(tr_renderer* p_renderer, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program)
+{
+    tr_create_shader_program_n(p_renderer, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, comp_size, comp_code, comp_enpt, pp_shader_program);
 }
 
 void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program)
@@ -1508,6 +1538,24 @@ void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_pro
     memcpy(&(p_pipeline->settings), p_pipeline_settings, sizeof(*p_pipeline_settings));
 
     tr_internal_dx_create_pipeline(p_renderer, p_shader_program, p_vertex_layout, p_descriptor_set, p_render_target, p_pipeline_settings, p_pipeline);
+    p_pipeline->type = tr_pipeline_type_graphics;
+
+    *pp_pipeline = p_pipeline;
+}
+
+tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(NULL != p_shader_program);
+    assert(NULL != p_pipeline_settings);
+
+    tr_pipeline* p_pipeline = (tr_pipeline*)calloc(1, sizeof(*p_pipeline));
+    assert(NULL != p_pipeline);
+
+    memcpy(&(p_pipeline->settings), p_pipeline_settings, sizeof(*p_pipeline_settings));
+
+    tr_internal_dx_create_compute_pipeline(p_renderer, p_shader_program, p_descriptor_set, p_pipeline_settings, p_pipeline);
+    p_pipeline->type = tr_pipeline_type_compute;
 
     *pp_pipeline = p_pipeline;
 }
@@ -1767,6 +1815,12 @@ void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_t
     assert(NULL != p_render_target);
 
     tr_internal_dx_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
+}
+
+void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z)
+{
+    assert(NULL != p_cmd);
+    tr_internal_dx_cmd_dispatch(p_cmd, thread_group_count_x, thread_group_count_y, thread_group_count_z);
 }
 
 void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence)
@@ -2206,17 +2260,17 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
         //
         tr_internal_dx_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
         for (uint32_t mip_level = 0; mip_level < p_texture->mip_levels; ++mip_level) {
-		    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = subres_layouts[mip_level];
+		        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = subres_layouts[mip_level];
             TINY_RENDERER_DECLARE_ZERO(D3D12_TEXTURE_COPY_LOCATION, src);
-		    src.pResource       = buffer->dx_resource;
-		    src.Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-		    src.PlacedFootprint = layout;
+		        src.pResource       = buffer->dx_resource;
+		        src.Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		        src.PlacedFootprint = layout;
             TINY_RENDERER_DECLARE_ZERO(D3D12_TEXTURE_COPY_LOCATION, dst);
-		    dst.pResource        = p_texture->dx_resource;
-		    dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		    dst.SubresourceIndex = mip_level;
+		        dst.pResource        = p_texture->dx_resource;
+		        dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		        dst.SubresourceIndex = mip_level;
 
-		    p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+		        p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
         }        
         tr_internal_dx_cmd_image_transition(p_cmd, p_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
         tr_end_cmd(p_cmd);
@@ -2240,7 +2294,7 @@ void tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_
 // -------------------------------------------------------------------------------------------------
 // Internal utility functions
 // -------------------------------------------------------------------------------------------------
-D3D12_RESOURCE_STATES tr_util_to_dx_resource_state(tr_texture_usage usage)
+D3D12_RESOURCE_STATES tr_util_to_dx_resource_state(tr_texture_usage_flags usage)
 {
     D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
     if (tr_texture_usage_transfer_src == (usage & tr_texture_usage_transfer_src)) {
@@ -2585,9 +2639,12 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
     for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
         uint32_t count = p_descriptor_set->descriptors[i].count;
         switch (p_descriptor_set->descriptors[i].type) {
-            case tr_descriptor_type_sampler        : sampler_count   += count; break;
-            case tr_descriptor_type_texture        : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_uniform_buffer : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_sampler              : sampler_count   += count; break;
+            case tr_descriptor_type_texture              : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_uniform_buffer       : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_uniform_texel_buffer : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_storage_texel_buffer : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_storage_buffer       : cbvsrvuav_count += count; break;
         }
     }
 
@@ -2626,7 +2683,10 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             break;
 
             case tr_descriptor_type_texture:
-            case tr_descriptor_type_uniform_buffer: {
+            case tr_descriptor_type_uniform_buffer:
+            case tr_descriptor_type_uniform_texel_buffer:
+            case tr_descriptor_type_storage_texel_buffer:
+            case tr_descriptor_type_storage_buffer: {
                 descriptor->dx_heap_offset = cbvsrvuav_heap_offset;
                 cbvsrvuav_heap_offset += descriptor->count;
             }
@@ -2683,7 +2743,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     // Align the buffer size to multiples of 256
     if (p_buffer->usage & tr_buffer_usage_uniform) {
-        p_buffer->size = tr_round_up(p_buffer->size, 256);
+        p_buffer->size = tr_round_up((uint32_t)(p_buffer->size), 256);
     }
 
     D3D12_RESOURCE_DIMENSION res_dim = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -2712,7 +2772,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     // Adjust for padding
     UINT64 padded_size = 0;
-    p_renderer->dx_device->GetCopyableFootprints( &desc, 0, 1, 0, nullptr, nullptr, nullptr, &padded_size );
+    p_renderer->dx_device->GetCopyableFootprints( &desc, 0, 1, 0, NULL, NULL, NULL, &padded_size );
     p_buffer->size = (uint64_t)padded_size;
     desc.Width = padded_size;
 
@@ -2823,8 +2883,14 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         if (p_texture->usage & tr_texture_usage_depth_stencil_attachment) {
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
         }
+        if (p_texture->usage & tr_texture_usage_storage) {
+            desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+        }
 
         D3D12_RESOURCE_STATES res_states = tr_util_to_dx_resource_state(p_texture->usage);
+        if (p_texture->usage & tr_texture_usage_storage) {
+          res_states = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        }
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_CLEAR_VALUE, clear_value);
         clear_value.Format = tr_util_to_dx_format(p_texture->format);
@@ -2852,19 +2918,28 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         p_texture->owns_image = true;
     }
 
-    D3D12_SRV_DIMENSION view_dim = D3D12_SRV_DIMENSION_UNKNOWN;
-    switch (p_texture->type) {
-        case tr_texture_type_1d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE1D; break;
-        case tr_texture_type_2d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
-        case tr_texture_type_3d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE3D; break;
-        case tr_texture_type_cube : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
-    }
-    assert(D3D12_SRV_DIMENSION_UNKNOWN != view_dim);
+    if (p_texture->usage & tr_texture_usage_sampled_image) {
+      D3D12_SRV_DIMENSION view_dim = D3D12_SRV_DIMENSION_UNKNOWN;
+      switch (p_texture->type) {
+          case tr_texture_type_1d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE1D; break;
+          case tr_texture_type_2d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
+          case tr_texture_type_3d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE3D; break;
+          case tr_texture_type_cube : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
+      }
+      assert(D3D12_SRV_DIMENSION_UNKNOWN != view_dim);
 
-    p_texture->dx_view_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    p_texture->dx_view_desc.Format                  = tr_util_to_dx_format(p_texture->format);
-    p_texture->dx_view_desc.ViewDimension           = view_dim;
-    p_texture->dx_view_desc.Texture2D.MipLevels     = (UINT)p_texture->mip_levels;
+      p_texture->dx_srv_view_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+      p_texture->dx_srv_view_desc.Format                  = tr_util_to_dx_format(p_texture->format);
+      p_texture->dx_srv_view_desc.ViewDimension           = view_dim;
+      p_texture->dx_srv_view_desc.Texture2D.MipLevels     = (UINT)p_texture->mip_levels;
+    }
+
+    if (p_texture->usage & tr_texture_usage_storage) {
+      p_texture->dx_uav_view_desc.Format                = tr_util_to_dx_format(p_texture->format);
+      p_texture->dx_uav_view_desc.ViewDimension         = D3D12_UAV_DIMENSION_TEXTURE2D;
+      p_texture->dx_uav_view_desc.Texture2D.MipSlice    = 0;
+      p_texture->dx_uav_view_desc.Texture2D.PlaneSlice  = 0;
+  }   
 }
 
 void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -2898,7 +2973,7 @@ void tr_internal_dx_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampl
     // NO-OP for now
 }
 
-void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program)
+void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program* p_shader_program)
 {
     assert(NULL != p_renderer->dx_device);
 
@@ -2921,20 +2996,23 @@ void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert
      TINY_RENDERER_DECLARE_ZERO(char, ds_target[16]);
      TINY_RENDERER_DECLARE_ZERO(char, gs_target[16]);
      TINY_RENDERER_DECLARE_ZERO(char, ps_target[16]);
+     TINY_RENDERER_DECLARE_ZERO(char, cs_target[16]);
 
     sprintf_s(vs_target, "vs_%d_%d", major, minor);
     sprintf_s(hs_target, "hs_%d_%d", major, minor);
     sprintf_s(ds_target, "ds_%d_%d", major, minor);
     sprintf_s(gs_target, "gs_%d_%d", major, minor);
     sprintf_s(ps_target, "ps_%d_%d", major, minor);
+    sprintf_s(cs_target, "cs_%d_%d", major, minor);
 
     const char* vs_name = "VERTEX";
     const char* hs_name = "HULL";
-    const char* ds_name = "DOMAINN";
+    const char* ds_name = "DOMAIN";
     const char* gs_name = "GEOMETRY";
     const char* ps_name = "PIXEL";
+    const char* cs_name = "COMPUTE";
 
-    for (uint32_t i = 0; i < 5; ++i) {
+    for (uint32_t i = 0; i < tr_shader_stage_count; ++i) {
         tr_shader_stage stage_mask = (tr_shader_stage)(1 << i);
         if (stage_mask == (p_shader_program->shader_stages & stage_mask)) {
             const void* source        = NULL;
@@ -2983,6 +3061,14 @@ void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert
                     target        = ps_target;
                     entry_point   = frag_enpt;
                     compiled_code = &(p_shader_program->dx_frag);
+                } break;
+                case tr_shader_stage_comp: {
+                    source        = comp_code;
+                    source_len    = comp_size;
+                    source_name   = cs_name;
+                    target        = cs_target;
+                    entry_point   = comp_enpt;
+                    compiled_code = &(p_shader_program->dx_comp);
                 } break;
             }
 
@@ -3039,9 +3125,12 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
         for (uint32_t i = 0; i < descriptor_count; ++i) {
             uint32_t count = p_descriptor_set->descriptors[i].count;
             switch (p_descriptor_set->descriptors[i].type) {
-                case tr_descriptor_type_sampler        : sampler_count   += count; break;
-                case tr_descriptor_type_texture        : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_uniform_buffer : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_sampler              : sampler_count   += count; break;
+                case tr_descriptor_type_texture              : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_uniform_buffer       : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_uniform_texel_buffer : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_storage_texel_buffer : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_storage_buffer       : cbvsrvuav_count += count; break;
             }
         }
 
@@ -3094,6 +3183,10 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
                 param_10->ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
                 ++shader_stage_count;
             }
+            if (descriptor->shader_stages & tr_shader_stage_comp) {
+                // Keep D3D12_SHADER_VISIBILITY_ALL for compute shaders
+                ++shader_stage_count;
+            }
             // Go back to all shader stages if there's more than one stage
             if (shader_stage_count > 1) {
                 param_11->ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -3108,16 +3201,23 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
                     assign_range = true;
                 }
                 break;
-                case tr_descriptor_type_texture: {
+                case tr_descriptor_type_texture:
+                case tr_descriptor_type_uniform_texel_buffer: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     assign_range = true;
                 }
-                break;
-           
+                break;      
                 case tr_descriptor_type_uniform_buffer: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+                    assign_range = true;
+                }
+                break;
+                case tr_descriptor_type_storage_texel_buffer:
+                case tr_descriptor_type_storage_buffer: {
+                    range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+                    range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
                     assign_range = true;
                 }
                 break;
@@ -3390,6 +3490,40 @@ void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
     tr_internal_dx_create_pipeline_state(p_renderer, p_shader_program, p_vertex_layout, p_render_target, p_pipeline_settings, p_pipeline);
 }
 
+void tr_internal_dx_create_compute_pipeline_state(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
+{
+    TINY_RENDERER_DECLARE_ZERO(D3D12_SHADER_BYTECODE, CS);
+    if (NULL != p_shader_program->dx_comp) {
+        CS.BytecodeLength  = p_shader_program->dx_comp->GetBufferSize();
+        CS.pShaderBytecode = p_shader_program->dx_comp->GetBufferPointer();
+    }
+
+    TINY_RENDERER_DECLARE_ZERO(D3D12_CACHED_PIPELINE_STATE, cached_pso_desc);
+    cached_pso_desc.pCachedBlob                             = NULL;
+    cached_pso_desc.CachedBlobSizeInBytes                   = 0;
+
+    TINY_RENDERER_DECLARE_ZERO(D3D12_COMPUTE_PIPELINE_STATE_DESC, pipeline_state_desc);
+    pipeline_state_desc.pRootSignature  = p_pipeline->dx_root_signature;
+    pipeline_state_desc.CS              = CS;
+    pipeline_state_desc.NodeMask        = 0;
+    pipeline_state_desc.CachedPSO       = cached_pso_desc;
+    pipeline_state_desc.Flags           = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+    HRESULT hres = p_renderer->dx_device->CreateComputePipelineState(
+                       &pipeline_state_desc,
+                       __uuidof(p_pipeline->dx_pipeline_state), (void**)&(p_pipeline->dx_pipeline_state));
+    assert(SUCCEEDED(hres));
+}
+
+void tr_internal_dx_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
+{
+    assert(NULL != p_renderer->dx_device);
+    assert(NULL != p_shader_program->dx_comp);
+
+    tr_internal_dx_create_root_signature(p_renderer, p_descriptor_set, p_pipeline);
+    tr_internal_dx_create_compute_pipeline_state(p_renderer, p_shader_program, p_pipeline_settings, p_pipeline);
+}
+
 void tr_internal_dx_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline)
 {
     TINY_RENDERER_SAFE_RELEASE(p_pipeline->dx_root_signature);
@@ -3508,7 +3642,8 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_texture: {
+            case tr_descriptor_type_texture:
+            case tr_descriptor_type_uniform_texel_buffer: {
                 assert(NULL != descriptor->textures);
 
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
@@ -3518,7 +3653,7 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                     assert(NULL != descriptor->textures[i]);
 
                     ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
-                    D3D12_SHADER_RESOURCE_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_view_desc);
+                    D3D12_SHADER_RESOURCE_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_srv_view_desc);
                     p_renderer->dx_device->CreateShaderResourceView(resource, view_desc, handle);
                     handle.ptr += handle_inc_size;
                 }
@@ -3538,6 +3673,24 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                     ID3D12Resource* resource = descriptor->uniform_buffers[i]->dx_resource;
                     D3D12_CONSTANT_BUFFER_VIEW_DESC* view_desc = &(descriptor->uniform_buffers[i]->dx_constant_buffer_view_desc);
                     p_renderer->dx_device->CreateConstantBufferView(view_desc, handle);
+                    handle.ptr += handle_inc_size;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_storage_texel_buffer:
+            case tr_descriptor_type_storage_buffer: {
+                assert(NULL != descriptor->textures);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    assert(NULL != descriptor->textures[i]);
+
+                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
+                    D3D12_UNORDERED_ACCESS_VIEW_DESC * view_desc = &(descriptor->textures[i]->dx_uav_view_desc);
+                    p_renderer->dx_device->CreateUnorderedAccessView(resource, NULL, view_desc, handle);
                     handle.ptr += handle_inc_size;
                 }
             }
@@ -3677,20 +3830,26 @@ void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
     assert(NULL != p_pipeline->dx_pipeline_state);
     assert(NULL != p_pipeline->dx_root_signature);  
 
-    D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-    switch(p_pipeline->settings.primitive_topo) {
-        case tr_primitive_topo_point_list : topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST; break;
-        case tr_primitive_topo_line_list  : topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST; break;
-        case tr_primitive_topo_line_strip : topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP; break;
-        case tr_primitive_topo_tri_list   : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST; break;
-        case tr_primitive_topo_tri_strip  : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP; break;
-        default: break;
-    }
-    assert(D3D_PRIMITIVE_TOPOLOGY_UNDEFINED != topology);
-
     p_cmd->dx_cmd_list->SetPipelineState(p_pipeline->dx_pipeline_state);
-    p_cmd->dx_cmd_list->SetGraphicsRootSignature(p_pipeline->dx_root_signature);
-    p_cmd->dx_cmd_list->IASetPrimitiveTopology(topology);
+    
+    if (p_pipeline->type == tr_pipeline_type_graphics) {
+      D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+      switch(p_pipeline->settings.primitive_topo) {
+          case tr_primitive_topo_point_list : topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST; break;
+          case tr_primitive_topo_line_list  : topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST; break;
+          case tr_primitive_topo_line_strip : topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP; break;
+          case tr_primitive_topo_tri_list   : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST; break;
+          case tr_primitive_topo_tri_strip  : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP; break;
+          default: break;
+      }
+      assert(D3D_PRIMITIVE_TOPOLOGY_UNDEFINED != topology);
+
+      p_cmd->dx_cmd_list->SetGraphicsRootSignature(p_pipeline->dx_root_signature);
+      p_cmd->dx_cmd_list->IASetPrimitiveTopology(topology);
+    }
+    else if (p_pipeline->type == tr_pipeline_type_compute) {
+      p_cmd->dx_cmd_list->SetComputeRootSignature(p_pipeline->dx_root_signature);
+    }
 }
 
 void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set)
@@ -3728,11 +3887,19 @@ void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
             break;
 
             case tr_descriptor_type_texture:
-            case tr_descriptor_type_uniform_buffer: {
+            case tr_descriptor_type_uniform_buffer:
+            case tr_descriptor_type_uniform_texel_buffer: 
+            case tr_descriptor_type_storage_texel_buffer: 
+            case tr_descriptor_type_storage_buffer:   {
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetGPUDescriptorHandleForHeapStart();
                 UINT handle_inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
-                p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                if (p_pipeline->type == tr_pipeline_type_graphics) {
+                  p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                }
+                else if (p_pipeline->type == tr_pipeline_type_compute) {
+                  p_cmd->dx_cmd_list->SetComputeRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                }
             }
             break;
         }       
@@ -3839,6 +4006,11 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
             }
         }
     }
+}
+
+void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z)
+{
+    p_cmd->dx_cmd_list->Dispatch(thread_group_count_x, thread_group_count_y, thread_group_count_z);
 }
 
 // -------------------------------------------------------------------------------------------------

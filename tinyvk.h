@@ -1418,13 +1418,13 @@ void tr_create_texture(
 }
 
 void tr_create_texture_1d(
-    tr_renderer*     p_renderer, 
-    uint32_t         width, 
-    tr_sample_count  sample_count, 
-    tr_format        format, 
-    bool             host_visible, 
-    tr_texture_usage usage, 
-    tr_texture**     pp_texture
+    tr_renderer*            p_renderer, 
+    uint32_t                width, 
+    tr_sample_count         sample_count, 
+    tr_format               format, 
+    bool                    host_visible, 
+    tr_texture_usage_flags  usage, 
+    tr_texture**            pp_texture
 )
 {
     tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
@@ -1451,15 +1451,15 @@ void tr_create_texture_2d(
 }
 
 void tr_create_texture_3d(
-    tr_renderer*     p_renderer, 
-    uint32_t         width, 
-    uint32_t         height, 
-    uint32_t         depth, 
-    tr_sample_count  sample_count, 
-    tr_format        format, 
-    bool             host_visible, 
-    tr_texture_usage usage, 
-    tr_texture**     pp_texture
+    tr_renderer*            p_renderer, 
+    uint32_t                width, 
+    uint32_t                height, 
+    uint32_t                depth, 
+    tr_sample_count         sample_count, 
+    tr_format               format, 
+    bool                    host_visible, 
+    tr_texture_usage_flags  usage, 
+    tr_texture**            pp_texture
 )
 {
     tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
