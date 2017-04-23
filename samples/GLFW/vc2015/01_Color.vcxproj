@@ -99,7 +99,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalOptions>/ENTRY:mainCRTStartup %(AdditionalOptions)</AdditionalOptions>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
-      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -117,7 +117,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalOptions>/ENTRY:mainCRTStartup %(AdditionalOptions)</AdditionalOptions>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
-      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VK_SDK_PATH)\Bin</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -139,7 +139,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
       <AdditionalOptions>/ENTRY:mainCRTStartup %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -161,7 +161,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
       <AdditionalOptions>/ENTRY:mainCRTStartup %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib\Debug</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(GLFW_DIR)\lib;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

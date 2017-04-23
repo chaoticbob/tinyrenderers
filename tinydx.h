@@ -366,6 +366,7 @@ typedef struct tr_renderer_settings {
     uint32_t                            height;
     tr_swapchain_settings               swapchain;
     tr_log_fn                           log_fn;
+    D3D_FEATURE_LEVEL                   dx_feature_level;
     tr_dx_shader_target                 dx_shader_target;
 } tr_renderer_settings;
 
@@ -403,7 +404,9 @@ typedef struct tr_renderer {
     IDXGIAdapter3*                      dx_gpus[tr_max_gpus];
     IDXGIAdapter3*                      dx_active_gpu;
     ID3D12Device*                       dx_device;
-    IDXGISwapChain4*                    dx_swapchain;
+    // Use IDXGISwapChain3 for now since IDXGISwapChain4
+    // isn't supported by older devices.
+    IDXGISwapChain3*                    dx_swapchain;
 } tr_renderer;
 
 typedef struct tr_descriptor {
@@ -1024,10 +1027,8 @@ void tr_create_renderer(const char *app_name, const tr_renderer_settings* settin
         p_renderer->graphics_queue->renderer = p_renderer;
         p_renderer->present_queue->renderer = p_renderer;
 
-        // Initialize the Vulkan bits
+        // Initialize the D3D12 bits
         {
-            //tr_internal_dx_create_instance(app_name, p_renderer);
-            //tr_internal_dx_create_surface(p_renderer);
             tr_internal_dx_create_device(p_renderer);
             tr_internal_dx_create_swapchain(p_renderer);
         }
@@ -1035,7 +1036,7 @@ void tr_create_renderer(const char *app_name, const tr_renderer_settings* settin
         // Allocate and configure render target objects
         tr_internal_create_swapchain_renderpass(p_renderer);
 
-        // Initialize the Vulkan bits of the render targets
+        // Initialize the D3D12 bits of the render targets
         tr_internal_dx_create_swapchain_renderpass(p_renderer);
 
         // Allocate storage for image acquired fences
@@ -2287,14 +2288,28 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
     HRESULT hres = CreateDXGIFactory2(flags, __uuidof(p_renderer->dx_factory), (void**)&(p_renderer->dx_factory));
     assert(SUCCEEDED(hres));
 
+    D3D_FEATURE_LEVEL gpu_feature_levels[tr_max_gpus];
+    for (uint32_t i = 0; i < tr_max_gpus; ++i) {
+      gpu_feature_levels[i] = (D3D_FEATURE_LEVEL)0;
+    }
+
     IDXGIAdapter1* adapter = NULL;
     for (UINT i = 0; DXGI_ERROR_NOT_FOUND != p_renderer->dx_factory->EnumAdapters1(i, &adapter); ++i) {
         TINY_RENDERER_DECLARE_ZERO(DXGI_ADAPTER_DESC1, desc);
         adapter->GetDesc1(&desc);
         // Make sure the adapter can support a D3D12 device
-        if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, __uuidof(p_renderer->dx_device), NULL))) {
+        if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, __uuidof(p_renderer->dx_device), NULL))) {
             hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
             if (SUCCEEDED(hres)) {
+                gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_12_1;
+                ++p_renderer->dx_gpu_count;
+            }
+            adapter->Release();
+        }
+        else if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, __uuidof(p_renderer->dx_device), NULL))) {
+            hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
+            if (SUCCEEDED(hres)) {
+                gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_12_0;
                 ++p_renderer->dx_gpu_count;
             }
             adapter->Release();
@@ -2302,10 +2317,25 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
     }
     assert(p_renderer->dx_gpu_count > 0);
 
-    p_renderer->dx_active_gpu = p_renderer->dx_gpus[0];
+    D3D_FEATURE_LEVEL target_feature_level = D3D_FEATURE_LEVEL_12_1;
+    for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+      if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_1) {
+        p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+        break;
+      }
+    }
 
-    hres = D3D12CreateDevice(p_renderer->dx_active_gpu, D3D_FEATURE_LEVEL_12_0, __uuidof(p_renderer->dx_device), (void**)(&p_renderer->dx_device));
-    assert(SUCCEEDED(hres));
+    if (p_renderer->dx_active_gpu == NULL) {
+      for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+        if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_0) {
+          p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+          target_feature_level = D3D_FEATURE_LEVEL_12_0;
+          break;
+        }
+      }
+    }
+
+    assert(p_renderer->dx_active_gpu != NULL);
 
     // Load functions
     {
@@ -2313,18 +2343,27 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
         fnD3D12CreateRootSignatureDeserializer 
             = (PFN_D3D12_CREATE_ROOT_SIGNATURE_DESERIALIZER)GetProcAddress(module, 
                                                                            "D3D12SerializeVersionedRootSignature");
-        assert(NULL != fnD3D12CreateRootSignatureDeserializer);
 
         fnD3D12SerializeVersionedRootSignature 
             = (PFN_D3D12_SERIALIZE_VERSIONED_ROOT_SIGNATURE)GetProcAddress(module,
                                                                            "D3D12SerializeVersionedRootSignature");
-        assert(NULL != fnD3D12SerializeVersionedRootSignature);
-
+        
         fnD3D12CreateVersionedRootSignatureDeserializer 
             = (PFN_D3D12_CREATE_VERSIONED_ROOT_SIGNATURE_DESERIALIZER)GetProcAddress(module, 
                                                                                      "D3D12CreateVersionedRootSignatureDeserializer");
-        assert(NULL != fnD3D12CreateVersionedRootSignatureDeserializer);
     }
+
+    if ((fnD3D12CreateRootSignatureDeserializer == NULL) ||
+        (fnD3D12SerializeVersionedRootSignature == NULL) ||
+        (fnD3D12CreateVersionedRootSignatureDeserializer == NULL)) 
+    {
+      target_feature_level = D3D_FEATURE_LEVEL_12_0;
+    }
+
+    hres = D3D12CreateDevice(p_renderer->dx_active_gpu, target_feature_level, __uuidof(p_renderer->dx_device), (void**)(&p_renderer->dx_device));
+    assert(SUCCEEDED(hres));
+
+    p_renderer->settings.dx_feature_level = target_feature_level;
 
     // Queues
     {
@@ -3130,7 +3169,12 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
 
     ID3DBlob* sig_blob = NULL;
     ID3DBlob* error_msgs = NULL;
-    hres = fnD3D12SerializeVersionedRootSignature(&desc, &sig_blob, &error_msgs);
+    if (D3D_ROOT_SIGNATURE_VERSION_1_1 == feature_data.HighestVersion) {
+      hres = fnD3D12SerializeVersionedRootSignature(&desc, &sig_blob, &error_msgs);
+    }
+    else {
+      hres = D3D12SerializeRootSignature(&(desc.Desc_1_0), D3D_ROOT_SIGNATURE_VERSION_1_0, &sig_blob, &error_msgs);
+    }
     assert(SUCCEEDED(hres));
 
     hres = p_renderer->dx_device->CreateRootSignature(0, sig_blob->GetBufferPointer(), sig_blob->GetBufferSize(),
