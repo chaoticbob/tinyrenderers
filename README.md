@@ -50,7 +50,5 @@ or
 
 
 
-#### Change Log
-```
+### Change Log
 [2017/04/24] - Added compute samples (D3D12 only for now). One for simple compute and another for structured buffers.
-```
