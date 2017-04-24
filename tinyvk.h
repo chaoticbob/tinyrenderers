@@ -194,6 +194,8 @@ typedef enum tr_texture_usage {
     tr_texture_usage_present                    = 0x00000100,
 } tr_texture_usage;
 
+typedef uint32_t tr_texture_usage_flags;
+
 typedef enum tr_format {
     tr_format_undefined = 0,
     // 1 channel
@@ -236,6 +238,10 @@ typedef enum tr_descriptor_type {
     tr_descriptor_type_sampler,
     tr_descriptor_type_texture,
     tr_descriptor_type_uniform_buffer,
+    tr_descriptor_type_storage_texture,
+    tr_descriptor_type_uniform_texel_buffer,
+    tr_descriptor_type_storage_texel_buffer,
+    tr_descriptor_type_storage_buffer,
 } tr_descriptor_type;
 
 typedef enum tr_sample_count {
@@ -247,13 +253,14 @@ typedef enum tr_sample_count {
 } tr_sample_count;
 
 typedef enum tr_shader_stage {
-    tr_shader_stage_vert         = 0x00000001,
-    tr_shader_stage_tesc         = 0x00000002,
-    tr_shader_stage_tese         = 0x00000004,
-    tr_shader_stage_geom         = 0x00000008,
-    tr_shader_stage_frag         = 0x00000010,
-    tr_shader_stage_comp         = 0x00000020,
-    tr_shader_stage_all_graphics = 0x0000001F,
+    tr_shader_stage_vert          = 0x00000001,
+    tr_shader_stage_tesc          = 0x00000002,
+    tr_shader_stage_tese          = 0x00000004,
+    tr_shader_stage_geom          = 0x00000008,
+    tr_shader_stage_frag          = 0x00000010,
+    tr_shader_stage_comp          = 0x00000020,
+    tr_shader_stage_all_graphics  = 0x0000001F,
+    tr_shader_stage_count         = 6,
 } tr_shader_stage;
 
 typedef enum tr_primitive_topo {
@@ -300,6 +307,12 @@ typedef enum tr_front_face {
     tr_front_face_ccw = 0,
     tr_fornt_face_cw
 } tr_front_face;
+
+typedef enum tr_pipeline_type {
+  tr_pipeline_type_undefined = 0,
+  tr_pipeline_type_compute,
+  tr_pipeline_type_graphics
+} tr_pipeline_type;
 
 // Forward declarations
 typedef struct tr_renderer tr_renderer;
@@ -440,7 +453,7 @@ typedef struct tr_buffer {
 typedef struct tr_texture {
     tr_renderer*                        renderer;
     tr_texture_type                     type;
-    tr_texture_usage                    usage;
+    tr_texture_usage_flags              usage;
     uint32_t                            width;
     uint32_t                            height;
     uint32_t                            depth;
@@ -508,6 +521,7 @@ typedef struct tr_pipeline_settings {
 typedef struct tr_pipeline {
     tr_renderer*                        renderer;
     tr_pipeline_settings                settings;
+    tr_pipeline_type                    type;
     VkPipelineLayout                    vk_pipeline_layout;
     VkPipeline                          vk_pipeline;
 } tr_pipeline;
@@ -572,20 +586,22 @@ tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t si
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
-tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
 tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
 tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 
-tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program);
+tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** p_shader_program);
+tr_api_export void tr_create_shader_program_compute(tr_renderer* p_renderer, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 
 tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
+tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
 tr_api_export void tr_create_render_target(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, const tr_clear_value* color_clear_values, tr_format depth_stencil_format, const tr_clear_value* depth_stencil_clear_value, tr_render_target** pp_render_target);
@@ -608,6 +624,7 @@ tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint
 tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);  
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
 tr_api_export void tr_queue_submit(tr_queue* p_queue, uint32_t cmd_count, tr_cmd** pp_cmds, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores, uint32_t signal_semaphore_count, tr_semaphore** pp_signal_semaphores);
@@ -714,8 +731,9 @@ void tr_internal_vk_destroy_texture(tr_renderer* p_renderer, tr_texture* p_textu
 void tr_internal_vk_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_vk_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* pp_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
+void tr_internal_vk_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_vk_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
-void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program);
+void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program* p_shader_program);
 void tr_internal_vk_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 void tr_internal_vk_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 void tr_internal_vk_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
@@ -740,6 +758,7 @@ void tr_internal_vk_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32
 void tr_internal_vk_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+void tr_internal_vk_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
 // Internal queue/swapchain functions
 void tr_internal_vk_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -1377,7 +1396,7 @@ void tr_create_texture(
     uint32_t                 mip_levels,
     const tr_clear_value*    p_clear_value, 
     bool                     host_visible, 
-    tr_texture_usage         usage, 
+    tr_texture_usage_flags   usage, 
     tr_texture**             pp_texture
 )
 {
@@ -1431,16 +1450,16 @@ void tr_create_texture_1d(
 }
 
 void tr_create_texture_2d(
-    tr_renderer*             p_renderer, 
-    uint32_t                 width, 
-    uint32_t                 height, 
-    tr_sample_count          sample_count, 
-    tr_format                format,
-    uint32_t                 mip_levels,
-    const tr_clear_value*    clear_value, 
-    bool                     host_visible,
-    tr_texture_usage         usage, 
-    tr_texture**             pp_texture
+    tr_renderer*              p_renderer, 
+    uint32_t                  width, 
+    uint32_t                  height, 
+    tr_sample_count           sample_count, 
+    tr_format                 format,
+    uint32_t                  mip_levels,
+    const tr_clear_value*     clear_value, 
+    bool                      host_visible,
+    tr_texture_usage_flags    usage, 
+    tr_texture**              pp_texture
 )
 {
     if (tr_max_mip_levels == mip_levels) {
@@ -1499,7 +1518,7 @@ void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
     TINY_RENDERER_SAFE_FREE(p_sampler);
 }
 
-void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
+void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     if (vert_size > 0) {
@@ -1517,6 +1536,9 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
     if (frag_size > 0) {
         assert(NULL != frag_code);
     }
+    if (comp_size > 0) {
+        assert(NULL != comp_code);
+    }
 
     tr_shader_program* p_shader_program = (tr_shader_program*)calloc(1, sizeof(*p_shader_program));
     assert(NULL != p_shader_program);
@@ -1527,19 +1549,26 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
     p_shader_program->shader_stages |= (tese_size > 0) ? tr_shader_stage_tese : 0;
     p_shader_program->shader_stages |= (geom_size > 0) ? tr_shader_stage_geom : 0;
     p_shader_program->shader_stages |= (frag_size > 0) ? tr_shader_stage_frag : 0;
+    p_shader_program->shader_stages |= (comp_size > 0) ? tr_shader_stage_comp : 0;
 
-    tr_internal_vk_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, tesc_size, tesc_code, tesc_enpt, tese_size, tese_code, tese_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, p_shader_program);
+    tr_internal_vk_create_shader_program(p_renderer, vert_size, vert_code, vert_enpt, tesc_size, tesc_code, tesc_enpt, tese_size, tese_code, tese_enpt, geom_size, geom_code, geom_enpt, frag_size, frag_code, frag_enpt, comp_size, comp_code, comp_enpt, p_shader_program);
 
-    if (strlen(vert_enpt) > 0) {
+    if ((vert_enpt != NULL) && (strlen(vert_enpt) > 0)) {
       p_shader_program->vert_entry_point = (const char*)calloc(strlen(vert_enpt) + 1, sizeof(char));
       assert(p_shader_program->vert_entry_point != NULL);
       strncpy((char*)p_shader_program->vert_entry_point, vert_enpt, strlen(vert_enpt));
     }
 
-    if (strlen(frag_enpt) > 0) {
+    if ((frag_enpt != NULL) && (strlen(frag_enpt) > 0)) {
       p_shader_program->frag_entry_point = (const char*)calloc(strlen(frag_enpt) + 1, sizeof(char));
       assert(p_shader_program->frag_entry_point != NULL);
       strncpy((char*)p_shader_program->frag_entry_point, frag_enpt, strlen(frag_enpt));
+    }
+
+    if ((comp_enpt != NULL) && (strlen(comp_enpt) > 0)) {
+      p_shader_program->comp_entry_point = (const char*)calloc(strlen(comp_enpt) + 1, sizeof(char));
+      assert(p_shader_program->comp_entry_point != NULL);
+      strncpy((char*)p_shader_program->comp_entry_point, comp_enpt, strlen(comp_enpt));
     }
 
     *pp_shader_program = p_shader_program;
@@ -1547,7 +1576,12 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
 
 void tr_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const uint32_t* vert_code, const char* vert_enpt, uint32_t frag_size, const uint32_t* frag_code, const char* frag_enpt, tr_shader_program** pp_shader_program)
 {
-    tr_create_shader_program_n(p_renderer, vert_size, vert_code, vert_enpt, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, frag_size, frag_code, frag_enpt, pp_shader_program);
+    tr_create_shader_program_n(p_renderer, vert_size, vert_code, vert_enpt, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, frag_size, frag_code, frag_enpt, 0, NULL, NULL, pp_shader_program);
+}
+
+void tr_create_shader_program_compute(tr_renderer* p_renderer, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program)
+{
+    tr_create_shader_program_n(p_renderer, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, comp_size, comp_code, comp_enpt, pp_shader_program);
 }
 
 void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program)
@@ -1569,6 +1603,23 @@ void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_pro
     memcpy(&(p_pipeline->settings), p_pipeline_settings, sizeof(*p_pipeline_settings));
 
     tr_internal_vk_create_pipeline(p_renderer, p_shader_program, p_vertex_layout, p_descriptor_set, p_render_target, p_pipeline_settings, p_pipeline);
+
+    *pp_pipeline = p_pipeline;
+}
+
+tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(NULL != p_shader_program);
+    assert(NULL != p_pipeline_settings);
+
+    tr_pipeline* p_pipeline = (tr_pipeline*)calloc(1, sizeof(*p_pipeline));
+    assert(NULL != p_pipeline);
+
+    memcpy(&(p_pipeline->settings), p_pipeline_settings, sizeof(*p_pipeline_settings));
+
+    tr_internal_vk_create_compute_pipeline(p_renderer, p_shader_program, p_descriptor_set, p_pipeline_settings, p_pipeline);
+    p_pipeline->type = tr_pipeline_type_compute;
 
     *pp_pipeline = p_pipeline;
 }
@@ -1825,6 +1876,12 @@ void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_t
     assert(NULL != p_render_target);
 
     tr_internal_vk_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
+}
+
+void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+{
+    assert(NULL != p_cmd);
+    tr_internal_vk_cmd_dispatch(p_cmd, group_count_x, group_count_y, group_count_z);
 }
 
 void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence)
@@ -2410,7 +2467,7 @@ VkBufferUsageFlags tr_util_to_vk_buffer_usage(tr_buffer_usage usage)
     return result;
 }
 
-VkImageUsageFlags tr_util_to_vk_image_usage(tr_texture_usage usage)
+VkImageUsageFlags tr_util_to_vk_image_usage(tr_texture_usage_flags usage)
 {
     VkImageUsageFlags result = 0;
     if (tr_texture_usage_transfer_src == (usage & tr_texture_usage_transfer_src)) {
@@ -3180,9 +3237,13 @@ void tr_internal_vk_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         VkDescriptorSetLayoutBinding* binding = &(bindings[i]);
         uint32_t type_index = UINT32_MAX;
         switch (descriptor->type) {
-            case tr_descriptor_type_sampler        : type_index = VK_DESCRIPTOR_TYPE_SAMPLER; break;
-            case tr_descriptor_type_texture        : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
-            case tr_descriptor_type_uniform_buffer : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; break;
+            case tr_descriptor_type_sampler               : type_index = VK_DESCRIPTOR_TYPE_SAMPLER; break;
+            case tr_descriptor_type_texture               : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
+            case tr_descriptor_type_uniform_buffer        : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; break;
+            case tr_descriptor_type_storage_texture       : type_index = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; break;
+            case tr_descriptor_type_uniform_texel_buffer  : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER; break;
+            case tr_descriptor_type_storage_texel_buffer  : type_index = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER; break;
+            case tr_descriptor_type_storage_buffer        : type_index = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; break;
         }
         if (UINT32_MAX != type_index) {
             binding->binding            = descriptor->binding;
@@ -3566,11 +3627,11 @@ void tr_internal_vk_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampl
     vkDestroySampler(p_renderer->vk_device, p_sampler->vk_sampler, NULL);
 }
 
-void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, tr_shader_program* p_shader_program)
+void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program* p_shader_program)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
 
-    for (uint32_t i = 0; i < 5; ++i) {
+    for (uint32_t i = 0; i < tr_shader_stage_count; ++i) {
         tr_shader_stage stage_mask = (tr_shader_stage)(1 << i);
         if (stage_mask == (p_shader_program->shader_stages & stage_mask)) {
             TINY_RENDERER_DECLARE_ZERO(VkShaderModuleCreateInfo, create_info);
@@ -3606,6 +3667,12 @@ void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert
                     create_info.codeSize = frag_size;
                     create_info.pCode = (const uint32_t*)frag_code;
                     VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_frag));
+                    assert(VK_SUCCESS == vk_res);
+                } break;
+                case tr_shader_stage_comp: {
+                    create_info.codeSize = comp_size;
+                    create_info.pCode = (const uint32_t*)comp_code;
+                    VkResult vk_res = vkCreateShaderModule(p_renderer->vk_device, &create_info, NULL, &(p_shader_program->vk_comp));
                     assert(VK_SUCCESS == vk_res);
                 } break;
             }
@@ -3892,7 +3959,49 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         VkResult vk_res = vkCreateGraphicsPipelines(p_renderer->vk_device, VK_NULL_HANDLE, 1, &create_info, NULL, &(p_pipeline->vk_pipeline));
         assert(VK_SUCCESS == vk_res);
     }
-    
+}
+
+void tr_internal_vk_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
+{
+    assert(p_renderer->vk_device != VK_NULL_HANDLE);
+    assert(p_shader_program->vk_comp != VK_NULL_HANDLE);
+
+    // Pipeline layout
+    {
+        TINY_RENDERER_DECLARE_ZERO(VkPipelineLayoutCreateInfo, create_info);
+        create_info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        create_info.pNext                  = NULL;
+        create_info.flags                  = 0;
+        create_info.setLayoutCount         = (NULL != p_descriptor_set) ? 1 : 0;
+        create_info.pSetLayouts            = (NULL != p_descriptor_set) ? &(p_descriptor_set->vk_descriptor_set_layout) : NULL;
+        create_info.pushConstantRangeCount = 0;
+        create_info.pPushConstantRanges    = NULL;
+        VkResult vk_res = vkCreatePipelineLayout(p_renderer->vk_device, &create_info, NULL, &(p_pipeline->vk_pipeline_layout));
+        assert(VK_SUCCESS == vk_res);
+    }
+
+    // Pipeline
+    {
+      TINY_RENDERER_DECLARE_ZERO(VkPipelineShaderStageCreateInfo , stage);
+      stage.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+      stage.pNext               = NULL;
+      stage.flags               = 0;
+      stage.stage               = VK_SHADER_STAGE_COMPUTE_BIT;
+      stage.module              = p_shader_program->vk_comp;
+      stage.pName               = p_shader_program->comp_entry_point;
+      stage.pSpecializationInfo = NULL;  
+
+      TINY_RENDERER_DECLARE_ZERO(VkComputePipelineCreateInfo, create_info);
+      create_info.sType               = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+      create_info.pNext               = NULL;
+      create_info.flags               = 0;
+      create_info.stage               = stage;
+      create_info.layout              = p_pipeline->vk_pipeline_layout;
+      create_info.basePipelineHandle  = 0;
+      create_info.basePipelineIndex   = 0;
+      VkResult vk_res = vkCreateComputePipelines(p_renderer->vk_device, VK_NULL_HANDLE, 1, &create_info, NULL, &(p_pipeline->vk_pipeline));
+      assert(VK_SUCCESS == vk_res);
+    }
 }
 
 void tr_internal_vk_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline)
@@ -4604,6 +4713,13 @@ void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
     }
 }
 
+void tr_internal_vk_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+{
+  assert(p_cmd != NULL);
+  assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
+
+  vkCmdDispatch(p_cmd->vk_cmd_buf, group_count_x, group_count_y, group_count_z);
+}
 
 // -------------------------------------------------------------------------------------------------
 // Internal queue functions

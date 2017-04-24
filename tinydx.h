@@ -645,7 +645,8 @@ tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
-tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z);  
+tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+tr_api_export void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
 tr_api_export void tr_queue_submit(tr_queue* p_queue, uint32_t cmd_count, tr_cmd** pp_cmds, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores, uint32_t signal_semaphore_count, tr_semaphore** pp_signal_semaphores);
@@ -780,7 +781,8 @@ void tr_internal_dx_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_dx_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_texture, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
-void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z);
+void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
 // Internal queue/swapchain functions
 void tr_internal_dx_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -1885,10 +1887,19 @@ void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_t
     tr_internal_dx_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
 }
 
-void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z)
+void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
 {
     assert(NULL != p_cmd);
-    tr_internal_dx_cmd_dispatch(p_cmd, thread_group_count_x, thread_group_count_y, thread_group_count_z);
+    tr_internal_dx_cmd_dispatch(p_cmd, group_count_x, group_count_y, group_count_z);
+}
+
+void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
+{
+    assert(p_cmd != NULL);
+    assert(p_buffer != NULL);
+    assert(p_texture != NULL);
+
+    tr_internal_dx_cmd_copy_buffer_to_texture2d(p_cmd, width, height, row_pitch, buffer_offset, mip_level, p_buffer, p_texture);
 }
 
 void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence)
@@ -4188,9 +4199,35 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
     }
 }
 
-void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t thread_group_count_x, uint32_t thread_group_count_y, uint32_t thread_group_count_z)
+void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
 {
-    p_cmd->dx_cmd_list->Dispatch(thread_group_count_x, thread_group_count_y, thread_group_count_z);
+    assert(p_cmd->dx_cmd_list != NULL);
+
+    p_cmd->dx_cmd_list->Dispatch(group_count_x, group_count_y, group_count_z);
+}
+
+void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
+{
+    assert(p_cmd->dx_cmd_list != NULL);
+
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
+    layout.Offset = buffer_offset;
+    layout.Footprint.Format   = DXGI_FORMAT_R8G8B8A8_UNORM;
+    layout.Footprint.Width    = width;
+    layout.Footprint.Height   = height;
+    layout.Footprint.Depth    = 1;
+    layout.Footprint.RowPitch = row_pitch;
+
+    D3D12_TEXTURE_COPY_LOCATION src = {};
+    src.pResource       = p_buffer->dx_resource;
+    src.Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint = layout;
+    D3D12_TEXTURE_COPY_LOCATION dst = {};
+    dst.pResource        = p_texture->dx_resource;
+    dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst.SubresourceIndex = mip_level;
+
+    p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
 }
 
 // -------------------------------------------------------------------------------------------------

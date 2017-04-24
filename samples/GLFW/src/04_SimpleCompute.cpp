@@ -81,19 +81,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 )
 {
     if( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT ) {
-        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[INFO]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT ) {
-        //CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[WARN]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[PERF]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
-        //CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" ); 
+        LOG("[ERROR]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")"); 
     }
     else if( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
-        //CI_LOG_D( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        LOG("[DEBUG]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     return VK_FALSE;
 }
@@ -157,6 +157,10 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
+    auto comp = load_file("../../assets/simple_compute.spv");
+    tr_create_shader_program_compute(m_renderer, 
+                                     comp.size(), comp.data(), "CSMain", &m_compute_shader);
+
     auto vert = load_file("../../assets/texture_vert.spv");
     auto frag = load_file("../../assets/texture_frag.spv");
     tr_create_shader_program(m_renderer, 

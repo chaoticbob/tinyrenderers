@@ -295,34 +295,15 @@ void draw_frame()
 
     tr_begin_cmd(cmd);
 
-    // Use compute to swizzle RGB -> BRG
+    // Use compute to swizzle RGB -> BRG in buffer
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
     tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
-    //tr_cmd_dispatch(cmd, 1, 1, 1);
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
+    // Copy compute output buffer to texture
+    tr_cmd_copy_buffer_to_texture2d(cmd, 1024, 1024, 4 * 1024, 0, 0, m_compute_dst_buffer, m_texture);
     // Draw compute result to screen
-
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
-    layout.Offset = 0;
-    layout.Footprint.Format   = DXGI_FORMAT_R8G8B8A8_UNORM;
-    layout.Footprint.Width    = 1024;
-    layout.Footprint.Height   = 1024;
-    layout.Footprint.Depth    = 1;
-    layout.Footprint.RowPitch = 1024 * 4;
-
-    D3D12_TEXTURE_COPY_LOCATION src = {};
-    src.pResource       = m_compute_dst_buffer->dx_resource;
-    src.Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src.PlacedFootprint = layout;
-    D3D12_TEXTURE_COPY_LOCATION dst = {};
-    dst.pResource        = m_texture->dx_resource;
-    dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    dst.SubresourceIndex = 0;
-
-    cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
-
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
