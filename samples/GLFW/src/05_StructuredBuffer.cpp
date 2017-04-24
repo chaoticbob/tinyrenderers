@@ -41,6 +41,10 @@ uint32_t            s_window_width;
 uint32_t            s_window_height;
 uint64_t            s_frame_count = 0;
 
+int                 m_image_width = 0;
+int                 m_image_height = 0;
+int                 m_image_row_stride = 0;
+
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
                     platform_log(ss.str().c_str()); }
 
@@ -245,14 +249,12 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
-    int image_width = 0;
-    int image_height = 0;
     int image_channels = 0;
-    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &image_width, &image_height, &image_channels, 4);
+    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &m_image_width, &m_image_height, &image_channels, 4);
     assert(NULL != image_data);
-    int image_row_stride = image_width * image_channels;
-    uint64_t buffer_size = static_cast<uint64_t>(image_row_stride * image_height);
-    uint64_t element_count = image_width * image_height;
+    m_image_row_stride = m_image_width * image_channels;
+    uint64_t buffer_size = static_cast<uint64_t>(m_image_row_stride * m_image_height);
+    uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = 4;
     tr_create_uniform_texel_buffer(m_renderer, buffer_size, true, tr_format_undefined, 0, element_count, struct_stride, &m_compute_src_buffer);
     memcpy(m_compute_src_buffer->cpu_mapped_address, image_data, buffer_size);
@@ -260,7 +262,7 @@ void init_tiny_renderer(GLFWwindow* window)
 
     tr_create_storage_buffer(m_renderer, buffer_size, false, 0, element_count, struct_stride, 0, &m_compute_dst_buffer);
  
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
 
     tr_create_sampler(m_renderer, &m_sampler);
 
@@ -302,7 +304,7 @@ void draw_frame()
     tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
     // Copy compute output buffer to texture
-    tr_cmd_copy_buffer_to_texture2d(cmd, 1024, 1024, 4 * 1024, 0, 0, m_compute_dst_buffer, m_texture);
+    tr_cmd_copy_buffer_to_texture2d(cmd, m_image_width, m_image_height, m_image_row_stride, 0, 0, m_compute_dst_buffer, m_texture);
     // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
