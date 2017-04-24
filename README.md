@@ -15,7 +15,8 @@
  - Samples use GLFW
    - GLFW
      - Works for both Vulkan and D3D12 - renderer takes over after window handle is obtained
-     - Image loading done via [lc_image](https://github.com/libertuscode/libertuscode)
+     - Image loading done via [lc_image](https://github.com/libertuscode/libertuscode)'
+ - Includes basic compute samples
  - ...more to come soon
 
 #### Notes
