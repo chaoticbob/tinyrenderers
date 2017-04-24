@@ -1,6 +1,10 @@
 
-Texture2D<float4>   Buffer0 : register(t0);
-RWTexture2D<float4> BufferOut : register(u1);
+// 
+// Vulkan version requires imageLoad for source
+// image - so just match it.
+// 
+RWTexture2D<float4>    Buffer0 : register(u0);
+RWTexture2D<float4>  BufferOut : register(u1);
 
 [numthreads(16, 16, 1)]
 void CSMain(uint3 tid : SV_DispatchThreadID)

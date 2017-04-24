@@ -159,7 +159,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #if defined(TINY_RENDERER_VK)
     auto comp = load_file("../../assets/simple_compute.spv");
     tr_create_shader_program_compute(m_renderer, 
-                                     comp.size(), comp.data(), "CSMain", &m_compute_shader);
+                                     comp.size(), comp.data(), "main", &m_compute_shader);
 
     auto vert = load_file("../../assets/texture_vert.spv");
     auto frag = load_file("../../assets/texture_frag.spv");
@@ -190,7 +190,13 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
-    descriptors[0].type          = tr_descriptor_type_texture;
+    //
+    // In D3D12, the first descriptor can also just be a texture 
+    // to use Texture2D, but Vulkan requires that texture reads
+    // in compute be done through imageLoad - which requires 
+    // a storage image. So we just match it in D3D12.
+    //
+    descriptors[0].type          = tr_descriptor_type_storage_texture;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
@@ -254,11 +260,14 @@ void init_tiny_renderer(GLFWwindow* window)
     unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &image_width, &image_height, &image_channels, 0);
     assert(NULL != image_data);
     int image_row_stride = image_width * image_channels;
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image | tr_texture_usage_storage, &m_texture);
     tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
     lc_free_image(image_data);
 
     tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image | tr_texture_usage_storage, &m_texture_compute_output);
+  
+    tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_storage);
+    tr_util_transition_image(m_renderer->graphics_queue, m_texture_compute_output, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
 
     tr_create_sampler(m_renderer, &m_sampler);
 

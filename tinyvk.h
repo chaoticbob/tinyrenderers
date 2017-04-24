@@ -735,7 +735,7 @@ void tr_internal_vk_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_p
 void tr_internal_vk_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 void tr_internal_vk_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t tesc_size, const void* tesc_code, const char* tesc_enpt, uint32_t tese_size, const void* tese_code, const char* tese_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program* p_shader_program);
 void tr_internal_vk_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
-void tr_internal_vk_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
+void tr_internal_vk_create_render_target(tr_renderer* p_renderer, bool is_swapchain, tr_render_target* p_render_target);
 void tr_internal_vk_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 
 // Internal descriptor set functions
@@ -1603,6 +1603,7 @@ void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_pro
     memcpy(&(p_pipeline->settings), p_pipeline_settings, sizeof(*p_pipeline_settings));
 
     tr_internal_vk_create_pipeline(p_renderer, p_shader_program, p_vertex_layout, p_descriptor_set, p_render_target, p_pipeline_settings, p_pipeline);
+    p_pipeline->type = tr_pipeline_type_graphics;
 
     *pp_pipeline = p_pipeline;
 }
@@ -1707,7 +1708,7 @@ void tr_create_render_target(
     }
 
     // Create Vulkan specific objects for the render target
-    tr_internal_vk_create_render_target(p_renderer, p_render_target);
+    tr_internal_vk_create_render_target(p_renderer, false, p_render_target);
 
     *pp_render_target = p_render_target;
 }
@@ -1872,10 +1873,12 @@ void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_us
 
 void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
-    assert(NULL != p_cmd);
-    assert(NULL != p_render_target);
+    // Vulkan render passes take care of transitions, so just ignore this for now...
 
-    tr_internal_vk_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
+    //assert(NULL != p_cmd);
+    //assert(NULL != p_render_target);
+    //
+    //tr_internal_vk_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
 }
 
 void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -2499,7 +2502,7 @@ VkImageLayout tr_util_to_vk_image_layout(tr_texture_usage usage)
         case tr_texture_usage_transfer_src             : result = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; break;
         case tr_texture_usage_transfer_dst             : result = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; break;
         case tr_texture_usage_sampled_image            : result = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; break;
-        case tr_texture_usage_storage                  : result = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; break;
+        case tr_texture_usage_storage                  : result = VK_IMAGE_LAYOUT_GENERAL; break;
         case tr_texture_usage_color_attachment         : result = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; break;
         case tr_texture_usage_depth_stencil_attachment : result = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; break;
         case tr_texture_usage_present                  : result = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; break;
@@ -3128,7 +3131,7 @@ void tr_internal_vk_create_swapchain_renderpass(tr_renderer* p_renderer)
     // Initialize Vulkan render target objects
     for (uint32_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
         tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-        tr_internal_vk_create_render_target(p_renderer, render_target);
+        tr_internal_vk_create_render_target(p_renderer, true, render_target);
     }
 
     TINY_RENDERER_SAFE_FREE(swapchain_images);
@@ -3565,7 +3568,8 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
     }
 
     p_texture->vk_texture_view.imageView = p_texture->vk_image_view;
-    p_texture->vk_texture_view.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    p_texture->vk_texture_view.imageLayout = (p_texture->usage & tr_texture_usage_storage) ? VK_IMAGE_LAYOUT_GENERAL
+                                                                                           : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
 void tr_internal_vk_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -3827,7 +3831,7 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         ts.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
         ts.pNext                                    = NULL;
         ts.flags                                    = 0;
-        ts.patchControlPoints                       = 0;
+        ts.patchControlPoints                       = 1;
 
         TINY_RENDERER_DECLARE_ZERO(VkPipelineViewportStateCreateInfo, vs);
         vs.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -4014,7 +4018,7 @@ void tr_internal_vk_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pip
     vkDestroyPipelineLayout(p_renderer->vk_device, p_pipeline->vk_pipeline_layout, NULL);
 }
 
-void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target* p_render_target)
+void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, bool is_swapchain, tr_render_target* p_render_target)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
 
@@ -4056,8 +4060,8 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            attachments[ssidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachments[ssidx].finalLayout    = is_swapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             attachments[msidx].flags          = 0;
             attachments[msidx].format         = tr_util_to_vk_format(p_render_target->color_format);
@@ -4066,14 +4070,14 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[msidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[msidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[msidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[msidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachments[msidx].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachments[msidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             // references
             color_attachment_refs[i].attachment   = msidx;
-            color_attachment_refs[i].layout       = attachments[msidx].initialLayout;
+            color_attachment_refs[i].layout       = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             resolve_attachment_refs[i].attachment = ssidx;
-            resolve_attachment_refs[i].layout     = attachments[ssidx].initialLayout;
+            resolve_attachment_refs[i].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
 
         // Depth stencil
@@ -4086,10 +4090,10 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             depth_stencil_attachment_ref[0].attachment = idx;
-            depth_stencil_attachment_ref[0].layout     = attachments[idx].initialLayout;
+            depth_stencil_attachment_ref[0].layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
     }
     else {
@@ -4117,12 +4121,12 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[ssidx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[ssidx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[ssidx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            attachments[ssidx].finalLayout    = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            attachments[ssidx].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+            attachments[ssidx].finalLayout    = is_swapchain ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
             // references
             color_attachment_refs[i].attachment = ssidx;
-            color_attachment_refs[i].layout     = attachments[ssidx].initialLayout;
+            color_attachment_refs[i].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
 
         // Depth stencil
@@ -4135,10 +4139,10 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, tr_render_target
             attachments[idx].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-            attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             depth_stencil_attachment_ref[0].attachment = idx;
-            depth_stencil_attachment_ref[0].layout     = attachments[idx].initialLayout;
+            depth_stencil_attachment_ref[0].layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
     }
             
@@ -4235,9 +4239,9 @@ void tr_internal_vk_create_framebuffer(tr_renderer* p_renderer, tr_render_target
     TINY_RENDERER_SAFE_FREE(attachments);
 }
 
-void tr_internal_vk_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target)
+void tr_internal_vk_create_render_target(tr_renderer* p_renderer, bool is_swapchain, tr_render_target* p_render_target)
 {
-    tr_internal_vk_create_render_pass(p_renderer, p_render_target);
+    tr_internal_vk_create_render_pass(p_renderer, is_swapchain, p_render_target);
     tr_internal_vk_create_framebuffer(p_renderer, p_render_target);
 }
 
@@ -4260,26 +4264,27 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
     // Not really efficient, just write less frequently ;)
     uint32_t write_count = 0;
-    uint32_t sampler_veww_count = 0;
-    uint32_t texture_view_count = 0;
-    uint32_t uniform_buffer_view_count = 0;
+    uint32_t sampler_view_count = 0;
+    uint32_t image_view_count = 0;
+    uint32_t buffer_view_count = 0;
     for (uint32_t descriptor_index = 0; descriptor_index < p_descriptor_set->descriptor_count; ++descriptor_index) {
         tr_descriptor* descriptor = &(p_descriptor_set->descriptors[descriptor_index]);
         switch (descriptor->type) {
             case tr_descriptor_type_sampler: {
-                sampler_veww_count += descriptor->count;
+                sampler_view_count += descriptor->count;
                 ++write_count;
             }
             break;
 
-            case tr_descriptor_type_texture: {
-                texture_view_count += descriptor->count;
+            case tr_descriptor_type_texture:
+            case tr_descriptor_type_storage_texture: {
+                image_view_count += descriptor->count;
                 ++write_count;
             }
             break;
 
             case tr_descriptor_type_uniform_buffer: {
-                uniform_buffer_view_count += descriptor->count;
+                buffer_view_count += descriptor->count;
                 ++write_count;
             }
             break;
@@ -4292,15 +4297,15 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
     VkWriteDescriptorSet* writes = (VkWriteDescriptorSet*)calloc(write_count, sizeof(*writes));
     assert(NULL != writes);
-    VkDescriptorImageInfo* sampler_views = (VkDescriptorImageInfo*)calloc(sampler_veww_count, sizeof(*sampler_views));
+    VkDescriptorImageInfo* sampler_views = (VkDescriptorImageInfo*)calloc(sampler_view_count, sizeof(*sampler_views));
     assert(NULL != sampler_views);
-    VkDescriptorImageInfo* texture_views = (VkDescriptorImageInfo*)calloc(texture_view_count, sizeof(*sampler_views));
-    assert(NULL != texture_views);
-    VkDescriptorBufferInfo* uniform_buffer_views = (VkDescriptorBufferInfo*)calloc(uniform_buffer_view_count, sizeof(*uniform_buffer_views));
-    assert(NULL != uniform_buffer_views);
+    VkDescriptorImageInfo* image_views = (VkDescriptorImageInfo*)calloc(image_view_count, sizeof(*image_views));
+    assert(NULL != image_views);
+    VkDescriptorBufferInfo* buffer_views = (VkDescriptorBufferInfo*)calloc(buffer_view_count, sizeof(*buffer_views));
+    assert(NULL != buffer_views);
 
     uint32_t write_index = 0;
-    uint32_t sampler_veww_index = 0;
+    uint32_t sampler_view_index = 0;
     uint32_t texture_view_index = 0;
     uint32_t uniform_buffer_view_index = 0;
     for (uint32_t descriptor_index = 0; descriptor_index < p_descriptor_set->descriptor_count; ++descriptor_index) {
@@ -4320,12 +4325,12 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                 assert(NULL != descriptor->samplers);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-                writes[write_index].pImageInfo = &(sampler_views[sampler_veww_index]);
+                writes[write_index].pImageInfo = &(sampler_views[sampler_view_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(sampler_views[sampler_veww_index]), 
+                    memcpy(&(sampler_views[sampler_view_index]), 
                            &(descriptor->samplers[i]->vk_sampler_view),
                            sizeof(descriptor->samplers[i]->vk_sampler_view));
-                    ++sampler_veww_index;
+                    ++sampler_view_index;
                 }
             }
             break;
@@ -4334,9 +4339,9 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                 assert(NULL != descriptor->textures);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-                writes[write_index].pImageInfo = &(texture_views[texture_view_index]);
+                writes[write_index].pImageInfo = &(image_views[texture_view_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(texture_views[texture_view_index]), 
+                    memcpy(&(image_views[texture_view_index]), 
                            &(descriptor->textures[i]->vk_texture_view),
                            sizeof(descriptor->textures[i]->vk_texture_view));
                     ++texture_view_index;
@@ -4348,12 +4353,26 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                 assert(NULL != descriptor->uniform_buffers);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                writes[write_index].pBufferInfo = &(uniform_buffer_views[uniform_buffer_view_index]);
+                writes[write_index].pBufferInfo = &(buffer_views[uniform_buffer_view_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(uniform_buffer_views[uniform_buffer_view_index]), 
+                    memcpy(&(buffer_views[uniform_buffer_view_index]), 
                            &(descriptor->uniform_buffers[i]->vk_buffer_view),
                            sizeof(descriptor->uniform_buffers[i]->vk_buffer_view));
                     ++uniform_buffer_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_storage_texture: {
+                assert(NULL != descriptor->textures);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+                writes[write_index].pImageInfo = &(image_views[texture_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(image_views[texture_view_index]), 
+                           &(descriptor->textures[i]->vk_texture_view),
+                           sizeof(descriptor->textures[i]->vk_texture_view));
+                    ++texture_view_index;
                 }
             }
             break;
@@ -4368,8 +4387,8 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
     vkUpdateDescriptorSets(p_renderer->vk_device, write_count, writes, copy_count, copies);
 
     TINY_RENDERER_SAFE_FREE(sampler_views);
-    TINY_RENDERER_SAFE_FREE(texture_views);
-    TINY_RENDERER_SAFE_FREE(uniform_buffer_views);
+    TINY_RENDERER_SAFE_FREE(image_views);
+    TINY_RENDERER_SAFE_FREE(buffer_views);
     TINY_RENDERER_SAFE_FREE(writes);
 }
 
@@ -4508,17 +4527,42 @@ void tr_cmd_internal_vk_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attac
 
 void tr_internal_vk_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
 {
-    assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
+    assert(p_cmd != NULL);
+    assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
+    assert(p_pipeline != NULL);
 
-    vkCmdBindPipeline(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, p_pipeline->vk_pipeline);
+    VkPipelineBindPoint pipeline_bind_point 
+        = (p_pipeline->type == tr_pipeline_type_compute) ? VK_PIPELINE_BIND_POINT_COMPUTE
+                                                         : VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+    vkCmdBindPipeline(p_cmd->vk_cmd_buf, pipeline_bind_point, p_pipeline->vk_pipeline);
+
+    //switch (p_pipeline->type) {
+    //  case tr_pipeline_type_compute:
+    //    vkCmdBindPipeline(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, p_pipeline->vk_pipeline);
+    //    break;
+    //  case tr_pipeline_type_graphics:
+    //    vkCmdBindPipeline(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, p_pipeline->vk_pipeline);
+    //    break;
+    //  default: break;
+    //}
 }
 
 void tr_internal_vk_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set)
 {
-    assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
+    assert(p_cmd != NULL);
+    assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
+    assert(p_pipeline != NULL);
+    assert(p_pipeline->vk_pipeline_layout != VK_NULL_HANDLE);
+    assert(p_descriptor_set != NULL);
+    assert(p_descriptor_set->vk_descriptor_set != VK_NULL_HANDLE);
+
+    VkPipelineBindPoint pipeline_bind_point 
+        = (p_pipeline->type == tr_pipeline_type_compute) ? VK_PIPELINE_BIND_POINT_COMPUTE
+                                                         : VK_PIPELINE_BIND_POINT_GRAPHICS;
 
     // @TODO: Add dynamic offsets support
-    vkCmdBindDescriptorSets(p_cmd->vk_cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+    vkCmdBindDescriptorSets(p_cmd->vk_cmd_buf, pipeline_bind_point, 
                             p_pipeline->vk_pipeline_layout, 0, 
                             1, &(p_descriptor_set->vk_descriptor_set), 0, NULL);
 }
