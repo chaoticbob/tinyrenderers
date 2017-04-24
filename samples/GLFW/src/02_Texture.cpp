@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <vector>
 
 #define TINY_RENDERER_IMPLEMENTATION
@@ -35,19 +36,32 @@ uint32_t            s_window_width;
 uint32_t            s_window_height;
 uint64_t            s_frame_count = 0;
 
+#define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
+                    platform_log(ss.str().c_str()); }
+
+static void platform_log(const char* s)
+{
+#if defined(_WIN32)
+  OutputDebugStringA(s);
+#else
+  printf("%s", s)
+#endif
+}
+
 static void app_glfw_error(int error, const char* description)
 {
-    fprintf(stderr, "Error: %s\n", description);
+  LOG("Error " << error << ":" << description);
 }
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
-    switch(type) {
-        //case tr_log_type_info  : {CI_LOG_I("[" << component << "] : " << msg);} break;
-        //case tr_log_type_warn  : {CI_LOG_W("[" << component << "] : " << msg);} break;
-        //case tr_log_type_debug : {CI_LOG_E("[" << component << "] : " << msg);} break;
-        //case tr_log_type_error : {CI_LOG_D("[" << component << "] : " << msg);} break;
-    }
+  switch(type) {
+    case tr_log_type_info  : {LOG("[IINFO]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_warn  : {LOG("[WARN]"  << "[" << component << "] : " << msg);} break;
+    case tr_log_type_debug : {LOG("[DEBUG]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_error : {LOG("[ERORR]" << "[" << component << "] : " << msg);} break;
+    default: break;
+  }
 }
 
 #if defined(TINY_RENDERER_VK)

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <vector>
 
 #define TINY_RENDERER_IMPLEMENTATION
@@ -39,19 +40,32 @@ uint32_t            s_window_width;
 uint32_t            s_window_height;
 uint64_t            s_frame_count = 0;
 
+#define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
+                    platform_log(ss.str().c_str()); }
+
+static void platform_log(const char* s)
+{
+#if defined(_WIN32)
+  OutputDebugStringA(s);
+#else
+  printf("%s", s)
+#endif
+}
+
 static void app_glfw_error(int error, const char* description)
 {
-    fprintf(stderr, "Error: %s\n", description);
+  LOG("Error " << error << ":" << description);
 }
 
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
-    switch(type) {
-        //case tr_log_type_info  : {CI_LOG_I("[" << component << "] : " << msg);} break;
-        //case tr_log_type_warn  : {CI_LOG_W("[" << component << "] : " << msg);} break;
-        //case tr_log_type_debug : {CI_LOG_E("[" << component << "] : " << msg);} break;
-        //case tr_log_type_error : {CI_LOG_D("[" << component << "] : " << msg);} break;
-    }
+  switch(type) {
+    case tr_log_type_info  : {LOG("[IINFO]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_warn  : {LOG("[WARN]"  << "[" << component << "] : " << msg);} break;
+    case tr_log_type_debug : {LOG("[DEBUG]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_error : {LOG("[ERORR]" << "[" << component << "] : " << msg);} break;
+    default: break;
+  }
 }
 
 #if defined(TINY_RENDERER_VK)
@@ -172,11 +186,11 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
-    descriptors[0].type          = tr_descriptor_type_uniform_texel_buffer;
+    descriptors[0].type          = tr_descriptor_type_texture;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
-    descriptors[1].type          = tr_descriptor_type_storage_buffer;
+    descriptors[1].type          = tr_descriptor_type_storage_texture;
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
@@ -280,7 +294,7 @@ void draw_frame()
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
     tr_cmd_dispatch(cmd, m_texture_compute_output->width, m_texture_compute_output->height, 1);
     tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_storage, tr_texture_usage_sampled_image);
-    // Draw compute result to screeen
+    // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);

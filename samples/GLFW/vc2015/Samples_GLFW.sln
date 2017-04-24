@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "03_UniformBuffer", "03_Unif
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "04_SimpleCompute", "04_SimpleCompute.vcxproj", "{3C76B0E4-7C4B-4605-BAE7-5E8C12BDEBB9}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "05_StructuredBuffer", "05_StructuredBuffer.vcxproj", "{5ACED170-669B-48DB-827B-CEFE5DFE418D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		DebugDx|x64 = DebugDx|x64
@@ -51,6 +53,14 @@ Global
 		{3C76B0E4-7C4B-4605-BAE7-5E8C12BDEBB9}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
 		{3C76B0E4-7C4B-4605-BAE7-5E8C12BDEBB9}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
 		{3C76B0E4-7C4B-4605-BAE7-5E8C12BDEBB9}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.DebugDx|x64.Build.0 = DebugDx|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.DebugVk|x64.Build.0 = DebugVk|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseDx|x64.ActiveCfg = ReleaseDx|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
+		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

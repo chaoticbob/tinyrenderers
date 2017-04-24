@@ -14,18 +14,28 @@
     #include "tinyvk.h"
 #endif
 
+#define LC_IMAGE_IMPLEMENTATION
+#include "lc_image.h"
+
 #pragma comment(lib, "glfw3.lib")
 
 const uint32_t kImageCount = 3;
 
 tr_renderer*        m_renderer = nullptr;
+tr_descriptor_set*  m_desc_set = nullptr;
+tr_descriptor_set*  m_compute_desc_set = nullptr;
 tr_cmd_pool*        m_cmd_pool = nullptr;
 tr_cmd**            m_cmds = nullptr;
-tr_shader_program*  m_shader = nullptr;
-tr_buffer*          m_tri_vertex_buffer = nullptr;
+tr_shader_program*  m_compute_shader = nullptr;
+tr_shader_program*  m_texture_shader = nullptr;
+tr_buffer*          m_compute_src_buffer = nullptr;
+tr_buffer*          m_compute_dst_buffer = nullptr;
 tr_buffer*          m_rect_index_buffer = nullptr;
 tr_buffer*          m_rect_vertex_buffer = nullptr;
 tr_pipeline*        m_pipeline = nullptr;
+tr_pipeline*        m_compute_pipeline = nullptr;
+tr_texture*         m_texture = nullptr;
+tr_sampler*         m_sampler = nullptr;
 
 uint32_t            s_window_width;
 uint32_t            s_window_height;
@@ -81,7 +91,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
         //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
     }
     else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
-        //CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" ); 
     }
     else if( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
         //CI_LOG_D( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
@@ -142,23 +152,50 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
     settings.device_layers.names            = device_layers.data();
 #endif
-    tr_create_renderer("ColorApp", &settings, &m_renderer);
+    tr_create_renderer("StructuredBuffer", &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto vert = load_file("../../assets/color_vert.spv");
-    auto frag = load_file("../../assets/color_frag.spv");
+    auto vert = load_file("../../assets/texture_vert.spv");
+    auto frag = load_file("../../assets/texture_frag.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "main", 
-                             frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
+                             //vert.size(), (uint32_t*)(vert.data()), "main", 
+                             //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
+                             vert.size(), (uint32_t*)(vert.data()), "VSMain", 
+                             frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file("../../assets/color.hlsl");
+    auto hlsl = load_file("../../assets/structured_buffer.hlsl");
+    tr_create_shader_program_compute(m_renderer, 
+                                     hlsl.size(), hlsl.data(), "CSMain", &m_compute_shader);
+
+    hlsl = load_file("../../assets/texture.hlsl");
     tr_create_shader_program(m_renderer, 
                              hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", &m_shader);
+                             hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
 #endif
+
+    std::vector<tr_descriptor> descriptors(2);
+    descriptors[0].type          = tr_descriptor_type_texture;
+    descriptors[0].count         = 1;
+    descriptors[0].binding       = 0;
+    descriptors[0].shader_stages = tr_shader_stage_frag;
+    descriptors[1].type          = tr_descriptor_type_sampler;
+    descriptors[1].count         = 1;
+    descriptors[1].binding       = 1;
+    descriptors[1].shader_stages = tr_shader_stage_frag;
+    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
+
+    descriptors[0].type          = tr_descriptor_type_uniform_texel_buffer;
+    descriptors[0].count         = 1;
+    descriptors[0].binding       = 0;
+    descriptors[0].shader_stages = tr_shader_stage_comp;
+    descriptors[1].type          = tr_descriptor_type_storage_buffer;
+    descriptors[1].count         = 1;
+    descriptors[1].binding       = 1;
+    descriptors[1].shader_stages = tr_shader_stage_comp;
+    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_compute_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -167,75 +204,73 @@ void init_tiny_renderer(GLFWwindow* window)
     vertex_layout.attribs[0].binding  = 0;
     vertex_layout.attribs[0].location = 0;
     vertex_layout.attribs[0].offset   = 0;
-    vertex_layout.attribs[1].semantic = tr_semantic_color;
-    vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
+    vertex_layout.attribs[1].semantic = tr_semantic_texcoord0;
+    vertex_layout.attribs[1].format   = tr_format_r32g32_float;
     vertex_layout.attribs[1].binding  = 0;
     vertex_layout.attribs[1].location = 1;
     vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
     tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
-    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+    tr_create_pipeline(m_renderer, m_texture_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
-    // tri
-    {
-        std::vector<float> vertexData = {
-             0.00f, -0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
-            -0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
-             0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
-        };
+    pipeline_settings = {};
+    tr_create_compute_pipeline(m_renderer, m_compute_shader, m_compute_desc_set, &pipeline_settings, &m_compute_pipeline);
 
-#if defined(TINY_RENDERER_DX)
-        // Flip the y so they're the same in both renderer
-        vertexData[7*0 + 1] *= -1.0f;
-        vertexData[7*1 + 1] *= -1.0f;
-        vertexData[7*2 + 1] *= -1.0f;
-#endif
 
-        vertexData[7*0 + 0] += -0.5f;
-        vertexData[7*1 + 0] += -0.5f;
-        vertexData[7*2 + 0] += -0.5f;
-
-        uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-        uint64_t vertexStride = sizeof(float) * 7;
-        tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_tri_vertex_buffer);
-        memcpy(m_tri_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
-    }
-
-    // quad
-    {
-        std::vector<float> vertexData = {
-            -0.25f, -0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
-            -0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
-             0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
-             0.25f, -0.25f, 0.0f,   1.0f, 1.0f, 1.0f, 1.0f,
-        };
+    std::vector<float> vertexData = {
+        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
+         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
+         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
+    };
 
 #if defined(TINY_RENDERER_DX)
-        // Flip the y so they're the same in both renderer
-        vertexData[7*0 + 1] *= -1.0f;
-        vertexData[7*1 + 1] *= -1.0f;
-        vertexData[7*2 + 1] *= -1.0f;
-        vertexData[7*3 + 1] *= -1.0f;
+    // Flip the y so they're the same in both renderer
+    vertexData[6*0 + 1] *= -1.0f;
+    vertexData[6*1 + 1] *= -1.0f;
+    vertexData[6*2 + 1] *= -1.0f;
+    vertexData[6*3 + 1] *= -1.0f;
 #endif
 
-        vertexData[7*0 + 0] += 0.5f;
-        vertexData[7*1 + 0] += 0.5f;
-        vertexData[7*2 + 0] += 0.5f;
-        vertexData[7*3 + 0] += 0.5f;
+    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
+    uint64_t vertexStride = sizeof(float) * 6;
+    tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
+    memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
+        
+    std::vector<uint16_t> indexData = {
+        0, 1, 2,
+        0, 2, 3
+    };
+        
+    uint64_t indexDataSize = sizeof(uint16_t) * indexData.size();
+    tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
+    memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
-        uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-        uint64_t vertexStride = sizeof(float) * 7;
-        tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
-        memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
-        
-        std::vector<uint16_t> indexData = {
-            0, 1, 2,
-            0, 2, 3
-        };
-        
-        uint64_t indexDataSize = sizeof(uint16_t) * indexData.size();
-        tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
-        memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
-    }
+    int image_width = 0;
+    int image_height = 0;
+    int image_channels = 0;
+    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &image_width, &image_height, &image_channels, 4);
+    assert(NULL != image_data);
+    int image_row_stride = image_width * image_channels;
+    uint64_t buffer_size = static_cast<uint64_t>(image_row_stride * image_height);
+    uint64_t element_count = image_width * image_height;
+    uint64_t struct_stride = 4;
+    tr_create_uniform_texel_buffer(m_renderer, buffer_size, true, tr_format_undefined, 0, element_count, struct_stride, &m_compute_src_buffer);
+    memcpy(m_compute_src_buffer->cpu_mapped_address, image_data, buffer_size);
+    lc_free_image(image_data);
+
+    tr_create_storage_buffer(m_renderer, buffer_size, false, 0, element_count, struct_stride, 0, &m_compute_dst_buffer);
+ 
+    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+
+    tr_create_sampler(m_renderer, &m_sampler);
+
+    m_desc_set->descriptors[0].textures[0] = m_texture;
+    m_desc_set->descriptors[1].samplers[0] = m_sampler;
+    tr_update_descriptor_set(m_renderer, m_desc_set);
+
+    m_compute_desc_set->descriptors[0].buffers[0] = m_compute_src_buffer;
+    m_compute_desc_set->descriptors[1].buffers[0] = m_compute_dst_buffer;
+    tr_update_descriptor_set(m_renderer, m_compute_desc_set);
 }
 
 void destroy_tiny_renderer()
@@ -259,6 +294,35 @@ void draw_frame()
     tr_cmd* cmd = m_cmds[frameIdx];
 
     tr_begin_cmd(cmd);
+
+    // Use compute to swizzle RGB -> BRG
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage);
+    tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
+    tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
+    tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
+    //tr_cmd_dispatch(cmd, 1, 1, 1);
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
+    // Draw compute result to screen
+
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout = {};
+    layout.Offset = 0;
+    layout.Footprint.Format   = DXGI_FORMAT_R8G8B8A8_UNORM;
+    layout.Footprint.Width    = 1024;
+    layout.Footprint.Height   = 1024;
+    layout.Footprint.Depth    = 1;
+    layout.Footprint.RowPitch = 1024 * 4;
+
+    D3D12_TEXTURE_COPY_LOCATION src = {};
+    src.pResource       = m_compute_dst_buffer->dx_resource;
+    src.Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    src.PlacedFootprint = layout;
+    D3D12_TEXTURE_COPY_LOCATION dst = {};
+    dst.pResource        = m_texture->dx_resource;
+    dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst.SubresourceIndex = 0;
+
+    cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
+
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
@@ -266,10 +330,9 @@ void draw_frame()
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
     tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
     tr_cmd_bind_pipeline(cmd, m_pipeline);
-    tr_cmd_bind_vertex_buffers(cmd, 1, &m_tri_vertex_buffer);
-    tr_cmd_draw(cmd, 3, 0);
     tr_cmd_bind_index_buffer(cmd, m_rect_index_buffer);
     tr_cmd_bind_vertex_buffers(cmd, 1, &m_rect_vertex_buffer);
+    tr_cmd_bind_descriptor_sets(cmd, m_pipeline, m_desc_set);
     tr_cmd_draw_indexed(cmd, 6, 0);
     tr_cmd_end_render(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
@@ -289,7 +352,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "01_Color", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, "02_Texture", NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {
