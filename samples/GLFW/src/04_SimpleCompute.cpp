@@ -171,7 +171,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file("../../assets/simple_compute.hlsl");
     tr_create_shader_program_compute(m_renderer, 
-                                     hlsl.size(), hlsl.data(), "CSMain", &m_compute_shader);
+                                     hlsl.size(), hlsl.data(), "main", &m_compute_shader);
 
     hlsl = load_file("../../assets/texture.hlsl");
     tr_create_shader_program(m_renderer, 

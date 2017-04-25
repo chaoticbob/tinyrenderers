@@ -18,7 +18,7 @@ RWStructuredBuffer<Input>  BufferIn : register(u0);
 RWStructuredBuffer<Output> BufferOut : register(u1);
 
 [numthreads(16, 1, 1)]
-void CSMain(uint3 tid : SV_DispatchThreadID)
+void main(uint3 tid : SV_DispatchThreadID)
 {
   uint val = BufferIn[tid.x].color;
   float r = (float)((val >>  0) & 0xFF) * BufferIn[tid.x].r;
