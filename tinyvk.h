@@ -46,6 +46,10 @@ NOTES:
    - For Vulkan shaders the 'set' parameter for 'layout' should always be 0
    - For D3D12 shaders the 'space' parameter for resource bindings should always be 0
  - Vulkan like idioms are used primarily with some D3D12 wherever it makes sense
+ - Storage buffers created with tr_create_storage_buffer are not host visible. 
+   - This was done to align the behavior on Vulkan and D3D12. Vulkan's storage 
+     buffers can be host visible, but D3D12's UAV buffers are not permitted to 
+     be host visible.
 
 COMPILING & LINKING
    In one C/C++ file that #includes this file, do this:

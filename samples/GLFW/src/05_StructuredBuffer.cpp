@@ -125,7 +125,7 @@ void init_tiny_renderer(GLFWwindow* window)
     std::vector<const char*> instance_layers = {
 #if defined(_DEBUG)
         "VK_LAYER_LUNARG_api_dump",
-        //"VK_LAYER_LUNARG_core_validation",
+        "VK_LAYER_LUNARG_core_validation",
         "VK_LAYER_LUNARG_swapchain",
         "VK_LAYER_LUNARG_parameter_validation"
 #endif
@@ -253,19 +253,39 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
+    struct Input {
+      uint32_t color;
+      float    r;
+      float    g;
+      float    b;
+    };
+
     int image_channels = 0;
     unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &m_image_width, &m_image_height, &image_channels, 4);
     assert(NULL != image_data);
     m_image_row_stride = m_image_width * image_channels;
-    uint64_t buffer_size = static_cast<uint64_t>(m_image_row_stride * m_image_height);
+    std::vector<Input> input_buffer;
+    for (uint32_t i = 0; i < m_image_height; ++i) {
+      for (uint32_t j = 0; j < m_image_width; ++j) {
+        uint32_t offset = (i * m_image_row_stride) + (j * 4);
+        Input elem = {};
+        elem.color = *((uint32_t*)(image_data + offset));
+        elem.r = 0.0f + (j / (float)m_image_width);
+        elem.g = 0.0f + (i / (float)m_image_height);
+        elem.b = 0.0f + (j / (float)m_image_width) + (i / (float)m_image_height);
+        input_buffer.push_back(elem);
+      }
+    }
+    uint64_t buffer_size = input_buffer.size() * sizeof(Input);
     uint64_t element_count = m_image_width * m_image_height;
-    uint64_t struct_stride = 4;
-    //tr_create_uniform_texel_buffer(m_renderer, buffer_size, true, tr_format_undefined, 0, element_count, struct_stride, &m_compute_src_buffer);
-    //memcpy(m_compute_src_buffer->cpu_mapped_address, image_data, buffer_size);
+    uint64_t struct_stride = sizeof(Input);
     tr_create_storage_buffer(m_renderer, buffer_size, false, 0, element_count, struct_stride, 0, &m_compute_src_buffer);
-    tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
+    tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, input_buffer.data(), m_compute_src_buffer);
     lc_free_image(image_data);
 
+    buffer_size = m_image_row_stride * m_image_height;
+    element_count = m_image_width * m_image_height;
+    struct_stride = 4;
     tr_create_storage_buffer(m_renderer, buffer_size, false, 0, element_count, struct_stride, 0, &m_compute_dst_buffer);
  
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);

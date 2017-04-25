@@ -1,5 +1,12 @@
 
-struct BufferElement {
+struct Input {
+  uint  color;
+  float r;
+  float g;
+  float b;
+};
+
+struct Output {
   uint color;
 };
 
@@ -7,15 +14,18 @@ struct BufferElement {
 // Vulkan version requires 'buffer' for source
 // buffer - so just match it.
 // 
-RWStructuredBuffer<BufferElement>   Buffer0 : register(u0);
-RWStructuredBuffer<BufferElement> BufferOut : register(u1);
+RWStructuredBuffer<Input>  BufferIn : register(u0);
+RWStructuredBuffer<Output> BufferOut : register(u1);
 
-[numthreads(1, 1, 1)]
+[numthreads(16, 1, 1)]
 void CSMain(uint3 tid : SV_DispatchThreadID)
 {
-  uint val = Buffer0[tid.x].color;
-  BufferOut[tid.x].color = (val & 0xFF000000) |
-                           ((val & 0x000000FF) <<  8) |
-                           ((val & 0x0000FF00) <<  8) |
-                           ((val & 0x00FF0000) >> 16);
+  uint val = BufferIn[tid.x].color;
+  float r = (float)((val >>  0) & 0xFF) * BufferIn[tid.x].r;
+  float g = (float)((val >>  8) & 0xFF) * BufferIn[tid.x].g;
+  float b = (float)((val >> 16) & 0xFF) * BufferIn[tid.x].b;
+  BufferOut[tid.x].color = 0xFF000000 |
+                           ((((uint)floor(r)) & 0xFF) <<  0) |
+                           ((((uint)floor(g)) & 0xFF) <<  8) |
+                           ((((uint)floor(b)) & 0xFF) << 16);
 }
