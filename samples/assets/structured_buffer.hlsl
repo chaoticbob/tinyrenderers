@@ -3,7 +3,11 @@ struct BufferElement {
   uint color;
 };
 
-StructuredBuffer<BufferElement>   Buffer0 : register(t0);
+// 
+// Vulkan version requires 'buffer' for source
+// buffer - so just match it.
+// 
+RWStructuredBuffer<BufferElement>   Buffer0 : register(u0);
 RWStructuredBuffer<BufferElement> BufferOut : register(u1);
 
 [numthreads(1, 1, 1)]

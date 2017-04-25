@@ -417,6 +417,7 @@ typedef struct tr_descriptor {
     tr_buffer*                          uniform_buffers[tr_max_descriptor_entries];
     tr_texture*                         textures[tr_max_descriptor_entries];
     tr_sampler*                         samplers[tr_max_descriptor_entries];
+    tr_buffer*                          buffers[tr_max_descriptor_entries];
 } tr_descriptor;
 
 typedef struct tr_descriptor_set {
@@ -444,10 +445,18 @@ typedef struct tr_buffer {
     bool                                host_visible;
     tr_index_type                       index_type;
     uint32_t                            vertex_stride;
+    tr_format                           format;
+    uint64_t                            first_element;
+    uint64_t                            element_count;
+    uint64_t                            struct_stride;
+    uint64_t                            counter_offset;
     void*                               cpu_mapped_address;
     VkBuffer                            vk_buffer;
     VkDeviceMemory                      vk_memory;
-    VkDescriptorBufferInfo              vk_buffer_view;
+    // Used for uniform and storage buffers
+    VkDescriptorBufferInfo              vk_buffer_info;
+    // Used for uniform texel and storage texel buffers
+    VkBufferView                        vk_buffer_view;
 } tr_buffer;
 
 typedef struct tr_texture {
@@ -584,6 +593,8 @@ tr_api_export void tr_create_buffer(tr_renderer* p_renderer, tr_buffer_usage usa
 tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size, bool host_visible, tr_index_type index_type, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
+tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
+tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
@@ -622,9 +633,11 @@ tr_api_export void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_cou
 tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
 tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
 tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
+tr_api_export void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
-tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);  
+tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+tr_api_export void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
 tr_api_export void tr_queue_submit(tr_queue* p_queue, uint32_t cmd_count, tr_cmd** pp_cmds, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores, uint32_t signal_semaphore_count, tr_semaphore** pp_signal_semaphores);
@@ -645,6 +658,7 @@ tr_api_export uint32_t           tr_util_format_stride(tr_format format);
 tr_api_export uint32_t           tr_util_format_channel_count(tr_format format);
 tr_api_export VkShaderStageFlags tr_util_to_vk_shader_stages(tr_shader_stage shader_stages);
 tr_api_export void               tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void               tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_data, tr_buffer* p_buffer);
 tr_api_export void               tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data);
 tr_api_export void               tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data);
 
@@ -756,9 +770,11 @@ void tr_internal_vk_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count
 void tr_internal_vk_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
 void tr_internal_vk_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
 void tr_internal_vk_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
+void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_vk_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+void tr_internal_vk_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
 // Internal queue/swapchain functions
 void tr_internal_vk_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -1375,6 +1391,52 @@ void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_v
     (*pp_buffer)->vertex_stride = vertex_stride;
 }
 
+void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(size > 0 );
+
+    tr_buffer* p_buffer = (tr_buffer*)calloc(1, sizeof(*p_buffer));
+    assert(NULL != p_buffer);
+
+    p_buffer->renderer        = p_renderer;
+    p_buffer->usage           = tr_buffer_usage_uniform_texel;
+    p_buffer->size            = size;
+    p_buffer->host_visible    = host_visible;
+    p_buffer->format          = format;
+    p_buffer->first_element   = first_element;
+    p_buffer->element_count   = element_count;
+    p_buffer->struct_stride   = struct_stride;
+    p_buffer->counter_offset  = 0;
+    
+    tr_internal_vk_create_buffer(p_renderer, p_buffer);
+
+    *pp_buffer = p_buffer;
+}
+
+void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer** pp_buffer)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(size > 0 );
+
+    tr_buffer* p_buffer = (tr_buffer*)calloc(1, sizeof(*p_buffer));
+    assert(NULL != p_buffer);
+
+    p_buffer->renderer        = p_renderer;
+    p_buffer->usage           = tr_buffer_usage_storage;
+    p_buffer->size            = size;
+    p_buffer->host_visible    = host_visible;
+    p_buffer->format          = tr_format_undefined;
+    p_buffer->first_element   = first_element;
+    p_buffer->element_count   = element_count;
+    p_buffer->struct_stride   = struct_stride;
+    p_buffer->counter_offset  = counter_offset;
+    
+    tr_internal_vk_create_buffer(p_renderer, p_buffer);
+
+    *pp_buffer = p_buffer;
+}
+
 void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
@@ -1863,6 +1925,14 @@ void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_ind
     tr_internal_vk_cmd_draw_indexed(p_cmd, index_count, first_index);
 }
 
+void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
+{
+    assert(NULL != p_cmd);
+    assert(NULL != p_buffer);
+
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, old_usage, new_usage);
+}
+
 void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_cmd);
@@ -1885,6 +1955,15 @@ void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count
 {
     assert(NULL != p_cmd);
     tr_internal_vk_cmd_dispatch(p_cmd, group_count_x, group_count_y, group_count_z);
+}
+
+void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
+{
+    assert(p_cmd != NULL);
+    assert(p_buffer != NULL);
+    assert(p_texture != NULL);
+
+    tr_internal_vk_cmd_copy_buffer_to_texture2d(p_cmd, width, height, row_pitch, buffer_offset, mip_level, p_buffer, p_texture);
 }
 
 void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence)
@@ -2267,6 +2346,43 @@ bool tr_image_resize_uint8_t(
     return true;
 }
 
+void tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_data, tr_buffer* p_buffer)
+{
+    assert(NULL != p_queue);
+    assert(NULL != p_src_data);
+    assert(NULL != p_buffer);
+    assert(NULL != p_buffer->vk_buffer);
+    assert(p_buffer->size >= size);
+
+    tr_buffer* buffer = NULL;
+    tr_create_buffer(p_buffer->renderer, tr_buffer_usage_transfer_src, size, true, &buffer);
+    memcpy(buffer->cpu_mapped_address, p_src_data, size);
+    
+    tr_cmd_pool* p_cmd_pool = NULL;
+    tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+    tr_cmd* p_cmd = NULL;
+    tr_create_cmd(p_cmd_pool, false, &p_cmd);
+
+    tr_begin_cmd(p_cmd);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
+    TINY_RENDERER_DECLARE_ZERO(VkBufferCopy, region);
+    region.srcOffset = 0;
+    region.dstOffset = 0;
+    region.size      = (VkDeviceSize)size;
+    vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_buffer->vk_buffer, 1, &region);
+    tr_end_cmd(p_cmd);
+
+    tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+    tr_queue_wait_idle(p_queue);
+
+    tr_destroy_cmd(p_cmd_pool, p_cmd);
+    tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+
+    tr_destroy_buffer(p_buffer->renderer, buffer);
+}
+
 void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data)
 {
     assert(NULL != p_queue);
@@ -2410,6 +2526,8 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
 
         tr_destroy_cmd(p_cmd_pool, p_cmd);
         tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+
+        tr_destroy_buffer(p_texture->renderer, buffer);
 
         TINY_RENDERER_SAFE_FREE(regions);
     }
@@ -3396,6 +3514,10 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     create_info.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
     create_info.queueFamilyIndexCount = 0;
     create_info.pQueueFamilyIndices   = NULL;
+
+    // Make it easy to copy to and from buffer
+    create_info.usage |= (VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
     VkResult vk_res = vkCreateBuffer(p_renderer->vk_device, &create_info, NULL, &(p_buffer->vk_buffer));
     assert(VK_SUCCESS == vk_res);
 
@@ -3427,10 +3549,27 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
         assert(VK_SUCCESS == vk_res);
     }
 
-    if (p_buffer->usage & tr_buffer_usage_uniform) {
-        p_buffer->vk_buffer_view.buffer = p_buffer->vk_buffer;
-        p_buffer->vk_buffer_view.offset = 0;
-        p_buffer->vk_buffer_view.range  = VK_WHOLE_SIZE;
+    switch (p_buffer->usage) {
+        case tr_buffer_usage_uniform_texel:
+        case tr_buffer_usage_storage_texel: {
+          TINY_RENDERER_DECLARE_ZERO(VkBufferViewCreateInfo, buffer_view_create_info);
+          buffer_view_create_info.sType   = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+          buffer_view_create_info.pNext   = NULL;
+          buffer_view_create_info.flags   = 0;
+          buffer_view_create_info.buffer  = p_buffer->vk_buffer;
+          buffer_view_create_info.format  = tr_util_to_vk_format(p_buffer->format);
+          buffer_view_create_info.offset  = p_buffer->counter_offset;
+          buffer_view_create_info.range   = VK_WHOLE_SIZE;
+        }
+        break;
+
+        case tr_buffer_usage_uniform:
+        case tr_buffer_usage_storage: {
+            p_buffer->vk_buffer_info.buffer = p_buffer->vk_buffer;
+            p_buffer->vk_buffer_info.offset = 0;
+            p_buffer->vk_buffer_info.range  = VK_WHOLE_SIZE;
+        }
+        break;
     }
 }
 
@@ -4283,7 +4422,10 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_uniform_buffer: {
+            case tr_descriptor_type_uniform_buffer:
+            case tr_descriptor_type_uniform_texel_buffer:
+            case tr_descriptor_type_storage_texel_buffer:
+            case tr_descriptor_type_storage_buffer: {
                 buffer_view_count += descriptor->count;
                 ++write_count;
             }
@@ -4307,7 +4449,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
     uint32_t write_index = 0;
     uint32_t sampler_view_index = 0;
     uint32_t texture_view_index = 0;
-    uint32_t uniform_buffer_view_index = 0;
+    uint32_t buffer_view_index = 0;
     for (uint32_t descriptor_index = 0; descriptor_index < p_descriptor_set->descriptor_count; ++descriptor_index) {
         tr_descriptor* descriptor = &(p_descriptor_set->descriptors[descriptor_index]);
         if ((NULL == descriptor->samplers) && (NULL == descriptor->textures) && (NULL == descriptor->uniform_buffers)) {
@@ -4353,12 +4495,55 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                 assert(NULL != descriptor->uniform_buffers);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                writes[write_index].pBufferInfo = &(buffer_views[uniform_buffer_view_index]);
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(buffer_views[uniform_buffer_view_index]), 
-                           &(descriptor->uniform_buffers[i]->vk_buffer_view),
-                           sizeof(descriptor->uniform_buffers[i]->vk_buffer_view));
-                    ++uniform_buffer_view_index;
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->uniform_buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->uniform_buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
+                }
+            }
+            break;
+
+
+            case tr_descriptor_type_uniform_texel_buffer: {
+                assert(NULL != descriptor->buffers);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_storage_texel_buffer: {
+                assert(NULL != descriptor->buffers);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_storage_buffer: {
+                assert(NULL != descriptor->buffers);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
                 }
             }
             break;
@@ -4609,6 +4794,129 @@ void tr_internal_vk_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32
     vkCmdDrawIndexed(p_cmd->vk_cmd_buf, index_count, 1, first_index, 0, 0);
 }
 
+void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
+{
+    assert(p_cmd != NULL);
+    assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
+
+    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkDependencyFlags dependency_flags = 0;
+    TINY_RENDERER_DECLARE_ZERO(VkBufferMemoryBarrier , barrier);
+    barrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.pNext               = NULL;
+    barrier.srcQueueFamilyIndex = 0;
+    barrier.dstQueueFamilyIndex = 0;
+    barrier.buffer              = p_buffer->vk_buffer;
+    barrier.offset              = 0;
+    barrier.size                = VK_WHOLE_SIZE;
+
+    switch (old_usage) {
+        case tr_buffer_usage_transfer_src: {
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_transfer_dst: {
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_uniform_texel: {
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_texel: {
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_uniform: {
+            barrier.srcAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage: {
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_index: {
+            barrier.srcAccessMask = VK_ACCESS_INDEX_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_vertex: {
+            barrier.srcAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_indirect: {
+            barrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+        }
+        break;
+    }
+
+    switch (new_usage) {
+        case tr_buffer_usage_transfer_src: {
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_transfer_dst: {
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_uniform_texel: {
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_texel: {
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_uniform: {
+            barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage: {
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_index: {
+            barrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_vertex: {
+            barrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_indirect: {
+            barrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+        }
+        break;
+    }
+
+    vkCmdPipelineBarrier(p_cmd->vk_cmd_buf,
+                         src_stage_mask,
+                         dst_stage_mask,
+                         dependency_flags,
+                         0,
+                         NULL,
+                         1,
+                         &barrier,
+                         0,
+                         NULL);
+}
+
 void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
@@ -4759,10 +5067,34 @@ void tr_internal_vk_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
 
 void tr_internal_vk_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
 {
-  assert(p_cmd != NULL);
-  assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
+    assert(p_cmd != NULL);
+    assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
 
-  vkCmdDispatch(p_cmd->vk_cmd_buf, group_count_x, group_count_y, group_count_z);
+    vkCmdDispatch(p_cmd->vk_cmd_buf, group_count_x, group_count_y, group_count_z);
+}
+
+void tr_internal_vk_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
+{
+    assert(p_cmd != NULL);
+    assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
+
+    VkBufferImageCopy regions = { 0 };
+    regions.bufferOffset                    = buffer_offset;
+    regions.bufferRowLength                 = width;
+    regions.bufferImageHeight               = height;
+    regions.imageSubresource.aspectMask     = p_texture->vk_aspect_mask;
+    regions.imageSubresource.mipLevel       = mip_level;
+    regions.imageSubresource.baseArrayLayer = 0;
+    regions.imageSubresource.layerCount     = 1;
+    regions.imageOffset.x                   = 0;
+    regions.imageOffset.y                   = 0;
+    regions.imageOffset.z                   = 0;
+    regions.imageExtent.width               = width;
+    regions.imageExtent.height              = height;
+    regions.imageExtent.depth               = 1;
+
+    vkCmdCopyBufferToImage(p_cmd->vk_cmd_buf, p_buffer->vk_buffer, p_texture->vk_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &regions);
 }
 
 // -------------------------------------------------------------------------------------------------

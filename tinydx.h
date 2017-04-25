@@ -601,7 +601,7 @@ tr_api_export void tr_create_buffer(tr_renderer* p_renderer, tr_buffer_usage usa
 tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size, bool host_visible, tr_index_type index_type, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, tr_format format, bool host_visible, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
+tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
@@ -666,6 +666,7 @@ tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
 tr_api_export void        tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void        tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_data, tr_buffer* p_buffer);
 tr_api_export void        tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data);
 tr_api_export void        tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data);
 
@@ -2242,6 +2243,42 @@ bool tr_image_resize_uint8_t(
     return true;
 }
 
+
+void tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_data, tr_buffer* p_buffer)
+{
+    assert(NULL != p_queue);
+    assert(NULL != p_src_data);
+    assert(NULL != p_buffer);
+    assert(NULL != p_buffer->dx_resource);
+    assert(p_buffer->size >= size);
+
+    tr_buffer* buffer = NULL;
+    tr_create_buffer(p_buffer->renderer, tr_buffer_usage_transfer_src, size, true, &buffer);
+    memcpy(buffer->cpu_mapped_address, p_src_data, size);
+    
+    tr_cmd_pool* p_cmd_pool = NULL;
+    tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+    tr_cmd* p_cmd = NULL;
+    tr_create_cmd(p_cmd_pool, false, &p_cmd);
+
+    tr_begin_cmd(p_cmd);
+    //tr_internal_dx_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
+    //tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
+    p_cmd->dx_cmd_list->CopyBufferRegion(p_buffer->dx_resource, 0,
+                                         buffer->dx_resource, 0,
+                                         size);
+    tr_end_cmd(p_cmd);
+
+    tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+    tr_queue_wait_idle(p_queue);
+
+    tr_destroy_cmd(p_cmd_pool, p_cmd);
+    tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+
+    tr_destroy_buffer(p_buffer->renderer, buffer);
+}
+
 void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data)
 {
     assert(NULL != p_queue);
@@ -2359,6 +2396,8 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
 
         tr_destroy_cmd(p_cmd_pool, p_cmd);
         tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+
+        tr_destroy_buffer(p_texture->renderer, buffer);
     }
 
     TINY_RENDERER_SAFE_FREE(subres_layouts);
@@ -2378,6 +2417,7 @@ D3D12_RESOURCE_STATES tr_util_to_dx_resource_state_buffer(tr_buffer_usage usage)
     D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
     if (tr_buffer_usage_transfer_src == (usage & tr_buffer_usage_transfer_src)) {
         result |= D3D12_RESOURCE_STATE_COPY_SOURCE;
+        result |= D3D12_RESOURCE_STATE_GENERIC_READ;
     }
     if (tr_buffer_usage_transfer_dst == (usage & tr_buffer_usage_transfer_dst)) {
         result |= D3D12_RESOURCE_STATE_COPY_DEST;
@@ -4129,15 +4169,15 @@ void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32
     );
 }
 
-void tr_internal_dx_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_texture, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
+void tr_internal_dx_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
 {
     assert(NULL != p_cmd->dx_cmd_list);
-    assert(NULL != p_texture->dx_resource);
+    assert(NULL != p_buffer->dx_resource);
 
     TINY_RENDERER_DECLARE_ZERO(D3D12_RESOURCE_BARRIER, barrier);
     barrier.Type                    = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags                   = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource    = p_texture->dx_resource;
+    barrier.Transition.pResource    = p_buffer->dx_resource;
     barrier.Transition.Subresource  = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     barrier.Transition.StateBefore  = tr_util_to_dx_resource_state_buffer(old_usage);
     barrier.Transition.StateAfter   = tr_util_to_dx_resource_state_buffer(new_usage);

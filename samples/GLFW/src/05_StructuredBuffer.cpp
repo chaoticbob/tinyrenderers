@@ -86,19 +86,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 )
 {
     if( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT ) {
-        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[INFO]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT ) {
-        //CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[WARN]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[PERF]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
-        //CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" ); 
+        LOG("[ERROR]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")"); 
     }
     else if( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
-        //CI_LOG_D( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        LOG("[DEBUG]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     return VK_FALSE;
 }
@@ -125,7 +125,7 @@ void init_tiny_renderer(GLFWwindow* window)
     std::vector<const char*> instance_layers = {
 #if defined(_DEBUG)
         "VK_LAYER_LUNARG_api_dump",
-        "VK_LAYER_LUNARG_core_validation",
+        //"VK_LAYER_LUNARG_core_validation",
         "VK_LAYER_LUNARG_swapchain",
         "VK_LAYER_LUNARG_parameter_validation"
 #endif
@@ -162,6 +162,10 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
+    auto comp = load_file("../../assets/structured_buffer.spv");
+    tr_create_shader_program_compute(m_renderer, 
+                                     comp.size(), comp.data(), "main", &m_compute_shader);
+
     auto vert = load_file("../../assets/texture_vert.spv");
     auto frag = load_file("../../assets/texture_frag.spv");
     tr_create_shader_program(m_renderer, 
@@ -191,7 +195,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
-    descriptors[0].type          = tr_descriptor_type_uniform_texel_buffer;
+    descriptors[0].type          = tr_descriptor_type_storage_buffer; //tr_descriptor_type_uniform_texel_buffer;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
@@ -256,13 +260,16 @@ void init_tiny_renderer(GLFWwindow* window)
     uint64_t buffer_size = static_cast<uint64_t>(m_image_row_stride * m_image_height);
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = 4;
-    tr_create_uniform_texel_buffer(m_renderer, buffer_size, true, tr_format_undefined, 0, element_count, struct_stride, &m_compute_src_buffer);
-    memcpy(m_compute_src_buffer->cpu_mapped_address, image_data, buffer_size);
+    //tr_create_uniform_texel_buffer(m_renderer, buffer_size, true, tr_format_undefined, 0, element_count, struct_stride, &m_compute_src_buffer);
+    //memcpy(m_compute_src_buffer->cpu_mapped_address, image_data, buffer_size);
+    tr_create_storage_buffer(m_renderer, buffer_size, false, 0, element_count, struct_stride, 0, &m_compute_src_buffer);
+    tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     lc_free_image(image_data);
 
     tr_create_storage_buffer(m_renderer, buffer_size, false, 0, element_count, struct_stride, 0, &m_compute_dst_buffer);
  
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
 
     tr_create_sampler(m_renderer, &m_sampler);
 
@@ -302,9 +309,12 @@ void draw_frame()
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
     tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
+    tr_cmd_dispatch(cmd, 1, 1, 1);
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
     // Copy compute output buffer to texture
+    tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
     tr_cmd_copy_buffer_to_texture2d(cmd, m_image_width, m_image_height, m_image_row_stride, 0, 0, m_compute_dst_buffer, m_texture);
+    tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
     // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
