@@ -2263,8 +2263,6 @@ void tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_d
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
-    //tr_internal_dx_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
-    //tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
     p_cmd->dx_cmd_list->CopyBufferRegion(p_buffer->dx_resource, 0,
                                          buffer->dx_resource, 0,
                                          size);

@@ -195,7 +195,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
-    descriptors[0].type          = tr_descriptor_type_storage_buffer; //tr_descriptor_type_uniform_texel_buffer;
+    descriptors[0].type          = tr_descriptor_type_storage_buffer;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
