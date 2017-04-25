@@ -77,19 +77,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 )
 {
     if( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT ) {
-        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[INFO]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT ) {
-        //CI_LOG_W( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[WARN]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-        //CI_LOG_I( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        //LOG("[PERF]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     else if( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
-        //CI_LOG_E( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" ); 
+        LOG("[ERROR]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")"); 
     }
     else if( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
-        //CI_LOG_D( "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")" );
+        LOG("[DEBUG]" << "[" << pLayerPrefix << "] : " << pMessage << " (" << messageCode << ")");
     }
     return VK_FALSE;
 }

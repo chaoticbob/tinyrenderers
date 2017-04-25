@@ -337,7 +337,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "02_Texture", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, "04_SimpleCompute", NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {
