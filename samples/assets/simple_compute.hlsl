@@ -18,7 +18,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 #else // glslang/Vulkan
 //
 // glslang seems to want a type that matches the
-// incoming image format, using int for rgba8.
+// incoming image format, using uint for rgba8.
 //
 RWTexture2D<uint>    BufferIn : register(u0);
 RWTexture2D<float4>  BufferOut : register(u1);
