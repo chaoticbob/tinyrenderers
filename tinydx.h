@@ -3255,9 +3255,11 @@ void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert
                 } break;
             }
 
+            D3D_SHADER_MACRO macros[] = { "D3D12", "1", 
+                                          NULL, NULL };
             ID3DBlob* error_msgs = NULL;
             HRESULT hres = D3DCompile2(source, source_len, source_name, 
-                                       NULL, NULL, 
+                                       macros, NULL, 
                                        entry_point, target, compile_flags, 
                                        0, 0, NULL, 0, 
                                        compiled_code, &error_msgs);
