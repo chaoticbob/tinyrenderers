@@ -185,6 +185,14 @@ typedef enum tr_buffer_usage {
     tr_buffer_usage_indirect                    = 0x00000100,
 } tr_buffer_usage;
 
+typedef enum tr_buffer_feature {
+    tr_buffer_feature_none                      = 0x00000000,
+    tr_buffer_feature_read_only                 = 0x00000001,
+    tr_buffer_feature_raw                       = 0x00000002
+} tr_buffer_feature;
+
+typedef uint32_t tr_buffer_feature_flags;
+
 typedef enum tr_texture_type {
     tr_texture_type_1d,
     tr_texture_type_2d,
@@ -464,6 +472,7 @@ typedef struct tr_buffer {
     tr_buffer_usage                     usage;
     uint64_t                            size;
     bool                                host_visible;
+    tr_buffer_feature_flags             features; 
     tr_index_type                       index_type;
     uint32_t                            vertex_stride;
     tr_format                           format;
@@ -606,7 +615,7 @@ tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size,
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer** pp_buffer);
+tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer_feature_flags features, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
@@ -672,7 +681,7 @@ tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
 tr_api_export void        tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void        tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_buffer);
-//tr_api_export void        tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer);
+tr_api_export void        tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer);
 tr_api_export void        tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_data, tr_buffer* p_buffer);
 tr_api_export void        tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* p_src_data, uint32_t src_channel_count, tr_texture* p_texture, tr_image_resize_uint8_fn resize_fn, void* p_user_data);
 tr_api_export void        tr_util_update_texture_float(tr_queue* p_queue, uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const float* p_src_data, uint32_t channels, tr_texture* p_texture, tr_image_resize_float_fn resize_fn, void* p_user_data);
@@ -1370,7 +1379,7 @@ void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool
     *pp_buffer = p_buffer;
 }
 
-void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer** pp_buffer)
+void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer_feature_flags features, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1382,10 +1391,11 @@ void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t f
     p_buffer->usage           = tr_buffer_usage_storage;
     p_buffer->size            = size;
     p_buffer->host_visible    = false;
+    p_buffer->features        = features;
     p_buffer->format          = tr_format_undefined;
     p_buffer->first_element   = first_element;
     p_buffer->element_count   = element_count;
-    p_buffer->struct_stride   = struct_stride;
+    p_buffer->struct_stride   = (features & tr_buffer_feature_raw) ? 0 : struct_stride;
     p_buffer->counter_offset  = counter_offset;
     
     tr_internal_dx_create_buffer(p_renderer, p_buffer);
@@ -2289,7 +2299,6 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
     tr_destroy_buffer(p_buffer->renderer, buffer);
 }
 
-/*
 void tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer)
 {
     assert(NULL != p_queue);
@@ -2320,7 +2329,6 @@ void tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer)
 
     tr_destroy_buffer(p_buffer->renderer, buffer);
 }
-*/
 
 void tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_data, tr_buffer* p_buffer)
 {
@@ -3075,6 +3083,10 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
             p_buffer->dx_uav_view_desc.Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
             p_buffer->dx_uav_view_desc.Buffer.CounterOffsetInBytes  = p_buffer->counter_offset;
             p_buffer->dx_uav_view_desc.Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_NONE;
+            if (p_buffer->features & tr_buffer_feature_raw) {
+                p_buffer->dx_uav_view_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+                p_buffer->dx_uav_view_desc.Buffer.Flags |= D3D12_BUFFER_UAV_FLAG_RAW;
+            }
         }
         break;
 
