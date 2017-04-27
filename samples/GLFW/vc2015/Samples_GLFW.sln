@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "04_SimpleCompute", "04_Simp
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "05_StructuredBuffer", "05_StructuredBuffer.vcxproj", "{5ACED170-669B-48DB-827B-CEFE5DFE418D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "06_AppendConsume", "06_AppendConsume.vcxproj", "{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		DebugDx|x64 = DebugDx|x64
@@ -61,6 +63,14 @@ Global
 		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
 		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
 		{5ACED170-669B-48DB-827B-CEFE5DFE418D}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.DebugDx|x64.Build.0 = DebugDx|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.DebugVk|x64.Build.0 = DebugVk|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.ReleaseDx|x64.ActiveCfg = ReleaseDx|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
+		{F5CA5A7E-F4C0-479E-89C6-F54D53C5F71C}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
