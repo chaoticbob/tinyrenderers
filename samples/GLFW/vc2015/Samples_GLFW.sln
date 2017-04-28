@@ -17,6 +17,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "06_AppendConsume", "06_Appe
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "07_ByteAddressBuffer", "07_ByteAddressBuffer.vcxproj", "{A2F2AAB8-E40B-4052-B1E2-ACFA92C76224}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "08_ConstantBuffer", "08_ConstantBuffer.vcxproj", "{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		DebugDx|x64 = DebugDx|x64
@@ -81,6 +83,14 @@ Global
 		{A2F2AAB8-E40B-4052-B1E2-ACFA92C76224}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
 		{A2F2AAB8-E40B-4052-B1E2-ACFA92C76224}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
 		{A2F2AAB8-E40B-4052-B1E2-ACFA92C76224}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.DebugDx|x64.ActiveCfg = DebugDx|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.DebugDx|x64.Build.0 = DebugDx|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.DebugVk|x64.ActiveCfg = DebugVk|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.DebugVk|x64.Build.0 = DebugVk|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.ReleaseDx|x64.ActiveCfg = ReleaseDx|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.ReleaseDx|x64.Build.0 = ReleaseDx|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.ReleaseVk|x64.ActiveCfg = ReleaseVk|x64
+		{5FE17B2C-B2D4-4FB4-9977-55191FD27EE8}.ReleaseVk|x64.Build.0 = ReleaseVk|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

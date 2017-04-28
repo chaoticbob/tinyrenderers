@@ -279,14 +279,14 @@ void init_tiny_renderer(GLFWwindow* window)
     uint64_t buffer_size = input_buffer.size() * sizeof(Input);
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = sizeof(Input);
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, 0, &m_compute_src_buffer);
+    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, 0, tr_buffer_feature_none, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, input_buffer.data(), m_compute_src_buffer);
     lc_free_image(image_data);
 
     buffer_size = m_image_row_stride * m_image_height;
     element_count = m_image_width * m_image_height;
     struct_stride = 4;
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, 0, &m_compute_dst_buffer);
+    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, 0, tr_buffer_feature_none, &m_compute_dst_buffer);
  
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);

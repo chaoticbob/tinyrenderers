@@ -11,7 +11,8 @@
 #if defined(TINY_RENDERER_DX)
     #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
-    #include "tinyvk.h"
+    #error "This sample currently does not work with Vulkan!"
+    //#include "tinyvk.h"
 #endif
 
 #define LC_IMAGE_IMPLEMENTATION
