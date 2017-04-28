@@ -139,8 +139,6 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.vk_debug_fn                    = vulkan_debug;
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
-    settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
-    settings.device_layers.names            = device_layers.data();
 #endif
     tr_create_renderer("ColorApp", &settings, &m_renderer);
 
@@ -178,17 +176,10 @@ void init_tiny_renderer(GLFWwindow* window)
     // tri
     {
         std::vector<float> vertexData = {
-             0.00f, -0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
-            -0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
-             0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+             0.00f,  0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
+            -0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
+             0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
         };
-
-#if defined(TINY_RENDERER_DX)
-        // Flip the y so they're the same in both renderer
-        vertexData[7*0 + 1] *= -1.0f;
-        vertexData[7*1 + 1] *= -1.0f;
-        vertexData[7*2 + 1] *= -1.0f;
-#endif
 
         vertexData[7*0 + 0] += -0.5f;
         vertexData[7*1 + 0] += -0.5f;
@@ -203,19 +194,11 @@ void init_tiny_renderer(GLFWwindow* window)
     // quad
     {
         std::vector<float> vertexData = {
-            -0.25f, -0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
-            -0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
-             0.25f,  0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
-             0.25f, -0.25f, 0.0f,   1.0f, 1.0f, 1.0f, 1.0f,
+            -0.25f,  0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
+            -0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
+             0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+             0.25f,  0.25f, 0.0f,   1.0f, 1.0f, 1.0f, 1.0f,
         };
-
-#if defined(TINY_RENDERER_DX)
-        // Flip the y so they're the same in both renderer
-        vertexData[7*0 + 1] *= -1.0f;
-        vertexData[7*1 + 1] *= -1.0f;
-        vertexData[7*2 + 1] *= -1.0f;
-        vertexData[7*3 + 1] *= -1.0f;
-#endif
 
         vertexData[7*0 + 0] += 0.5f;
         vertexData[7*1 + 0] += 0.5f;

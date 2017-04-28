@@ -93,8 +93,8 @@ namespace TINY_RENDERER_CPP_NAMESPACE {
 
 #if ! defined(TINY_RENDERER_CUSTOM_MAX)
 enum {
-    tr_max_instance_extensions       = 256,
-    tr_max_device_extensions         = 256,
+    tr_max_instance_extensions       = 1024,
+    tr_max_device_extensions         = 1024,
     tr_max_gpus                      = 4,
     tr_max_descriptors               = 32,
     tr_max_descriptor_sets           = 8,
@@ -379,7 +379,7 @@ typedef struct tr_renderer_settings {
     // Vulkan specific options
     tr_string_list                      instance_layers;
     tr_string_list                      instance_extensions;
-    tr_string_list                      device_layers;
+    //tr_string_list                      device_layers;
     tr_string_list                      device_extensions;
     PFN_vkDebugReportCallbackEXT        vk_debug_fn;
 } tr_renderer_settings;
@@ -2865,32 +2865,47 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
 
     // Instance
     {
-        // Extensions
         uint32_t extension_count = 0;
-        const char** extensions = (const char**)calloc(tr_max_instance_extensions, sizeof(*extensions));
-        // Add VK_EXT_debug_report if layers are present
-        if (((p_renderer->settings.instance_layers.count > 0) || (p_renderer->settings.device_layers.count > 0)) && (extension_count < tr_max_instance_extensions)) {
-            ++extension_count;
-            uint32_t n = extension_count - 1;
-            extensions[n] = (const char*)calloc(1, strlen(VK_EXT_DEBUG_REPORT_EXTENSION_NAME) + 1);
-            memcpy((void*)extensions[n], VK_EXT_DEBUG_REPORT_EXTENSION_NAME, strlen(VK_EXT_DEBUG_REPORT_EXTENSION_NAME) + 1);
+        const char* extensions[tr_max_instance_extensions] = { 0 };
+        // Layer extensions
+        for (uint32_t i = 0; i < p_renderer->settings.instance_layers.count; ++i) {
+            const char* layer_name = p_renderer->settings.instance_layers.names[i];
+            uint32_t count = 0;
+            vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL);
+            if (count == 0) {
+              continue;
+            }
+            VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
+            assert(properties != NULL);
+            vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
+            for (uint32_t j = 0; j < count; ++j, ++extension_count) {
+              const char* extension_name = properties[j].extensionName;
+              uint32_t n = extension_count;
+              size_t len = strlen(extension_name);
+              extensions[n] = (const char*)calloc(1, len + 1);
+              memcpy((void*)(extensions[n]), extension_name, len);
+            }
+            free((void*)properties);
         }
-        // Add VK_KHR_surface extension
-        if (extension_count < tr_max_instance_extensions) {
-            ++extension_count;
-            uint32_t n = extension_count - 1;
-            extensions[n] = (const char*)calloc(1, strlen(VK_KHR_SURFACE_EXTENSION_NAME) + 1);
-            memcpy((void*)extensions[n], VK_KHR_SURFACE_EXTENSION_NAME, strlen(VK_KHR_SURFACE_EXTENSION_NAME) + 1);
+        // Standalone extensions
+        {
+            const char* layer_name = NULL;
+            uint32_t count = 0;
+            vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL);
+            if (count > 0) {
+              VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
+              assert(properties != NULL);
+              vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
+              for (uint32_t j = 0; j < count; ++j, ++extension_count) {
+                const char* extension_name = properties[j].extensionName;
+                uint32_t n = extension_count;
+                size_t len = strlen(extension_name);
+                extensions[n] = (const char*)calloc(1, len + 1);
+                memcpy((void*)(extensions[n]), extension_name, len);
+              }
+              free((void*)properties);
+            }
         }
-#if defined(TINY_RENDERER_MSW)
-        // Add VK_KHR_win32_surface extension
-        if (extension_count < tr_max_instance_extensions) {
-            ++extension_count;
-            uint32_t n = extension_count - 1;
-            extensions[n] = (const char*)calloc(1, strlen(VK_KHR_WIN32_SURFACE_EXTENSION_NAME) + 1);
-            memcpy((void*)extensions[n], VK_KHR_WIN32_SURFACE_EXTENSION_NAME, strlen(VK_KHR_WIN32_SURFACE_EXTENSION_NAME) + 1);
-        }
-#endif
         // Add more extensions here
         TINY_RENDERER_DECLARE_ZERO(VkInstanceCreateInfo, create_info);
         create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -2908,7 +2923,7 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
         for (uint32_t i = 0; i < extension_count; ++i) {
             TINY_RENDERER_SAFE_FREE(extensions[i]);
         }
-        TINY_RENDERER_SAFE_FREE(extensions);
+        //TINY_RENDERER_SAFE_FREE(extensions);
     }
 
     // Debug
@@ -3040,6 +3055,28 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     }
 
     uint32_t extension_count = 0;
+    const char* extensions[tr_max_instance_extensions] = { 0 };
+    // Standalone extensions
+    {
+        const char* layer_name = NULL;
+        uint32_t count = 0;
+        vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, layer_name, &count, NULL);
+        if (count > 0) {
+          VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
+          assert(properties != NULL);
+          vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, layer_name, &count, properties);
+          for (uint32_t j = 0; j < count; ++j, ++extension_count) {
+            const char* extension_name = properties[j].extensionName;
+            uint32_t n = extension_count;
+            size_t len = strlen(extension_name);
+            extensions[n] = (const char*)calloc(1, len + 1);
+            memcpy((void*)(extensions[n]), extension_name, len);
+          }
+          free((void*)properties);
+        }
+    }
+    /*
+    uint32_t extension_count = 0;
     char** extensions = (char**)calloc(tr_max_instance_extensions, sizeof(*extensions));
     // Add VK_KHR_surface extension
     if (extension_count < tr_max_instance_extensions) {
@@ -3048,6 +3085,7 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
         extensions[n] = (char*)calloc(1, strlen(VK_KHR_SWAPCHAIN_EXTENSION_NAME) + 1);
         memcpy(extensions[n], VK_KHR_SWAPCHAIN_EXTENSION_NAME, strlen(VK_KHR_SWAPCHAIN_EXTENSION_NAME) + 1);
     }
+    */
     // Add more extensions here
         
     TINY_RENDERER_DECLARE_ZERO(VkDeviceCreateInfo, create_info);
@@ -3056,8 +3094,8 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     create_info.flags                   = 0;
     create_info.queueCreateInfoCount    = queue_create_infos_count;
     create_info.pQueueCreateInfos       = queue_create_infos;
-    create_info.enabledLayerCount       = p_renderer->settings.device_layers.count;
-    create_info.ppEnabledLayerNames     = p_renderer->settings.device_layers.names;
+    create_info.enabledLayerCount       = 0;
+    create_info.ppEnabledLayerNames     = NULL;
     create_info.enabledExtensionCount   = extension_count;
     create_info.ppEnabledExtensionNames = extensions;
     create_info.pEnabledFeatures        = NULL;
@@ -3066,9 +3104,9 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
 
     // Free extensions names
     for (uint32_t i = 0; i < extension_count; ++i) {
-        free(extensions[i]);
+        free((void*)extensions[i]);
     }
-    free(extensions);
+    //free(extensions);
 
     vkGetDeviceQueue(p_renderer->vk_device, p_renderer->graphics_queue->vk_queue_family_index, 0, &(p_renderer->graphics_queue->vk_queue));
     assert(VK_NULL_HANDLE != p_renderer->graphics_queue->vk_queue);
@@ -4753,9 +4791,9 @@ void tr_internal_vk_cmd_set_viewport(tr_cmd* p_cmd, float x, float y, float widt
 
     TINY_RENDERER_DECLARE_ZERO(VkViewport, viewport);
     viewport.x = x;
-    viewport.y = y;
+    viewport.y = height;
     viewport.width = width;
-    viewport.height = height;
+    viewport.height = -height;
     viewport.minDepth = min_depth;
     viewport.maxDepth = max_depth;
     vkCmdSetViewport(p_cmd->vk_cmd_buf, 0, 1, &viewport);

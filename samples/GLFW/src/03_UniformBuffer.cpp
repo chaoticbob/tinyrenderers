@@ -145,8 +145,6 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.vk_debug_fn                    = vulkan_debug;
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
-    settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
-    settings.device_layers.names            = device_layers.data();
 #endif
     tr_create_renderer("UniformBufferApp", &settings, &m_renderer);
 
@@ -197,10 +195,10 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
     std::vector<float> vertexData = {
-        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
-        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
-         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
+         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
+         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
     };
 
     uint64_t vertexDataSize = sizeof(float) * vertexData.size();
@@ -265,11 +263,6 @@ void draw_frame()
     mvp[ 5] =  cos(t);
     mvp[10] =  1.0f;
     mvp[15] =  1.0f;
-#if defined(TINY_RENDERER_DX)
-    // Flip the y so they're the same in both renderer
-    mvp[1] *= -1.0f;
-    mvp[5] *= -1.0f;
-#endif
     memcpy(m_uniform_buffer->cpu_mapped_address, mvp.data(), mvp.size() * sizeof(float));
 
     tr_cmd* cmd = m_cmds[frameIdx];

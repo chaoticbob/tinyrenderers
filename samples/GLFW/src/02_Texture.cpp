@@ -144,8 +144,6 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.vk_debug_fn                    = vulkan_debug;
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
-    settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
-    settings.device_layers.names            = device_layers.data();
 #endif
     tr_create_renderer("ColorApp", &settings, &m_renderer);
 
@@ -194,19 +192,11 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
     std::vector<float> vertexData = {
-        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
-        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
-         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
+         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
+         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
     };
-
-#if defined(TINY_RENDERER_DX)
-    // Flip the y so they're the same in both renderer
-    vertexData[6*0 + 1] *= -1.0f;
-    vertexData[6*1 + 1] *= -1.0f;
-    vertexData[6*2 + 1] *= -1.0f;
-    vertexData[6*3 + 1] *= -1.0f;
-#endif
 
     uint64_t vertexDataSize = sizeof(float) * vertexData.size();
     uint64_t vertexStride = sizeof(float) * 6;

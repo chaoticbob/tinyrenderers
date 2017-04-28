@@ -11,6 +11,9 @@
 #if defined(TINY_RENDERER_DX)
     #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
+    //
+    // See constant_buffer.hlsl for Vulkan behavior
+    //
     #include "tinyvk.h"
 #endif
 
@@ -144,8 +147,6 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.vk_debug_fn                    = vulkan_debug;
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
-    settings.device_layers.count            = static_cast<uint32_t>(device_layers.size());
-    settings.device_layers.names            = device_layers.data();
 #elif defined(TINY_RENDERER_DX)
     settings.dx_shader_target               = tr_dx_shader_target_5_1;
 #endif
@@ -189,17 +190,10 @@ void init_tiny_renderer(GLFWwindow* window)
     // tri
     {
         std::vector<float> vertexData = {
-             0.00f, -0.25f, 0.0f, 1.0f,
-            -0.25f,  0.25f, 0.0f, 1.0f,
-             0.25f,  0.25f, 0.0f, 1.0f,
+             0.00f,  0.25f, 0.0f, 1.0f,
+            -0.25f, -0.25f, 0.0f, 1.0f,
+             0.25f, -0.25f, 0.0f, 1.0f,
         };
-
-#if defined(TINY_RENDERER_DX)
-        // Flip the y so they're the same in both renderer
-        vertexData[4*0 + 1] *= -1.0f;
-        vertexData[4*1 + 1] *= -1.0f;
-        vertexData[4*2 + 1] *= -1.0f;
-#endif
 
         vertexData[4*0 + 0] += -0.5f;
         vertexData[4*1 + 0] += -0.5f;
@@ -214,19 +208,11 @@ void init_tiny_renderer(GLFWwindow* window)
     // quad
     {
         std::vector<float> vertexData = {
-            -0.25f, -0.25f, 0.0f, 1.0f,
             -0.25f,  0.25f, 0.0f, 1.0f,
-             0.25f,  0.25f, 0.0f, 1.0f,
+            -0.25f, -0.25f, 0.0f, 1.0f,
              0.25f, -0.25f, 0.0f, 1.0f,
+             0.25f,  0.25f, 0.0f, 1.0f,
         };
-
-#if defined(TINY_RENDERER_DX)
-        // Flip the y so they're the same in both renderer
-        vertexData[4*0 + 1] *= -1.0f;
-        vertexData[4*1 + 1] *= -1.0f;
-        vertexData[4*2 + 1] *= -1.0f;
-        vertexData[4*3 + 1] *= -1.0f;
-#endif
 
         vertexData[4*0 + 0] += 0.5f;
         vertexData[4*1 + 0] += 0.5f;

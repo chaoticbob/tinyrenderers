@@ -224,12 +224,11 @@ void init_tiny_renderer(GLFWwindow* window)
     pipeline_settings = {};
     tr_create_compute_pipeline(m_renderer, m_compute_shader, m_compute_desc_set, &pipeline_settings, &m_compute_pipeline);
 
-
     std::vector<float> vertexData = {
-        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
-        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
-         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
+         0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f,
+         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
     };
 
 #if defined(TINY_RENDERER_DX)
