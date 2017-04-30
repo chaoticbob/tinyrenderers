@@ -52,5 +52,7 @@ or
 
 
 ### Change Log
+[2017/04/30] - Clarified shader usage in some sample programs to point out which source they're coming from.<br>
+[2017/04/27] - Added ConstantBuffer sample (D3D12 only for now). Updated Vulkan samples to use negative viewport height.<br>
 [2017/04/25] - Updated SimpleCompute and StructuredBuffer to work on Vulkan.<br>
 [2017/04/24] - Added compute samples (D3D12 only for now). One for simple compute and another for structured buffers.
