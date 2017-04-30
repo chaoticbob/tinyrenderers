@@ -146,11 +146,12 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
+    // Uses HLSL source
     auto vert = load_file("../../assets/color_vert.spv");
     auto frag = load_file("../../assets/color_frag.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "main", 
-                             frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
+                             vert.size(), (uint32_t*)(vert.data()), "VSMain", 
+                             frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file("../../assets/color.hlsl");
     tr_create_shader_program(m_renderer, 

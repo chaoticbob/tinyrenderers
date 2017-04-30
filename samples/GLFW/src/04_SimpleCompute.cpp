@@ -155,6 +155,7 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
+    // Uses HLSL source
     auto comp = load_file("../../assets/simple_compute.spv");
     tr_create_shader_program_compute(m_renderer, 
                                      comp.size(), comp.data(), "main", &m_compute_shader);

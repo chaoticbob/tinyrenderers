@@ -156,6 +156,7 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
+    // Uses GLSL source
     auto vert = load_file("../../assets/constant_buffer_vert.spv");
     auto frag = load_file("../../assets/constant_buffer_frag.spv");
     tr_create_shader_program(m_renderer, 
@@ -164,6 +165,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file("../../assets/constant_buffer.hlsl");
     tr_create_shader_program(m_renderer, 
+
                              hlsl.size(), hlsl.data(), "VSMain", 
                              hlsl.size(), hlsl.data(), "PSMain", &m_shader);
 #endif

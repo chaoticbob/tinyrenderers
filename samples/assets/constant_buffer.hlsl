@@ -11,17 +11,25 @@ struct VSOutput {
 // as they can fit into an aligned float4.
 //
 struct UniformsT {
-  float  pad;
+  //float  pad;
   float3 color;
 };
 
-ConstantBuffer<UniformsT> uniforms : register(b0);
+// Currently, glslang produces SPIR-V  from this that  some
+// cards do not like, so use the old form below.
+//ConstantBuffer<UniformsT> uniforms : register(b0);
+
+cbuffer uniforms : register(b0)
+{
+	//float  pad;
+	float3 color;
+};
 
 VSOutput VSMain(float4 Position : POSITION)
 {
 	VSOutput result;
 	result.Position = Position;
-	result.Color = uniforms.color;
+	result.Color = color;
 	return result;
 }
 
