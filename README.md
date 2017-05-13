@@ -47,6 +47,16 @@ or
 #include "tinydx.h"
 ```
 
+#### Building on Windows
+```
+git clone --recursive git@github.com:chaoticbob/tinyrenderers.git
+cd tinyrenderers
+mkdir build
+cd build
+cmake -G "Visual Studio 14 2015 Win64" ..
+```
+Open ```tinyrenderers.sln``` and go
+
 #### Screenshots
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-001.png?raw=true)
 
