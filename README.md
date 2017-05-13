@@ -17,6 +17,7 @@
      - Works for both Vulkan and D3D12 - renderer takes over after window handle is obtained
      - Image loading done via [lc_image](https://github.com/libertuscode/libertuscode)'
  - Includes basic compute samples
+ - Uses CMake 
  - ...more to come soon
 
 #### Notes
@@ -52,6 +53,7 @@ or
 
 
 ### Change Log
+[2017/05/13] - Moved to project files to cmake. Moved glsl shaders to glsl sub directory - forcing HLSL for now.<br>
 [2017/04/30] - Clarified shader usage in some sample programs to point out which source they're coming from.<br>
 [2017/04/27] - Added ConstantBuffer sample (D3D12 only for now). Updated Vulkan samples to use negative viewport height.<br>
 [2017/04/25] - Updated SimpleCompute and StructuredBuffer to work on Vulkan.<br>
