@@ -3087,6 +3087,10 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     }
     */
     // Add more extensions here
+
+    VkPhysicalDeviceFeatures gpu_features = { 0 };
+    vkGetPhysicalDeviceFeatures(p_renderer->vk_active_gpu, &gpu_features);
+    //gpu_features.multiViewport = VK_FALSE;
         
     TINY_RENDERER_DECLARE_ZERO(VkDeviceCreateInfo, create_info);
     create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -3098,7 +3102,7 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     create_info.ppEnabledLayerNames     = NULL;
     create_info.enabledExtensionCount   = extension_count;
     create_info.ppEnabledExtensionNames = extensions;
-    create_info.pEnabledFeatures        = NULL;
+    create_info.pEnabledFeatures        = &gpu_features;
     vk_res = vkCreateDevice(p_renderer->vk_active_gpu, &create_info, NULL, &(p_renderer->vk_device));
     assert(VK_SUCCESS == vk_res);
 
@@ -4791,7 +4795,7 @@ void tr_internal_vk_cmd_set_viewport(tr_cmd* p_cmd, float x, float y, float widt
 
     TINY_RENDERER_DECLARE_ZERO(VkViewport, viewport);
     viewport.x = x;
-    viewport.y = height;
+    viewport.y = y;
     viewport.width = width;
     viewport.height = -height;
     viewport.minDepth = min_depth;

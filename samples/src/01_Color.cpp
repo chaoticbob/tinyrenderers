@@ -11,29 +11,20 @@
 #if defined(TINY_RENDERER_DX)
     #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
-    //
-    // See constant_buffer.hlsl for Vulkan behavior
-    //
     #include "tinyvk.h"
 #endif
 
-#pragma comment(lib, "glfw3.lib")
-
-const uint32_t kImageCount = 3;
+const uint32_t      kImageCount = 3;
+const std::string   kAssetDir = "../../samples/assets/";
 
 tr_renderer*        m_renderer = nullptr;
-tr_descriptor_set*  m_desc_set_tri = nullptr;
-tr_descriptor_set*  m_desc_set_quad = nullptr;
 tr_cmd_pool*        m_cmd_pool = nullptr;
 tr_cmd**            m_cmds = nullptr;
 tr_shader_program*  m_shader = nullptr;
 tr_buffer*          m_tri_vertex_buffer = nullptr;
 tr_buffer*          m_rect_index_buffer = nullptr;
 tr_buffer*          m_rect_vertex_buffer = nullptr;
-tr_pipeline*        m_pipeline_tri = nullptr;
-tr_pipeline*        m_pipeline_quad = nullptr;
-tr_buffer*          m_uniform_buffer_tri = nullptr;
-tr_buffer*          m_uniform_buffer_quad = nullptr;
+tr_pipeline*        m_pipeline = nullptr;
 
 uint32_t            s_window_width;
 uint32_t            s_window_height;
@@ -59,7 +50,7 @@ static void app_glfw_error(int error, const char* description)
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
   switch(type) {
-    case tr_log_type_info  : {LOG("[IINFO]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_info  : {LOG("[INFO]"  << "[" << component << "] : " << msg);} break;
     case tr_log_type_warn  : {LOG("[WARN]"  << "[" << component << "] : " << msg);} break;
     case tr_log_type_debug : {LOG("[DEBUG]" << "[" << component << "] : " << msg);} break;
     case tr_log_type_error : {LOG("[ERORR]" << "[" << component << "] : " << msg);} break;
@@ -147,8 +138,6 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.vk_debug_fn                    = vulkan_debug;
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
-#elif defined(TINY_RENDERER_DX)
-    settings.dx_shader_target               = tr_dx_shader_target_5_1;
 #endif
     tr_create_renderer("ColorApp", &settings, &m_renderer);
 
@@ -156,53 +145,48 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    // Uses GLSL source
-    auto vert = load_file("../../assets/constant_buffer_vert.spv");
-    auto frag = load_file("../../assets/constant_buffer_frag.spv");
+    // Uses HLSL source
+    auto vert = load_file(kAssetDir + "color_vert.spv");
+    auto frag = load_file(kAssetDir + "color_frag.spv");
     tr_create_shader_program(m_renderer, 
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file("../../assets/constant_buffer.hlsl");
+    auto hlsl = load_file(kAssetDir + "color.hlsl");
     tr_create_shader_program(m_renderer, 
-
                              hlsl.size(), hlsl.data(), "VSMain", 
                              hlsl.size(), hlsl.data(), "PSMain", &m_shader);
 #endif
 
-    std::vector<tr_descriptor> descriptors(1);
-    descriptors[0].type          = tr_descriptor_type_uniform_buffer;
-    descriptors[0].count         = 1;
-    descriptors[0].binding       = 0;
-    descriptors[0].shader_stages = tr_shader_stage_vert;
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set_tri);
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set_quad);
-
     tr_vertex_layout vertex_layout = {};
-    vertex_layout.attrib_count = 1;
+    vertex_layout.attrib_count = 2;
     vertex_layout.attribs[0].semantic = tr_semantic_position;
     vertex_layout.attribs[0].format   = tr_format_r32g32b32a32_float;
     vertex_layout.attribs[0].binding  = 0;
     vertex_layout.attribs[0].location = 0;
     vertex_layout.attribs[0].offset   = 0;
-    tr_pipeline_settings pipeline_settings = { tr_primitive_topo_tri_list };
-    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set_tri, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline_tri);
-    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set_quad, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline_quad);
+    vertex_layout.attribs[1].semantic = tr_semantic_color;
+    vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
+    vertex_layout.attribs[1].binding  = 0;
+    vertex_layout.attribs[1].location = 1;
+    vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
+    tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
+    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
 
     // tri
     {
         std::vector<float> vertexData = {
-             0.00f,  0.25f, 0.0f, 1.0f,
-            -0.25f, -0.25f, 0.0f, 1.0f,
-             0.25f, -0.25f, 0.0f, 1.0f,
+             0.00f,  0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
+            -0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
+             0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
         };
 
-        vertexData[4*0 + 0] += -0.5f;
-        vertexData[4*1 + 0] += -0.5f;
-        vertexData[4*2 + 0] += -0.5f;
+        vertexData[7*0 + 0] += -0.5f;
+        vertexData[7*1 + 0] += -0.5f;
+        vertexData[7*2 + 0] += -0.5f;
 
         uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-        uint64_t vertexStride = sizeof(float) * 4;
+        uint64_t vertexStride = sizeof(float) * 7;
         tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_tri_vertex_buffer);
         memcpy(m_tri_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
     }
@@ -210,19 +194,19 @@ void init_tiny_renderer(GLFWwindow* window)
     // quad
     {
         std::vector<float> vertexData = {
-            -0.25f,  0.25f, 0.0f, 1.0f,
-            -0.25f, -0.25f, 0.0f, 1.0f,
-             0.25f, -0.25f, 0.0f, 1.0f,
-             0.25f,  0.25f, 0.0f, 1.0f,
+            -0.25f,  0.25f, 0.0f,   1.0f, 1.0f, 0.0f, 0.0f,
+            -0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 1.0f, 0.0f,
+             0.25f, -0.25f, 0.0f,   1.0f, 0.0f, 0.0f, 1.0f,
+             0.25f,  0.25f, 0.0f,   1.0f, 1.0f, 1.0f, 1.0f,
         };
 
-        vertexData[4*0 + 0] += 0.5f;
-        vertexData[4*1 + 0] += 0.5f;
-        vertexData[4*2 + 0] += 0.5f;
-        vertexData[4*3 + 0] += 0.5f;
+        vertexData[7*0 + 0] += 0.5f;
+        vertexData[7*1 + 0] += 0.5f;
+        vertexData[7*2 + 0] += 0.5f;
+        vertexData[7*3 + 0] += 0.5f;
 
         uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-        uint64_t vertexStride = sizeof(float) * 4;
+        uint64_t vertexStride = sizeof(float) * 7;
         tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
         memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
         
@@ -235,28 +219,6 @@ void init_tiny_renderer(GLFWwindow* window)
         tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
         memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
     }
-
-    tr_create_uniform_buffer(m_renderer, 64, true, &m_uniform_buffer_tri);
-    m_desc_set_tri->descriptors[0].uniform_buffers[0] = m_uniform_buffer_tri;
-    tr_update_descriptor_set(m_renderer, m_desc_set_tri);
-
-    tr_create_uniform_buffer(m_renderer, 64, true, &m_uniform_buffer_quad);
-    m_desc_set_quad->descriptors[0].uniform_buffers[0] = m_uniform_buffer_quad;
-    tr_update_descriptor_set(m_renderer, m_desc_set_quad);
-
-    float color[4] = { 0 };
-
-    color[0] = { 0 };
-    color[1] = { 1 };
-    color[2] = { 0 };
-    color[3] = { 0 };
-    memcpy(m_uniform_buffer_tri->cpu_mapped_address, color, 4 * sizeof(float));
-
-    color[0] = { 0 };
-    color[1] = { 1 };
-    color[2] = { 1 };
-    color[3] = { 0 };
-    memcpy(m_uniform_buffer_quad->cpu_mapped_address, color, 4 * sizeof(float));
 }
 
 void destroy_tiny_renderer()
@@ -286,14 +248,9 @@ void draw_frame()
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
     tr_cmd_clear_color_attachment(cmd, 0, &clear_value);
-    // Draw tri
-    tr_cmd_bind_pipeline(cmd, m_pipeline_tri);
-    tr_cmd_bind_descriptor_sets(cmd, m_pipeline_tri, m_desc_set_tri);
+    tr_cmd_bind_pipeline(cmd, m_pipeline);
     tr_cmd_bind_vertex_buffers(cmd, 1, &m_tri_vertex_buffer);
     tr_cmd_draw(cmd, 3, 0);
-    // Draw quad
-    tr_cmd_bind_pipeline(cmd, m_pipeline_quad);
-    tr_cmd_bind_descriptor_sets(cmd, m_pipeline_quad, m_desc_set_quad);
     tr_cmd_bind_index_buffer(cmd, m_rect_index_buffer);
     tr_cmd_bind_vertex_buffers(cmd, 1, &m_rect_vertex_buffer);
     tr_cmd_draw_indexed(cmd, 6, 0);
@@ -315,7 +272,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "08_ConstantBuffer", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, "01_Color", NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {

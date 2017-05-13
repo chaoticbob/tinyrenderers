@@ -11,16 +11,15 @@
 #if defined(TINY_RENDERER_DX)
     #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
-    #error "This sample currently does not work with Vulkan!"
-    //#include "tinyvk.h"
+    // WARNING: "This sample currently does not work with Vulkan!"
+    #include "tinyvk.h"
 #endif
 
 #define LC_IMAGE_IMPLEMENTATION
 #include "lc_image.h"
 
-#pragma comment(lib, "glfw3.lib")
-
-const uint32_t kImageCount = 3;
+const uint32_t      kImageCount = 3;
+const std::string   kAssetDir = "../../samples/assets/";
 
 tr_renderer*        m_renderer = nullptr;
 tr_descriptor_set*  m_desc_set = nullptr;
@@ -66,7 +65,7 @@ static void app_glfw_error(int error, const char* description)
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
   switch(type) {
-    case tr_log_type_info  : {LOG("[IINFO]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_info  : {LOG("[INFO]" << "[" << component << "] : " << msg);} break;
     case tr_log_type_warn  : {LOG("[WARN]"  << "[" << component << "] : " << msg);} break;
     case tr_log_type_debug : {LOG("[DEBUG]" << "[" << component << "] : " << msg);} break;
     case tr_log_type_error : {LOG("[ERORR]" << "[" << component << "] : " << msg);} break;
@@ -161,23 +160,23 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto comp = load_file("../../assets/structured_buffer.spv");
+    auto comp = load_file(kAssetDir + "byte_address_buffer.spv");
     tr_create_shader_program_compute(m_renderer, 
                                      comp.size(), comp.data(), "main", &m_compute_shader);
 
-    auto vert = load_file("../../assets/texture_vert.spv");
-    auto frag = load_file("../../assets/texture_frag.spv");
+    auto vert = load_file(kAssetDir + "texture_vert.spv");
+    auto frag = load_file(kAssetDir + "texture_frag.spv");
     tr_create_shader_program(m_renderer, 
                              //vert.size(), (uint32_t*)(vert.data()), "main", 
                              //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file("../../assets/append_consume.hlsl");
+    auto hlsl = load_file(kAssetDir + "byte_address_buffer.hlsl");
     tr_create_shader_program_compute(m_renderer, 
                                      hlsl.size(), hlsl.data(), "main", &m_compute_shader);
 
-    hlsl = load_file("../../assets/texture.hlsl");
+    hlsl = load_file(kAssetDir + "texture.hlsl");
     tr_create_shader_program(m_renderer, 
                              hlsl.size(), hlsl.data(), "VSMain", 
                              hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
@@ -229,6 +228,14 @@ void init_tiny_renderer(GLFWwindow* window)
          0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
     };
 
+#if defined(TINY_RENDERER_DX)
+    // Flip the y so they're the same in both renderer
+    vertexData[6*0 + 1] *= -1.0f;
+    vertexData[6*1 + 1] *= -1.0f;
+    vertexData[6*2 + 1] *= -1.0f;
+    vertexData[6*3 + 1] *= -1.0f;
+#endif
+
     uint64_t vertexDataSize = sizeof(float) * vertexData.size();
     uint64_t vertexStride = sizeof(float) * 6;
     tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
@@ -243,29 +250,22 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
-
-
     int image_channels = 0;
-    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &m_image_width, &m_image_height, &image_channels, 4);
+    unsigned char* image_data = lc_load_image((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, 4);
     assert(NULL != image_data);
     m_image_row_stride = m_image_width * image_channels;
     uint64_t buffer_size = m_image_row_stride * m_image_height;
     uint64_t element_count = m_image_width * m_image_height;
-    uint64_t struct_stride = 4;
-    uint64_t counter_offset = tr_util_calc_storage_counter_offset(buffer_size);
-    buffer_size = counter_offset + sizeof(uint32_t);
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, counter_offset, tr_buffer_feature_none, &m_compute_src_buffer);
-    tr_util_update_buffer(m_renderer->graphics_queue, buffer_size - sizeof(uint32_t), image_data, m_compute_src_buffer);
-    tr_util_set_storage_buffer_count(m_renderer->graphics_queue, counter_offset, element_count, m_compute_src_buffer);
+    uint64_t struct_stride = 0;
+    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, 0, tr_buffer_feature_raw, &m_compute_src_buffer);
+    tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     lc_free_image(image_data);
 
     buffer_size = m_image_row_stride * m_image_height;
     element_count = m_image_width * m_image_height;
-    struct_stride = 4;
-    counter_offset = tr_util_calc_storage_counter_offset(buffer_size);
-    buffer_size = counter_offset + sizeof(uint32_t);
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, counter_offset, tr_buffer_feature_none, &m_compute_dst_buffer);
-    tr_util_set_storage_buffer_count(m_renderer->graphics_queue, counter_offset, 0, m_compute_dst_buffer);
+    struct_stride = 0;
+    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, 0, tr_buffer_feature_raw, &m_compute_dst_buffer);
+    tr_util_clear_buffer(m_renderer->graphics_queue, m_compute_dst_buffer);
  
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
@@ -313,7 +313,7 @@ void draw_frame()
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
     tr_cmd_copy_buffer_to_texture2d(cmd, m_image_width, m_image_height, m_image_row_stride, 0, 0, m_compute_dst_buffer, m_texture);
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
-    // Draw compute result to screen - pixels will be out of order because of append/consume
+    // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
@@ -343,7 +343,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "06_AppendConsume", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, "07_ByteAddressBuffer", NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {

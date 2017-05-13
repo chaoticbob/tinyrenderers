@@ -17,9 +17,8 @@
 #define LC_IMAGE_IMPLEMENTATION
 #include "lc_image.h"
 
-#pragma comment(lib, "glfw3.lib")
-
-const uint32_t kImageCount = 3;
+const uint32_t      kImageCount = 3;
+const std::string   kAssetDir = "../../samples/assets/";
 
 tr_renderer*        m_renderer = nullptr;
 tr_descriptor_set*  m_desc_set = nullptr;
@@ -65,7 +64,7 @@ static void app_glfw_error(int error, const char* description)
 void renderer_log(tr_log_type type, const char* msg, const char* component)
 {
   switch(type) {
-    case tr_log_type_info  : {LOG("[IINFO]" << "[" << component << "] : " << msg);} break;
+    case tr_log_type_info  : {LOG("[INFO]" << "[" << component << "] : " << msg);} break;
     case tr_log_type_warn  : {LOG("[WARN]"  << "[" << component << "] : " << msg);} break;
     case tr_log_type_debug : {LOG("[DEBUG]" << "[" << component << "] : " << msg);} break;
     case tr_log_type_error : {LOG("[ERORR]" << "[" << component << "] : " << msg);} break;
@@ -160,23 +159,23 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto comp = load_file("../../assets/structured_buffer.spv");
+    auto comp = load_file(kAssetDir + "structured_buffer.spv");
     tr_create_shader_program_compute(m_renderer, 
                                      comp.size(), comp.data(), "main", &m_compute_shader);
 
-    auto vert = load_file("../../assets/texture_vert.spv");
-    auto frag = load_file("../../assets/texture_frag.spv");
+    auto vert = load_file(kAssetDir + "texture_vert.spv");
+    auto frag = load_file(kAssetDir + "texture_frag.spv");
     tr_create_shader_program(m_renderer, 
                              //vert.size(), (uint32_t*)(vert.data()), "main", 
                              //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file("../../assets/structured_buffer.hlsl");
+    auto hlsl = load_file(kAssetDir + "structured_buffer.hlsl");
     tr_create_shader_program_compute(m_renderer, 
                                      hlsl.size(), hlsl.data(), "main", &m_compute_shader);
 
-    hlsl = load_file("../../assets/texture.hlsl");
+    hlsl = load_file(kAssetDir + "texture.hlsl");
     tr_create_shader_program(m_renderer, 
                              hlsl.size(), hlsl.data(), "VSMain", 
                              hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
@@ -250,7 +249,7 @@ void init_tiny_renderer(GLFWwindow* window)
     };
 
     int image_channels = 0;
-    unsigned char* image_data = lc_load_image("../../assets/box_panel.jpg", &m_image_width, &m_image_height, &image_channels, 4);
+    unsigned char* image_data = lc_load_image((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, 4);
     assert(NULL != image_data);
     m_image_row_stride = m_image_width * image_channels;
     std::vector<Input> input_buffer;
