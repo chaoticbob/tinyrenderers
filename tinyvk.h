@@ -2878,12 +2878,16 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
             VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
             assert(properties != NULL);
             vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
-            for (uint32_t j = 0; j < count; ++j, ++extension_count) {
+            for (uint32_t j = 0; j < count; ++j) {
               const char* extension_name = properties[j].extensionName;
+              if (strcmp(extension_name, "VK_AMD_negative_viewport_height") == 0) {
+                continue;
+              }
               uint32_t n = extension_count;
               size_t len = strlen(extension_name);
               extensions[n] = (const char*)calloc(1, len + 1);
               memcpy((void*)(extensions[n]), extension_name, len);
+              ++extension_count;
             }
             free((void*)properties);
         }
@@ -4795,7 +4799,7 @@ void tr_internal_vk_cmd_set_viewport(tr_cmd* p_cmd, float x, float y, float widt
 
     TINY_RENDERER_DECLARE_ZERO(VkViewport, viewport);
     viewport.x = x;
-    viewport.y = y;
+    viewport.y = height;
     viewport.width = width;
     viewport.height = -height;
     viewport.minDepth = min_depth;
