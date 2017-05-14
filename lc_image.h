@@ -195,7 +195,7 @@ unsigned char* lc_load_image(const char* file_name,
             return NULL;
         }
 
-        if (0 == lc_fseek(file, 0, SEEK_END)) {
+        if (0 != lc_fseek(file, 0, SEEK_END)) {
             return NULL;
         }
 
@@ -434,7 +434,7 @@ static int njGetImageSize(void);
  allocated at run-time by NanoJPEG. It is still possible to decode another
  image after a njDone() call.
 */
-void njDone(void);
+static void njDone(void);
 
 /* lc_load_image_jpg */
 static lc_data_t* lc_load_image_jpg(lc_uint64_t size, const lc_data_t* data,
