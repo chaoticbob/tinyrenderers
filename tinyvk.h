@@ -419,6 +419,7 @@ typedef struct tr_renderer {
     VkSurfaceKHR                        vk_surface;
     VkSwapchainKHR                      vk_swapchain;
     VkDebugReportCallbackEXT            vk_debug_report;
+    bool                                vk_device_ext_VK_AMD_negative_viewport_height;
 } tr_renderer;
 
 typedef struct tr_descriptor {
@@ -2878,16 +2879,12 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
             VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
             assert(properties != NULL);
             vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
-            for (uint32_t j = 0; j < count; ++j) {
+            for (uint32_t j = 0; j < count; ++j, ++extension_count) {
               const char* extension_name = properties[j].extensionName;
-              if (strcmp(extension_name, "VK_AMD_negative_viewport_height") == 0) {
-                continue;
-              }
               uint32_t n = extension_count;
               size_t len = strlen(extension_name);
               extensions[n] = (const char*)calloc(1, len + 1);
-              memcpy((void*)(extensions[n]), extension_name, len);
-              ++extension_count;
+              memcpy((void*)(extensions[n]), extension_name, len);              
             }
             free((void*)properties);
         }
@@ -3020,13 +3017,7 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     assert(VK_NULL_HANDLE != p_renderer->vk_active_gpu);
 
     uint32_t count = 0;
-    VkLayerProperties layers[100];
     VkExtensionProperties exts[100];
-    vkEnumerateDeviceLayerProperties(p_renderer->vk_active_gpu, &count, NULL);
-    vkEnumerateDeviceLayerProperties(p_renderer->vk_active_gpu, &count, layers);
-    for (uint32_t i =0; i < count; ++i) {
-        tr_internal_log(tr_log_type_info, layers[i].layerName, "vkdevice-layer");
-    }
     vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, NULL, &count, NULL);
     vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, NULL, &count, exts);
     for (uint32_t i =0; i < count; ++i) {
@@ -3069,12 +3060,16 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
           VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
           assert(properties != NULL);
           vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, layer_name, &count, properties);
-          for (uint32_t j = 0; j < count; ++j, ++extension_count) {
+          for (uint32_t j = 0; j < count; ++j) {
             const char* extension_name = properties[j].extensionName;
+            if (strcmp(extension_name, "VK_AMD_negative_viewport_height") == 0) {
+              p_renderer->vk_device_ext_VK_AMD_negative_viewport_height = true;
+            }
             uint32_t n = extension_count;
             size_t len = strlen(extension_name);
             extensions[n] = (const char*)calloc(1, len + 1);
             memcpy((void*)(extensions[n]), extension_name, len);
+            ++extension_count;
           }
           free((void*)properties);
         }
@@ -4798,12 +4793,24 @@ void tr_internal_vk_cmd_set_viewport(tr_cmd* p_cmd, float x, float y, float widt
     assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
 
     TINY_RENDERER_DECLARE_ZERO(VkViewport, viewport);
-    viewport.x = x;
-    viewport.y = height;
-    viewport.width = width;
-    viewport.height = -height;
-    viewport.minDepth = min_depth;
-    viewport.maxDepth = max_depth;
+
+    // Because some IHVs decide to implement negative viewport height differently
+    if (p_cmd->cmd_pool->renderer->vk_device_ext_VK_AMD_negative_viewport_height) {
+      viewport.x = x;
+      viewport.y = 0;
+      viewport.width = width;
+      viewport.height = -height;
+      viewport.minDepth = min_depth;
+      viewport.maxDepth = max_depth;
+    }
+    else {
+      viewport.x = x;
+      viewport.y = height;
+      viewport.width = width;
+      viewport.height = -height;
+      viewport.minDepth = min_depth;
+      viewport.maxDepth = max_depth;
+    }
     vkCmdSetViewport(p_cmd->vk_cmd_buf, 0, 1, &viewport);
 }
 
