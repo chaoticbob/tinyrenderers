@@ -21,8 +21,12 @@
  - ...more to come soon
 
 #### Notes
- - Windows only for the moment
+ - Linux and Windows only for the moment
+   - Tested on open source intel driver on Linux
+   - Tested on AMD and NVIDIA drivers on Windows
+   - For best results, use latest drivers
  - Vulkan renderer will work with C/C++
+   - For best results, use latest version of Vulkan SDK
  - D3D12 render requires C++
  - Microsoft's C compiler doesn't support certain C11/C99 features, such as VLAs (so alot of awkward array handling)
  - tinyvk/tinydx is written for experimentation and fun-having - not performance
