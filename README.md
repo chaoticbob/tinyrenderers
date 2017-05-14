@@ -72,7 +72,7 @@ Open ```tinyrenderers.sln``` and go
 
 #### Screenshots
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-001.png?raw=true)
-
+![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-002.png?raw=true)
 
 
 ### Change Log
