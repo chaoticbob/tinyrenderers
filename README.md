@@ -50,7 +50,7 @@ or
 #define TINY_RENDERER_IMPLEMENTATION
 #include "tinydx.h"
 ```
-#### Building on Windows
+#### Building on Linux
 ```
 git clone --recursive git@github.com:chaoticbob/tinyrenderers.git
 cd tinyrenderers
