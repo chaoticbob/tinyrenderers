@@ -66,6 +66,12 @@ COMPILING & LINKING
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__linux__)
+    #define TINY_RENDERER_LINUX
+    #define VK_USE_PLATFORM_XCB_KHR
+    #include <X11/Xlib-xcb.h>
+#endif
+
 #if defined(_WIN32)
     #define TINY_RENDERER_MSW
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -349,7 +355,10 @@ typedef struct tr_clear_value {
 } tr_clear_value;
 
 typedef struct tr_platform_handle {
-#if defined(TINY_RENDERER_MSW)
+#if defined(__linux__)
+    xcb_connection_t*                   connection;
+    xcb_window_t                        window;
+#elif defined(TINY_RENDERER_MSW)
     HINSTANCE                           hinstance;
     HWND                                hwnd;
 #endif
@@ -2959,7 +2968,16 @@ void tr_internal_vk_create_surface(tr_renderer* p_renderer)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_instance);
 
-#if defined(TINY_RENDERER_MSW)
+#if defined(TINY_RENDERER_LINUX)
+    TINY_RENDERER_DECLARE_ZERO(VkXcbSurfaceCreateInfoKHR, create_info);
+    create_info.sType      = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    create_info.pNext      = NULL;
+    create_info.flags      = 0;
+    create_info.connection = p_renderer->settings.handle.connection;
+    create_info.window     = p_renderer->settings.handle.window;
+    VkResult vk_res = vkCreateXcbSurfaceKHR(p_renderer->vk_instance, &create_info, NULL, &(p_renderer->vk_surface));
+    assert(VK_SUCCESS == vk_res);
+#elif defined(TINY_RENDERER_MSW)
     TINY_RENDERER_DECLARE_ZERO(VkWin32SurfaceCreateInfoKHR, create_info);
     create_info.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     create_info.pNext     = NULL;

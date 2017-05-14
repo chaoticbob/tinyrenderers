@@ -1,5 +1,9 @@
 #include "GLFW/glfw3.h"
-#define GLFW_EXPOSE_NATIVE_WIN32
+#if defined(__linux__)
+  #define GLFW_EXPOSE_NATIVE_X11
+#elif defined(_WIN32)
+  #define GLFW_EXPOSE_NATIVE_WIN32
+#endif
 #include "GLFW/glfw3native.h"
 #include <cstdio>
 #include <cstdlib>
@@ -17,8 +21,12 @@
 #define LC_IMAGE_IMPLEMENTATION
 #include "lc_image.h"
 
-const uint32_t kImageCount = 3;
+const uint32_t      kImageCount = 3;
+#if defined(__linux__)
+const std::string   kAssetDir = "../samples/assets/";
+#elif defined(_WIN32)
 const std::string   kAssetDir = "../../samples/assets/";
+#endif
 
 tr_renderer*        m_renderer = nullptr;
 tr_descriptor_set*  m_desc_set = nullptr;
@@ -43,7 +51,7 @@ static void platform_log(const char* s)
 #if defined(_WIN32)
   OutputDebugStringA(s);
 #else
-  printf("%s", s)
+  printf("%s", s);
 #endif
 }
 
@@ -130,8 +138,13 @@ void init_tiny_renderer(GLFWwindow* window)
     s_window_height = static_cast<uint32_t>(height);
 
     tr_renderer_settings settings = {0};
+#if defined(__linux__)
+    settings.handle.connection              = XGetXCBConnection(glfwGetX11Display());
+    settings.handle.window                  = glfwGetX11Window(window);
+#elif defined(_WIN32)
     settings.handle.hinstance               = ::GetModuleHandle(NULL);
     settings.handle.hwnd                    = glfwGetWin32Window(window);
+#endif
     settings.width                          = s_window_width;
     settings.height                         = s_window_height;
     settings.swapchain.image_count          = kImageCount;
