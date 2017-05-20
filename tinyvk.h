@@ -472,7 +472,6 @@ typedef struct tr_buffer {
     uint64_t                            first_element;
     uint64_t                            element_count;
     uint64_t                            struct_stride;
-    uint64_t                            counter_offset;
     void*                               cpu_mapped_address;
     VkBuffer                            vk_buffer;
     VkDeviceMemory                      vk_memory;
@@ -480,6 +479,8 @@ typedef struct tr_buffer {
     VkDescriptorBufferInfo              vk_buffer_info;
     // Used for uniform texel and storage texel buffers
     VkBufferView                        vk_buffer_view;
+    // Counter buffer
+    tr_buffer*                          counter_buffer;
 } tr_buffer;
 
 typedef struct tr_texture {
@@ -617,7 +618,7 @@ tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size,
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer_feature_flags features, tr_buffer** pp_buffer);
+tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
@@ -1432,35 +1433,60 @@ void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool
     p_buffer->first_element   = first_element;
     p_buffer->element_count   = element_count;
     p_buffer->struct_stride   = struct_stride;
-    p_buffer->counter_offset  = 0;
     
     tr_internal_vk_create_buffer(p_renderer, p_buffer);
 
     *pp_buffer = p_buffer;
 }
 
-void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer_feature_flags features, tr_buffer** pp_buffer)
+void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
 
-    tr_buffer* p_buffer = (tr_buffer*)calloc(1, sizeof(*p_buffer));
-    assert(NULL != p_buffer);
+    // Create counter buffer
+    if (pp_counter_buffer != NULL) {
+      tr_buffer* p_counter_buffer = (tr_buffer*)calloc(1, sizeof(*p_counter_buffer));
+      assert(NULL != p_counter_buffer);
 
-    p_buffer->renderer        = p_renderer;
-    p_buffer->usage           = tr_buffer_usage_storage;
-    p_buffer->size            = size;
-    p_buffer->host_visible    = false;
-    p_buffer->features        = features;
-    p_buffer->format          = tr_format_undefined;
-    p_buffer->first_element   = first_element;
-    p_buffer->element_count   = element_count;
-    p_buffer->struct_stride   = struct_stride;
-    p_buffer->counter_offset  = counter_offset;
+      p_counter_buffer->renderer        = p_renderer;
+      p_counter_buffer->usage           = tr_buffer_usage_storage;
+      p_counter_buffer->size            = 4;
+      p_counter_buffer->host_visible    = false;
+      p_counter_buffer->features        = features;
+      p_counter_buffer->format          = tr_format_undefined;
+      p_counter_buffer->first_element   = 0;
+      p_counter_buffer->element_count   = 1;
+      p_counter_buffer->struct_stride   = 4;
     
-    tr_internal_vk_create_buffer(p_renderer, p_buffer);
+      tr_internal_vk_create_buffer(p_renderer, p_counter_buffer);
 
-    *pp_buffer = p_buffer;
+      *pp_counter_buffer = p_counter_buffer;
+    }
+
+    // Create data buffer
+    {
+      tr_buffer* p_buffer = (tr_buffer*)calloc(1, sizeof(*p_buffer));
+      assert(NULL != p_buffer);
+
+      p_buffer->renderer        = p_renderer;
+      p_buffer->usage           = tr_buffer_usage_storage;
+      p_buffer->size            = size;
+      p_buffer->host_visible    = false;
+      p_buffer->features        = features;
+      p_buffer->format          = tr_format_undefined;
+      p_buffer->first_element   = first_element;
+      p_buffer->element_count   = element_count;
+      p_buffer->struct_stride   = struct_stride;
+
+      if (pp_counter_buffer != NULL) {
+        p_buffer->counter_buffer = *pp_counter_buffer;
+      }
+    
+      tr_internal_vk_create_buffer(p_renderer, p_buffer);
+
+      *pp_buffer = p_buffer;
+    }
 }
 
 void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
@@ -2110,6 +2136,15 @@ uint32_t tr_vertex_layout_stride(const tr_vertex_layout* p_vertex_layout)
 // -------------------------------------------------------------------------------------------------
 // Utility functions
 // -------------------------------------------------------------------------------------------------
+
+// This function always returns zero for Vulkan for now because
+// of how the counter are configured.
+uint64_t tr_util_calc_storage_counter_offset(uint64_t buffer_size)
+{
+    uint64_t result = 0;
+    return result;
+}
+
 uint32_t tr_util_calc_mip_levels(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
@@ -2372,14 +2407,14 @@ bool tr_image_resize_uint8_t(
     return true;
 }
 
-void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_buffer)
+void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_counter_buffer)
 {
     assert(NULL != p_queue);
-    assert(NULL != p_buffer);
-    assert(NULL != p_buffer->vk_buffer);
+    assert(NULL != p_counter_buffer);
+    assert(NULL != p_counter_buffer->vk_buffer);
 
     tr_buffer* buffer = NULL;
-    tr_create_buffer(p_buffer->renderer, tr_buffer_usage_transfer_src, 256, true, &buffer);
+    tr_create_buffer(p_counter_buffer->renderer, tr_buffer_usage_transfer_src, p_counter_buffer->size, true, &buffer);
     uint32_t* mapped_ptr = (uint32_t*)buffer->cpu_mapped_address;
     *(mapped_ptr) = count;
     
@@ -2391,12 +2426,12 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
 
     tr_begin_cmd(p_cmd);
     tr_internal_vk_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
     TINY_RENDERER_DECLARE_ZERO(VkBufferCopy, region);
     region.srcOffset = 0;
     region.dstOffset = 0;
     region.size      = (VkDeviceSize)4;
-    vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_buffer->vk_buffer, 1, &region);
+    vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_counter_buffer->vk_buffer, 1, &region);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2405,7 +2440,7 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
     tr_destroy_cmd(p_cmd_pool, p_cmd);
     tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
 
-    tr_destroy_buffer(p_buffer->renderer, buffer);
+    tr_destroy_buffer(p_counter_buffer->renderer, buffer);
 }
 
 void tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer)
@@ -2906,12 +2941,16 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
               VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
               assert(properties != NULL);
               vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
-              for (uint32_t j = 0; j < count; ++j, ++extension_count) {
+              for (uint32_t j = 0; j < count; ++j) {
                 const char* extension_name = properties[j].extensionName;
+                if ((strcmp(extension_name, "VK_KHX_external_memory_capabilities") == 0)) {
+                  continue;
+                }
                 uint32_t n = extension_count;
                 size_t len = strlen(extension_name);
                 extensions[n] = (const char*)calloc(1, len + 1);
                 memcpy((void*)(extensions[n]), extension_name, len);
+                ++extension_count;
               }
               free((void*)properties);
             }
@@ -3704,7 +3743,6 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
           buffer_view_create_info.flags   = 0;
           buffer_view_create_info.buffer  = p_buffer->vk_buffer;
           buffer_view_create_info.format  = tr_util_to_vk_format(p_buffer->format);
-          buffer_view_create_info.offset  = p_buffer->counter_offset;
           buffer_view_create_info.range   = VK_WHOLE_SIZE;
         }
         break;
@@ -4957,7 +4995,7 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
     assert(p_cmd != NULL);
     assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
 
-    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     VkDependencyFlags dependency_flags = 0;
     TINY_RENDERER_DECLARE_ZERO(VkBufferMemoryBarrier , barrier);

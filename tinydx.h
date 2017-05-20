@@ -479,7 +479,6 @@ typedef struct tr_buffer {
     uint64_t                            first_element;
     uint64_t                            element_count;
     uint64_t                            struct_stride;
-    uint64_t                            counter_offset;
     void*                               cpu_mapped_address;
     ID3D12Resource*                     dx_resource;
     D3D12_CONSTANT_BUFFER_VIEW_DESC     dx_cbv_view_desc;
@@ -487,6 +486,8 @@ typedef struct tr_buffer {
     D3D12_UNORDERED_ACCESS_VIEW_DESC    dx_uav_view_desc;
     D3D12_INDEX_BUFFER_VIEW             dx_index_buffer_view;  
     D3D12_VERTEX_BUFFER_VIEW            dx_vertex_buffer_view;
+    // Counter buffer
+    tr_buffer*                          counter_buffer;
 } tr_buffer;
 
 typedef struct tr_texture {
@@ -615,7 +616,7 @@ tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size,
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer_feature_flags features, tr_buffer** pp_buffer);
+tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
@@ -1372,35 +1373,60 @@ void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool
     p_buffer->first_element   = first_element;
     p_buffer->element_count   = element_count;
     p_buffer->struct_stride   = struct_stride;
-    p_buffer->counter_offset  = 0;
     
     tr_internal_dx_create_buffer(p_renderer, p_buffer);
 
     *pp_buffer = p_buffer;
 }
 
-void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, uint64_t counter_offset, tr_buffer_feature_flags features, tr_buffer** pp_buffer)
+void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
 
-    tr_buffer* p_buffer = (tr_buffer*)calloc(1, sizeof(*p_buffer));
-    assert(NULL != p_buffer);
+    // Create counter buffer
+    if (pp_counter_buffer != NULL) {
+      tr_buffer* p_counter_buffer = (tr_buffer*)calloc(1, sizeof(*p_counter_buffer));
+      assert(NULL != p_counter_buffer);
 
-    p_buffer->renderer        = p_renderer;
-    p_buffer->usage           = tr_buffer_usage_storage;
-    p_buffer->size            = size;
-    p_buffer->host_visible    = false;
-    p_buffer->features        = features;
-    p_buffer->format          = tr_format_undefined;
-    p_buffer->first_element   = first_element;
-    p_buffer->element_count   = element_count;
-    p_buffer->struct_stride   = (features & tr_buffer_feature_raw) ? 0 : struct_stride;
-    p_buffer->counter_offset  = counter_offset;
+      p_counter_buffer->renderer        = p_renderer;
+      p_counter_buffer->usage           = tr_buffer_usage_storage;
+      p_counter_buffer->size            = 4;
+      p_counter_buffer->host_visible    = false;
+      p_counter_buffer->features        = features;
+      p_counter_buffer->format          = tr_format_undefined;
+      p_counter_buffer->first_element   = 0;
+      p_counter_buffer->element_count   = 1;
+      p_counter_buffer->struct_stride   = 4;
     
-    tr_internal_dx_create_buffer(p_renderer, p_buffer);
+      tr_internal_dx_create_buffer(p_renderer, p_counter_buffer);
 
-    *pp_buffer = p_buffer;
+      *pp_counter_buffer = p_counter_buffer;
+    }
+
+    // Create data buffer
+    {
+      tr_buffer* p_buffer = (tr_buffer*)calloc(1, sizeof(*p_buffer));
+      assert(NULL != p_buffer);
+
+      p_buffer->renderer        = p_renderer;
+      p_buffer->usage           = tr_buffer_usage_storage;
+      p_buffer->size            = size;
+      p_buffer->host_visible    = false;
+      p_buffer->features        = features;
+      p_buffer->format          = tr_format_undefined;
+      p_buffer->first_element   = first_element;
+      p_buffer->element_count   = element_count;
+      p_buffer->struct_stride   = (features & tr_buffer_feature_raw) ? 0 : struct_stride;
+
+      if (pp_counter_buffer != NULL) {
+        p_buffer->counter_buffer = *pp_counter_buffer;
+      }
+    
+      tr_internal_dx_create_buffer(p_renderer, p_buffer);
+
+      *pp_buffer = p_buffer;
+    }
 }
 
 void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
@@ -2219,6 +2245,17 @@ void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_textu
     assert(NULL != p_queue);
     assert(NULL != p_texture);
 
+    //
+    // D3D12 textures are created with the following resources states (tr_texture_usage_sampled_image):
+    //     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+    //
+    // So if the old_usage is tr_texture_usage_undefined and new_usage is tr_texture_usage_sampled_image 
+    // just skip it!
+    //
+    if ((old_usage == tr_texture_usage_undefined) && (new_usage == tr_texture_usage_sampled_image)) {
+      return;
+    }
+    
     tr_cmd_pool* p_cmd_pool = NULL;
     tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
 
@@ -2285,9 +2322,11 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_dst);
     p_cmd->dx_cmd_list->CopyBufferRegion(p_buffer->dx_resource, count_offset,
                                          buffer->dx_resource, 0,
                                          4);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_storage);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2349,9 +2388,11 @@ void tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_d
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, p_buffer->usage, tr_buffer_usage_transfer_dst);
     p_cmd->dx_cmd_list->CopyBufferRegion(p_buffer->dx_resource, 0,
                                          buffer->dx_resource, 0,
                                          size);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, p_buffer->usage);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -3081,7 +3122,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
             p_buffer->dx_uav_view_desc.Buffer.FirstElement          = p_buffer->first_element;
             p_buffer->dx_uav_view_desc.Buffer.NumElements           = (UINT)(p_buffer->element_count);
             p_buffer->dx_uav_view_desc.Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
-            p_buffer->dx_uav_view_desc.Buffer.CounterOffsetInBytes  = p_buffer->counter_offset;
+            p_buffer->dx_uav_view_desc.Buffer.CounterOffsetInBytes  = 0;
             p_buffer->dx_uav_view_desc.Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_NONE;
             if (p_buffer->features & tr_buffer_feature_raw) {
                 p_buffer->dx_uav_view_desc.Format = DXGI_FORMAT_R32_TYPELESS;
@@ -3995,11 +4036,12 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 
                     ID3D12Resource* resource = descriptor->buffers[i]->dx_resource;
                     D3D12_UNORDERED_ACCESS_VIEW_DESC* view_desc = &(descriptor->buffers[i]->dx_uav_view_desc);
-                    if (descriptor->buffers[i]->counter_offset > 0) {
-                        p_renderer->dx_device->CreateUnorderedAccessView(resource, resource, view_desc, handle);
+                    if (descriptor->buffers[i]->counter_buffer != NULL) {
+                      ID3D12Resource* counter_resource = descriptor->buffers[i]->counter_buffer->dx_resource;
+                      p_renderer->dx_device->CreateUnorderedAccessView(resource, counter_resource, view_desc, handle);
                     }
                     else {
-                        p_renderer->dx_device->CreateUnorderedAccessView(resource, NULL, view_desc, handle);
+                      p_renderer->dx_device->CreateUnorderedAccessView(resource, NULL, view_desc, handle);
                     }
                     handle.ptr += handle_inc_size;
                 }

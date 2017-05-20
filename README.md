@@ -76,6 +76,7 @@ Open ```tinyrenderers.sln``` and go
 
 
 ### Change Log
+[2917/05/20] - Updated Append/Consume sample for Vulkan. Requires latest glslang. ConstantBuffer also works for both platforms.<br>
 [2017/05/13] - Added Linux support. Moved to project files to cmake. Moved glsl shaders to glsl sub directory - forcing HLSL for now.<br>
 [2017/04/30] - Clarified shader usage in some sample programs to point out which source they're coming from.<br>
 [2017/04/27] - Added ConstantBuffer sample (D3D12 only for now). Updated Vulkan samples to use negative viewport height.<br>
