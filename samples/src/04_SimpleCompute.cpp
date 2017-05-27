@@ -171,12 +171,12 @@ void init_tiny_renderer(GLFWwindow* window)
     
 #if defined(TINY_RENDERER_VK)
     // Uses HLSL source
-    auto comp = load_file(kAssetDir + "simple_compute.spv");
+    auto comp = load_file(kAssetDir + "simple_compute.cs.spv");
     tr_create_shader_program_compute(m_renderer, 
                                      comp.size(), comp.data(), "main", &m_compute_shader);
 
-    auto vert = load_file(kAssetDir + "texture_vert.spv");
-    auto frag = load_file(kAssetDir + "texture_frag.spv");
+    auto vert = load_file(kAssetDir + "texture.vs.spv");
+    auto frag = load_file(kAssetDir + "texture.ps.spv");
     tr_create_shader_program(m_renderer, 
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);

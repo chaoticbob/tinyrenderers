@@ -173,12 +173,12 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto comp = load_file(kAssetDir + "byte_address_buffer.spv");
+    auto comp = load_file(kAssetDir + "byte_address_buffer.cs.spv");
     tr_create_shader_program_compute(m_renderer, 
                                      comp.size(), comp.data(), "main", &m_compute_shader);
 
-    auto vert = load_file(kAssetDir + "texture_vert.spv");
-    auto frag = load_file(kAssetDir + "texture_frag.spv");
+    auto vert = load_file(kAssetDir + "texture.vs.spv");
+    auto frag = load_file(kAssetDir + "texture.ps.spv");
     tr_create_shader_program(m_renderer, 
                              //vert.size(), (uint32_t*)(vert.data()), "main", 
                              //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);

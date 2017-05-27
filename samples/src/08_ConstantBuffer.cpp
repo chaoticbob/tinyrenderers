@@ -169,8 +169,8 @@ void init_tiny_renderer(GLFWwindow* window)
     
 #if defined(TINY_RENDERER_VK)
     // Uses GLSL source
-    auto vert = load_file(kAssetDir + "constant_buffer_vert.spv");
-    auto frag = load_file(kAssetDir + "constant_buffer_frag.spv");
+    auto vert = load_file(kAssetDir + "constant_buffer.vs.spv");
+    auto frag = load_file(kAssetDir + "constant_buffer.ps.spv");
     tr_create_shader_program(m_renderer, 
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_shader);
