@@ -28,6 +28,9 @@ const std::string   kAssetDir = "../samples/assets/";
 const std::string   kAssetDir = "../../samples/assets/";
 #endif
 
+#define NUM_THREADS_X  16
+#define NUM_THREADS_Y  16
+
 tr_renderer*        m_renderer = nullptr;
 tr_descriptor_set*  m_desc_set = nullptr;
 tr_descriptor_set*  m_compute_desc_set = nullptr;
@@ -175,8 +178,6 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(kAssetDir + "texture_vert.spv");
     auto frag = load_file(kAssetDir + "texture_frag.spv");
     tr_create_shader_program(m_renderer, 
-                             //vert.size(), (uint32_t*)(vert.data()), "main", 
-                             //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
@@ -207,7 +208,7 @@ void init_tiny_renderer(GLFWwindow* window)
     // in compute be done through imageLoad - which requires 
     // a storage image. So we just match it in D3D12.
     //
-    descriptors[0].type          = tr_descriptor_type_storage_texture;
+    descriptors[0].type          = tr_descriptor_type_texture;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
@@ -262,13 +263,12 @@ void init_tiny_renderer(GLFWwindow* window)
     unsigned char* image_data = lc_load_image((kAssetDir + "box_panel.jpg").c_str(), &image_width, &image_height, &image_channels, 0);
     assert(NULL != image_data);
     int image_row_stride = image_width * image_channels;
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image | tr_texture_usage_storage, &m_texture);
+    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
     lc_free_image(image_data);
 
     tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image | tr_texture_usage_storage, &m_texture_compute_output);
   
-    tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_storage);
     tr_util_transition_image(m_renderer->graphics_queue, m_texture_compute_output, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
 
     tr_create_sampler(m_renderer, &m_sampler);
@@ -307,7 +307,9 @@ void draw_frame()
     tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_sampled_image, tr_texture_usage_storage);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
-    tr_cmd_dispatch(cmd, m_texture_compute_output->width, m_texture_compute_output->height, 1);
+    const int num_groups_x = m_texture_compute_output->width / NUM_THREADS_X;
+    const int num_groups_y = m_texture_compute_output->height / NUM_THREADS_Y;
+    tr_cmd_dispatch(cmd, num_groups_x, num_groups_y, 1);
     tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_storage, tr_texture_usage_sampled_image);
     // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 

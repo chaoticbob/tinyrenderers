@@ -288,7 +288,8 @@ void init_tiny_renderer(GLFWwindow* window)
     element_count = m_image_width * m_image_height;
     struct_stride = 4;
     tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, tr_buffer_feature_none, NULL, &m_compute_dst_buffer);
- 
+    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
+
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
 

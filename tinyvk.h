@@ -681,6 +681,7 @@ tr_api_export tr_format          tr_util_from_vk_format(VkFormat fomat);
 tr_api_export uint32_t           tr_util_format_stride(tr_format format);
 tr_api_export uint32_t           tr_util_format_channel_count(tr_format format);
 tr_api_export VkShaderStageFlags tr_util_to_vk_shader_stages(tr_shader_stage shader_stages);
+tr_api_export void               tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void               tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void               tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_buffer);
 tr_api_export void               tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer);
@@ -1990,6 +1991,12 @@ void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_us
     assert(NULL != p_cmd);
     assert(NULL != p_texture);
 
+    // Vulkan doesn't have an VkImageLayout corresponding to tr_texture_usage_storage, so
+    // just ignore transitions into or out of tr_texture_usage_storage.
+    if ((old_usage == tr_texture_usage_storage) || (new_usage == tr_texture_usage_storage)) {
+      return;
+    }
+
     tr_internal_vk_cmd_image_transition(p_cmd, p_texture, old_usage, new_usage);
 }
 
@@ -2351,6 +2358,28 @@ uint32_t tr_util_format_channel_count(tr_format format)
         case tr_format_d32_float_s8_uint   : result = 0; break;
     }
     return result;
+}
+
+void tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
+{
+    assert(NULL != p_queue);
+    assert(NULL != p_buffer);
+
+    tr_cmd_pool* p_cmd_pool = NULL;
+    tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+    tr_cmd* p_cmd = NULL;
+    tr_create_cmd(p_cmd_pool, false, &p_cmd);
+    
+    tr_begin_cmd(p_cmd);
+    tr_cmd_buffer_transition(p_cmd, p_buffer, old_usage, new_usage);
+    tr_end_cmd(p_cmd);
+
+    tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+    tr_queue_wait_idle(p_queue);
+
+    tr_destroy_cmd(p_cmd_pool, p_cmd);
+    tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
 }
 
 void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)

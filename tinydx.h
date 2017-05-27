@@ -680,6 +680,7 @@ tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format);
 tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
+tr_api_export void        tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void        tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void        tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_buffer);
 tr_api_export void        tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer);
@@ -2240,6 +2241,28 @@ uint32_t tr_util_format_channel_count(tr_format format)
     return result;
 }
 
+void tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
+{
+    assert(NULL != p_queue);
+    assert(NULL != p_buffer);
+  
+    tr_cmd_pool* p_cmd_pool = NULL;
+    tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
+
+    tr_cmd* p_cmd = NULL;
+    tr_create_cmd(p_cmd_pool, false, &p_cmd);
+    
+    tr_begin_cmd(p_cmd);
+    tr_cmd_buffer_transition(p_cmd, p_buffer, old_usage, new_usage);
+    tr_end_cmd(p_cmd);
+
+    tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
+    tr_queue_wait_idle(p_queue);
+
+    tr_destroy_cmd(p_cmd_pool, p_cmd);
+    tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
+}
+
 void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_queue);
@@ -2272,6 +2295,7 @@ void tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_textu
     tr_destroy_cmd(p_cmd_pool, p_cmd);
     tr_destroy_cmd_pool(p_queue->renderer, p_cmd_pool);
 }
+
 bool tr_image_resize_uint8_t(
     uint32_t src_width, uint32_t src_height, uint32_t src_row_stride, const uint8_t* src_data,
     uint32_t dst_width, uint32_t dst_height, uint32_t dst_row_stride, uint8_t* dst_data,
@@ -2542,7 +2566,7 @@ D3D12_RESOURCE_STATES tr_util_to_dx_resource_state_buffer(tr_buffer_usage usage)
     D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
     if (tr_buffer_usage_transfer_src == (usage & tr_buffer_usage_transfer_src)) {
         result |= D3D12_RESOURCE_STATE_COPY_SOURCE;
-        result |= D3D12_RESOURCE_STATE_GENERIC_READ;
+        //result |= D3D12_RESOURCE_STATE_GENERIC_READ;
     }
     if (tr_buffer_usage_transfer_dst == (usage & tr_buffer_usage_transfer_dst)) {
         result |= D3D12_RESOURCE_STATE_COPY_DEST;
@@ -3197,9 +3221,9 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
 
-        D3D12_RESOURCE_STATES res_states = tr_util_to_dx_resource_state_texture(p_texture->usage);
-        if (p_texture->usage & tr_texture_usage_storage) {
-          res_states = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        D3D12_RESOURCE_STATES res_states = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+        if (p_texture->usage & tr_texture_usage_color_attachment) {
+          res_states = D3D12_RESOURCE_STATE_RENDER_TARGET;
         }
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_CLEAR_VALUE, clear_value);
@@ -4402,7 +4426,7 @@ void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, 
     D3D12_TEXTURE_COPY_LOCATION dst = {};
     dst.pResource        = p_texture->dx_resource;
     dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    dst.SubresourceIndex = mip_level;
+     dst.SubresourceIndex = mip_level;
 
     p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
 }
