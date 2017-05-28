@@ -172,25 +172,19 @@ typedef enum tr_result {
 */
 
 typedef enum tr_buffer_usage {
-    tr_buffer_usage_undefined                   = 0x00000000,
-    tr_buffer_usage_transfer_src                = 0x00000001,
-    tr_buffer_usage_transfer_dst                = 0x00000002,
-    tr_buffer_usage_uniform_texel               = 0x00000004,
-    tr_buffer_usage_storage_texel               = 0x00000008,
-    tr_buffer_usage_uniform                     = 0x00000010,
-    tr_buffer_usage_storage                     = 0x00000020,
-    tr_buffer_usage_index                       = 0x00000040,
-    tr_buffer_usage_vertex                      = 0x00000080,
-    tr_buffer_usage_indirect                    = 0x00000100,
+    tr_buffer_usage_index                       = 0x00000001,
+    tr_buffer_usage_vertex                      = 0x00000002,
+    tr_buffer_usage_indirect                    = 0x00000004,
+    tr_buffer_usage_transfer_src                = 0x00000008,
+    tr_buffer_usage_transfer_dst                = 0x00000010,
+    tr_buffer_usage_uniform_buffer_cbv          = 0x00000020,
+    tr_buffer_usage_storage_buffer_srv          = 0x00000040,
+    tr_buffer_usage_storage_buffer_uav          = 0x00000080,
+    tr_buffer_usage_texture_srv                 = 0x00000100,
+    tr_buffer_usage_texture_uav                 = 0x00000200,
+    tr_buffer_usage_uniform_texel_buffer_srv    = 0x00000400,
+    tr_buffer_usage_storage_texel_buffer_uav    = 0x00000800,
 } tr_buffer_usage;
-
-typedef enum tr_buffer_feature {
-    tr_buffer_feature_none                      = 0x00000000,
-    tr_buffer_feature_read_only                 = 0x00000001,
-    tr_buffer_feature_raw                       = 0x00000002
-} tr_buffer_feature;
-
-typedef uint32_t tr_buffer_feature_flags;
 
 typedef enum tr_texture_type {
     tr_texture_type_1d,
@@ -204,7 +198,7 @@ typedef enum tr_texture_usage {
     tr_texture_usage_transfer_src               = 0x00000001,
     tr_texture_usage_transfer_dst               = 0x00000002,
     tr_texture_usage_sampled_image              = 0x00000004,
-    tr_texture_usage_storage                    = 0x00000008,
+    tr_texture_usage_storage_image              = 0x00000008,
     tr_texture_usage_color_attachment           = 0x00000010,
     tr_texture_usage_depth_stencil_attachment   = 0x00000020,
     tr_texture_usage_resolve_src                = 0x00000040,
@@ -254,12 +248,13 @@ typedef enum tr_format {
 typedef enum tr_descriptor_type {
     tr_descriptor_type_undefined = 0,
     tr_descriptor_type_sampler,
-    tr_descriptor_type_texture,
-    tr_descriptor_type_uniform_buffer,
-    tr_descriptor_type_storage_texture,
-    tr_descriptor_type_uniform_texel_buffer,
-    tr_descriptor_type_storage_texel_buffer,
-    tr_descriptor_type_storage_buffer,
+    tr_descriptor_type_uniform_buffer_cbv,       // CBV | VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+    tr_descriptor_type_storage_buffer_srv,       // SRV | VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+    tr_descriptor_type_storage_buffer_uav,       // UAV | VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+    tr_descriptor_type_uniform_texel_buffer_srv, // SRV | VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER
+    tr_descriptor_type_storage_texel_buffer_uav, // UAV | VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER
+    tr_descriptor_type_texture_srv,              // SRV | VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+    tr_descriptor_type_texture_uav,              // UAV | VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
 } tr_descriptor_type;
 
 typedef enum tr_sample_count {
@@ -465,13 +460,13 @@ typedef struct tr_buffer {
     tr_buffer_usage                     usage;
     uint64_t                            size;
     bool                                host_visible;
-    tr_buffer_feature_flags             features; 
     tr_index_type                       index_type;
     uint32_t                            vertex_stride;
     tr_format                           format;
     uint64_t                            first_element;
     uint64_t                            element_count;
     uint64_t                            struct_stride;
+    bool                                raw;
     void*                               cpu_mapped_address;
     VkBuffer                            vk_buffer;
     VkDeviceMemory                      vk_memory;
@@ -617,8 +612,8 @@ tr_api_export void tr_create_buffer(tr_renderer* p_renderer, tr_buffer_usage usa
 tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size, bool host_visible, tr_index_type index_type, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
+tr_api_export void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_buffer);
+tr_api_export void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
@@ -1409,7 +1404,7 @@ void tr_create_index_buffer(tr_renderer* p_renderer, uint64_t size, bool host_vi
 
 void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer)
 {
-    tr_create_buffer(p_renderer, tr_buffer_usage_uniform, size, host_visible, pp_buffer);
+    tr_create_buffer(p_renderer, tr_buffer_usage_uniform_buffer_cbv, size, host_visible, pp_buffer);
 }
 
 void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer)
@@ -1418,7 +1413,7 @@ void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_v
     (*pp_buffer)->vertex_stride = vertex_stride;
 }
 
-void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer)
+void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1427,20 +1422,20 @@ void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool
     assert(NULL != p_buffer);
 
     p_buffer->renderer        = p_renderer;
-    p_buffer->usage           = tr_buffer_usage_uniform_texel;
+    p_buffer->usage           = tr_buffer_usage_storage_buffer_srv;
     p_buffer->size            = size;
-    p_buffer->host_visible    = host_visible;
-    p_buffer->format          = format;
+    p_buffer->host_visible    = false;
+    p_buffer->format          = tr_format_undefined;
     p_buffer->first_element   = first_element;
     p_buffer->element_count   = element_count;
     p_buffer->struct_stride   = struct_stride;
-    
+  
     tr_internal_vk_create_buffer(p_renderer, p_buffer);
 
     *pp_buffer = p_buffer;
 }
 
-void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
+void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1451,10 +1446,9 @@ void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t f
       assert(NULL != p_counter_buffer);
 
       p_counter_buffer->renderer        = p_renderer;
-      p_counter_buffer->usage           = tr_buffer_usage_storage;
+      p_counter_buffer->usage           = tr_buffer_usage_storage_buffer_uav;
       p_counter_buffer->size            = 4;
       p_counter_buffer->host_visible    = false;
-      p_counter_buffer->features        = features;
       p_counter_buffer->format          = tr_format_undefined;
       p_counter_buffer->first_element   = 0;
       p_counter_buffer->element_count   = 1;
@@ -1471,10 +1465,9 @@ void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t f
       assert(NULL != p_buffer);
 
       p_buffer->renderer        = p_renderer;
-      p_buffer->usage           = tr_buffer_usage_storage;
+      p_buffer->usage           = tr_buffer_usage_storage_buffer_uav;
       p_buffer->size            = size;
       p_buffer->host_visible    = false;
-      p_buffer->features        = features;
       p_buffer->format          = tr_format_undefined;
       p_buffer->first_element   = first_element;
       p_buffer->element_count   = element_count;
@@ -1489,6 +1482,7 @@ void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t f
       *pp_buffer = p_buffer;
     }
 }
+
 
 void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 {
@@ -1993,7 +1987,7 @@ void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_us
 
     // Vulkan doesn't have an VkImageLayout corresponding to tr_texture_usage_storage, so
     // just ignore transitions into or out of tr_texture_usage_storage.
-    if ((old_usage == tr_texture_usage_storage) || (new_usage == tr_texture_usage_storage)) {
+    if ((old_usage == tr_texture_usage_storage_image) || (new_usage == tr_texture_usage_storage_image)) {
       return;
     }
 
@@ -2454,13 +2448,13 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_dst);
     TINY_RENDERER_DECLARE_ZERO(VkBufferCopy, region);
     region.srcOffset = 0;
     region.dstOffset = 0;
     region.size      = (VkDeviceSize)4;
     vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_counter_buffer->vk_buffer, 1, &region);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_storage_buffer_uav);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2489,13 +2483,13 @@ void tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer)
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, p_buffer->usage, tr_buffer_usage_transfer_dst);
     TINY_RENDERER_DECLARE_ZERO(VkBufferCopy, region);
     region.srcOffset = 0;
     region.dstOffset = 0;
     region.size      = (VkDeviceSize)p_buffer->size;
     vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_buffer->vk_buffer, 1, &region);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, p_buffer->usage);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2526,13 +2520,13 @@ void tr_util_update_buffer(tr_queue* p_queue, uint64_t size, const void* p_src_d
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_src);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_undefined, tr_buffer_usage_transfer_dst);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, p_buffer->usage, tr_buffer_usage_transfer_dst);
     TINY_RENDERER_DECLARE_ZERO(VkBufferCopy, region);
     region.srcOffset = 0;
     region.dstOffset = 0;
     region.size      = (VkDeviceSize)size;
     vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_buffer->vk_buffer, 1, &region);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, p_buffer->usage);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2719,24 +2713,6 @@ VkSampleCountFlagBits tr_util_to_vk_sample_count(tr_sample_count sample_count)
 VkBufferUsageFlags tr_util_to_vk_buffer_usage(tr_buffer_usage usage)
 {
     VkBufferUsageFlags result = 0;
-    if (tr_buffer_usage_transfer_src == (usage & tr_buffer_usage_transfer_src)) {
-        result |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    }
-    if (tr_buffer_usage_transfer_dst == (usage & tr_buffer_usage_transfer_dst)) {
-        result |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    }
-    if (tr_buffer_usage_uniform_texel == (usage & tr_buffer_usage_uniform_texel)) {
-        result |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
-    }
-    if (tr_buffer_usage_storage_texel == (usage & tr_buffer_usage_storage_texel)) {
-        result |= VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
-    }
-    if (tr_buffer_usage_uniform == (usage & tr_buffer_usage_uniform)) {
-        result |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    }
-    if (tr_buffer_usage_storage == (usage & tr_buffer_usage_storage)) {
-        result |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    }
     if (tr_buffer_usage_index == (usage & tr_buffer_usage_index)) {
         result |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     }
@@ -2745,6 +2721,27 @@ VkBufferUsageFlags tr_util_to_vk_buffer_usage(tr_buffer_usage usage)
     }
     if (tr_buffer_usage_indirect == (usage & tr_buffer_usage_indirect)) {
         result |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+    }
+    if (tr_buffer_usage_transfer_src == (usage & tr_buffer_usage_transfer_src)) {
+        result |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    }
+    if (tr_buffer_usage_transfer_dst == (usage & tr_buffer_usage_transfer_dst)) {
+        result |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    }
+    if (tr_buffer_usage_uniform_buffer_cbv == (usage & tr_buffer_usage_uniform_buffer_cbv)) {
+        result |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    }
+    if (tr_buffer_usage_storage_buffer_srv == (usage & tr_buffer_usage_storage_buffer_srv)) {
+        result |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    }
+    if (tr_buffer_usage_storage_buffer_uav == (usage & tr_buffer_usage_storage_buffer_uav)) {
+        result |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    }
+    if (tr_buffer_usage_uniform_texel_buffer_srv == (usage & tr_buffer_usage_uniform_texel_buffer_srv)) {
+        result |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
+    }
+    if (tr_buffer_usage_storage_texel_buffer_uav == (usage & tr_buffer_usage_storage_texel_buffer_uav)) {
+        result |= VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
     }
     return result;
 }
@@ -2761,7 +2758,7 @@ VkImageUsageFlags tr_util_to_vk_image_usage(tr_texture_usage_flags usage)
     if (tr_texture_usage_sampled_image == (usage & tr_texture_usage_sampled_image)) {
         result |= VK_IMAGE_USAGE_SAMPLED_BIT;
     }
-    if (tr_texture_usage_storage == (usage & tr_texture_usage_storage)) {
+    if (tr_texture_usage_storage_image == (usage & tr_texture_usage_storage_image)) {
         result |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
     if (tr_texture_usage_color_attachment == (usage & tr_texture_usage_color_attachment)) {
@@ -2781,7 +2778,7 @@ VkImageLayout tr_util_to_vk_image_layout(tr_texture_usage usage)
         case tr_texture_usage_transfer_src             : result = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; break;
         case tr_texture_usage_transfer_dst             : result = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; break;
         case tr_texture_usage_sampled_image            : result = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; break;
-        case tr_texture_usage_storage                  : result = VK_IMAGE_LAYOUT_GENERAL; break;
+        case tr_texture_usage_storage_image            : result = VK_IMAGE_LAYOUT_GENERAL; break;
         case tr_texture_usage_color_attachment         : result = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; break;
         case tr_texture_usage_depth_stencil_attachment : result = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; break;
         case tr_texture_usage_present                  : result = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; break;
@@ -3572,13 +3569,14 @@ void tr_internal_vk_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
         VkDescriptorSetLayoutBinding* binding = &(bindings[i]);
         uint32_t type_index = UINT32_MAX;
         switch (descriptor->type) {
-            case tr_descriptor_type_sampler               : type_index = VK_DESCRIPTOR_TYPE_SAMPLER; break;
-            case tr_descriptor_type_texture               : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
-            case tr_descriptor_type_uniform_buffer        : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; break;
-            case tr_descriptor_type_storage_texture       : type_index = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; break;
-            case tr_descriptor_type_uniform_texel_buffer  : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER; break;
-            case tr_descriptor_type_storage_texel_buffer  : type_index = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER; break;
-            case tr_descriptor_type_storage_buffer        : type_index = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; break;
+            case tr_descriptor_type_sampler                  : type_index = VK_DESCRIPTOR_TYPE_SAMPLER; break;
+            case tr_descriptor_type_uniform_buffer_cbv       : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; break;
+            case tr_descriptor_type_storage_buffer_srv       : type_index = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; break;
+            case tr_descriptor_type_storage_buffer_uav       : type_index = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; break;
+            case tr_descriptor_type_uniform_texel_buffer_srv : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER; break;
+            case tr_descriptor_type_storage_texel_buffer_uav : type_index = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER; break;
+            case tr_descriptor_type_texture_srv              : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
+            case tr_descriptor_type_texture_uav              : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
         }
         if (UINT32_MAX != type_index) {
             binding->binding            = descriptor->binding;
@@ -3713,10 +3711,10 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
 
     // Align the buffer size to multiples of the dynamic uniform buffer minimum size
-    if (p_buffer->usage & tr_buffer_usage_uniform) {
+    if (p_buffer->usage & tr_buffer_usage_uniform_buffer_cbv) {
         // Make minimum size 256 bytes to match D3D12
         p_buffer->size = tr_round_up(tr_max(p_buffer->size, 256), 
-                                     p_renderer->vk_active_gpu_properties.limits.minUniformBufferOffsetAlignment);
+                                     static_cast<uint32_t>(p_renderer->vk_active_gpu_properties.limits.minUniformBufferOffsetAlignment));
     }
 
     TINY_RENDERER_DECLARE_ZERO(VkBufferCreateInfo, create_info);
@@ -3764,20 +3762,22 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     }
 
     switch (p_buffer->usage) {
-        case tr_buffer_usage_uniform_texel:
-        case tr_buffer_usage_storage_texel: {
-          TINY_RENDERER_DECLARE_ZERO(VkBufferViewCreateInfo, buffer_view_create_info);
-          buffer_view_create_info.sType   = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
-          buffer_view_create_info.pNext   = NULL;
-          buffer_view_create_info.flags   = 0;
-          buffer_view_create_info.buffer  = p_buffer->vk_buffer;
-          buffer_view_create_info.format  = tr_util_to_vk_format(p_buffer->format);
-          buffer_view_create_info.range   = VK_WHOLE_SIZE;
+        case tr_buffer_usage_uniform_texel_buffer_srv:
+        case tr_buffer_usage_storage_texel_buffer_uav: {
+            TINY_RENDERER_DECLARE_ZERO(VkBufferViewCreateInfo, buffer_view_create_info);
+            buffer_view_create_info.sType   = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+            buffer_view_create_info.pNext   = NULL;
+            buffer_view_create_info.flags   = 0;
+            buffer_view_create_info.buffer  = p_buffer->vk_buffer;
+            buffer_view_create_info.format  = tr_util_to_vk_format(p_buffer->format);
+            buffer_view_create_info.range   = VK_WHOLE_SIZE;
+            vk_res = vkCreateBufferView(p_renderer->vk_device, &buffer_view_create_info, NULL, &(p_buffer->vk_buffer_view));
         }
         break;
 
-        case tr_buffer_usage_uniform:
-        case tr_buffer_usage_storage: {
+        case tr_buffer_usage_uniform_buffer_cbv:
+        case tr_buffer_usage_storage_buffer_srv:
+        case tr_buffer_usage_storage_buffer_uav: {
             p_buffer->vk_buffer_info.buffer = p_buffer->vk_buffer;
             p_buffer->vk_buffer_info.offset = 0;
             p_buffer->vk_buffer_info.range  = VK_WHOLE_SIZE;
@@ -3920,8 +3920,8 @@ void tr_internal_vk_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
     }
 
     p_texture->vk_texture_view.imageView = p_texture->vk_image_view;
-    p_texture->vk_texture_view.imageLayout = (p_texture->usage & tr_texture_usage_storage) ? VK_IMAGE_LAYOUT_GENERAL
-                                                                                           : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    p_texture->vk_texture_view.imageLayout = (p_texture->usage & tr_texture_usage_storage_image) ? VK_IMAGE_LAYOUT_GENERAL
+                                                                                                 : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
 void tr_internal_vk_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -4628,18 +4628,19 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_texture:
-            case tr_descriptor_type_storage_texture: {
-                image_view_count += descriptor->count;
+            case tr_descriptor_type_uniform_buffer_cbv:
+            case tr_descriptor_type_storage_buffer_srv:
+            case tr_descriptor_type_storage_buffer_uav:
+            case tr_descriptor_type_uniform_texel_buffer_srv:
+            case tr_descriptor_type_storage_texel_buffer_uav: {
+                buffer_view_count += descriptor->count;
                 ++write_count;
             }
             break;
 
-            case tr_descriptor_type_uniform_buffer:
-            case tr_descriptor_type_uniform_texel_buffer:
-            case tr_descriptor_type_storage_texel_buffer:
-            case tr_descriptor_type_storage_buffer: {
-                buffer_view_count += descriptor->count;
+            case tr_descriptor_type_texture_srv:
+            case tr_descriptor_type_texture_uav: {
+                image_view_count += descriptor->count;
                 ++write_count;
             }
             break;
@@ -4690,21 +4691,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_texture: {
-                assert(NULL != descriptor->textures);
-
-                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-                writes[write_index].pImageInfo = &(image_views[texture_view_index]);
-                for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(image_views[texture_view_index]), 
-                           &(descriptor->textures[i]->vk_texture_view),
-                           sizeof(descriptor->textures[i]->vk_texture_view));
-                    ++texture_view_index;
-                }
-            }
-            break;
-
-            case tr_descriptor_type_uniform_buffer: {
+            case tr_descriptor_type_uniform_buffer_cbv: {
                 assert(NULL != descriptor->uniform_buffers);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -4718,36 +4705,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-
-            case tr_descriptor_type_uniform_texel_buffer: {
-                assert(NULL != descriptor->buffers);
-
-                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
-                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
-                for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(buffer_views[buffer_view_index]), 
-                           &(descriptor->buffers[i]->vk_buffer_info),
-                           sizeof(descriptor->buffers[i]->vk_buffer_info));
-                    ++buffer_view_index;
-                }
-            }
-            break;
-
-            case tr_descriptor_type_storage_texel_buffer: {
-                assert(NULL != descriptor->buffers);
-
-                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
-                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
-                for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    memcpy(&(buffer_views[buffer_view_index]), 
-                           &(descriptor->buffers[i]->vk_buffer_info),
-                           sizeof(descriptor->buffers[i]->vk_buffer_info));
-                    ++buffer_view_index;
-                }
-            }
-            break;
-
-            case tr_descriptor_type_storage_buffer: {
+            case tr_descriptor_type_storage_buffer_srv: {
                 assert(NULL != descriptor->buffers);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -4761,7 +4719,63 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_storage_texture: {
+            case tr_descriptor_type_storage_buffer_uav: {
+                assert(NULL != descriptor->buffers);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_uniform_texel_buffer_srv: {
+                assert(NULL != descriptor->buffers);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_storage_texel_buffer_uav: {
+                assert(NULL != descriptor->buffers);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+                writes[write_index].pBufferInfo = &(buffer_views[buffer_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(buffer_views[buffer_view_index]), 
+                           &(descriptor->buffers[i]->vk_buffer_info),
+                           sizeof(descriptor->buffers[i]->vk_buffer_info));
+                    ++buffer_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_texture_srv: {
+                assert(NULL != descriptor->textures);
+
+                writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                writes[write_index].pImageInfo = &(image_views[texture_view_index]);
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    memcpy(&(image_views[texture_view_index]), 
+                           &(descriptor->textures[i]->vk_texture_view),
+                           sizeof(descriptor->textures[i]->vk_texture_view));
+                    ++texture_view_index;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_texture_uav: {
                 assert(NULL != descriptor->textures);
 
                 writes[write_index].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -4774,6 +4788,7 @@ void tr_internal_vk_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                 }
             }
             break;
+
         }
 
         ++write_index;
@@ -5047,22 +5062,27 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
         }
         break;
 
-        case tr_buffer_usage_uniform_texel: {
+        case tr_buffer_usage_uniform_texel_buffer_srv: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_texel: {
+        case tr_buffer_usage_storage_texel_buffer_uav: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
 
-        case tr_buffer_usage_uniform: {
+        case tr_buffer_usage_uniform_buffer_cbv: {
             barrier.srcAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage: {
+        case tr_buffer_usage_storage_buffer_srv: {
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_buffer_uav: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
@@ -5094,22 +5114,27 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
         }
         break;
 
-        case tr_buffer_usage_uniform_texel: {
+        case tr_buffer_usage_uniform_texel_buffer_srv: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_texel: {
+        case tr_buffer_usage_storage_texel_buffer_uav: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
 
-        case tr_buffer_usage_uniform: {
+        case tr_buffer_usage_uniform_buffer_cbv: {
             barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage: {
+        case tr_buffer_usage_storage_buffer_srv: {
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_buffer_uav: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;

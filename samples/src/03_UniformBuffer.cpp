@@ -179,11 +179,11 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
 
     std::vector<tr_descriptor> descriptors(3);
-    descriptors[0].type          = tr_descriptor_type_uniform_buffer;
+    descriptors[0].type          = tr_descriptor_type_uniform_buffer_cbv;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_vert;
-    descriptors[1].type          = tr_descriptor_type_texture;
+    descriptors[1].type          = tr_descriptor_type_texture_srv;
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;

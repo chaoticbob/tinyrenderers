@@ -173,25 +173,19 @@ typedef enum tr_result {
 */
 
 typedef enum tr_buffer_usage {
-    tr_buffer_usage_undefined                   = 0x00000000,
-    tr_buffer_usage_transfer_src                = 0x00000001,
-    tr_buffer_usage_transfer_dst                = 0x00000002,
-    tr_buffer_usage_uniform_texel               = 0x00000004,
-    tr_buffer_usage_storage_texel               = 0x00000008,
-    tr_buffer_usage_uniform                     = 0x00000010,
-    tr_buffer_usage_storage                     = 0x00000020,
-    tr_buffer_usage_index                       = 0x00000040,
-    tr_buffer_usage_vertex                      = 0x00000080,
-    tr_buffer_usage_indirect                    = 0x00000100,
+    tr_buffer_usage_index                       = 0x00000001,
+    tr_buffer_usage_vertex                      = 0x00000002,
+    tr_buffer_usage_indirect                    = 0x00000004,
+    tr_buffer_usage_transfer_src                = 0x00000008,
+    tr_buffer_usage_transfer_dst                = 0x00000010,
+    tr_buffer_usage_uniform_buffer_cbv          = 0x00000020,
+    tr_buffer_usage_storage_buffer_srv          = 0x00000040,
+    tr_buffer_usage_storage_buffer_uav          = 0x00000080,
+    tr_buffer_usage_texture_srv                 = 0x00000100,
+    tr_buffer_usage_texture_uav                 = 0x00000200,
+    tr_buffer_usage_uniform_texel_buffer_srv    = 0x00000400,
+    tr_buffer_usage_storage_texel_buffer_uav    = 0x00000800,
 } tr_buffer_usage;
-
-typedef enum tr_buffer_feature {
-    tr_buffer_feature_none                      = 0x00000000,
-    tr_buffer_feature_read_only                 = 0x00000001,
-    tr_buffer_feature_raw                       = 0x00000002
-} tr_buffer_feature;
-
-typedef uint32_t tr_buffer_feature_flags;
 
 typedef enum tr_texture_type {
     tr_texture_type_1d,
@@ -205,7 +199,7 @@ typedef enum tr_texture_usage {
     tr_texture_usage_transfer_src               = 0x00000001,
     tr_texture_usage_transfer_dst               = 0x00000002,
     tr_texture_usage_sampled_image              = 0x00000004,
-    tr_texture_usage_storage                    = 0x00000008,
+    tr_texture_usage_storage_image              = 0x00000008,
     tr_texture_usage_color_attachment           = 0x00000010,
     tr_texture_usage_depth_stencil_attachment   = 0x00000020,
     tr_texture_usage_resolve_src                = 0x00000040,
@@ -255,12 +249,13 @@ typedef enum tr_format {
 typedef enum tr_descriptor_type {
     tr_descriptor_type_undefined = 0,
     tr_descriptor_type_sampler,
-    tr_descriptor_type_texture,
-    tr_descriptor_type_uniform_buffer,
-    tr_descriptor_type_storage_texture,
-    tr_descriptor_type_uniform_texel_buffer,
-    tr_descriptor_type_storage_texel_buffer,
-    tr_descriptor_type_storage_buffer,
+    tr_descriptor_type_uniform_buffer_cbv,       // CBV | VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+    tr_descriptor_type_storage_buffer_srv,       // SRV | VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+    tr_descriptor_type_storage_buffer_uav,       // UAV | VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+    tr_descriptor_type_uniform_texel_buffer_srv, // SRV | VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER
+    tr_descriptor_type_storage_texel_buffer_uav, // UAV | VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER
+    tr_descriptor_type_texture_srv,              // SRV | VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+    tr_descriptor_type_texture_uav,              // UAV | VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
 } tr_descriptor_type;
 
 typedef enum tr_sample_count {
@@ -472,13 +467,13 @@ typedef struct tr_buffer {
     tr_buffer_usage                     usage;
     uint64_t                            size;
     bool                                host_visible;
-    tr_buffer_feature_flags             features; 
     tr_index_type                       index_type;
     uint32_t                            vertex_stride;
     tr_format                           format;
     uint64_t                            first_element;
     uint64_t                            element_count;
     uint64_t                            struct_stride;
+    bool                                raw;
     void*                               cpu_mapped_address;
     ID3D12Resource*                     dx_resource;
     D3D12_CONSTANT_BUFFER_VIEW_DESC     dx_cbv_view_desc;
@@ -615,8 +610,8 @@ tr_api_export void tr_create_buffer(tr_renderer* p_renderer, tr_buffer_usage usa
 tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size, bool host_visible, tr_index_type index_type, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
+tr_api_export void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_buffer);
+tr_api_export void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
@@ -1348,7 +1343,7 @@ void tr_create_index_buffer(tr_renderer* p_renderer, uint64_t size, bool host_vi
 
 void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer)
 {
-    tr_create_buffer(p_renderer, tr_buffer_usage_uniform, size, host_visible, pp_buffer);
+    tr_create_buffer(p_renderer, tr_buffer_usage_uniform_buffer_cbv, size, host_visible, pp_buffer);
 }
 
 void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer)
@@ -1358,7 +1353,7 @@ void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_v
     (*pp_buffer)->dx_vertex_buffer_view.StrideInBytes = vertex_stride;
 }
 
-void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_format format, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer** pp_buffer)
+void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1367,20 +1362,21 @@ void tr_create_uniform_texel_buffer(tr_renderer* p_renderer, uint64_t size, bool
     assert(NULL != p_buffer);
 
     p_buffer->renderer        = p_renderer;
-    p_buffer->usage           = tr_buffer_usage_uniform_texel;
+    p_buffer->usage           = tr_buffer_usage_storage_buffer_srv;
     p_buffer->size            = size;
-    p_buffer->host_visible    = host_visible;
-    p_buffer->format          = format;
+    p_buffer->host_visible    = false;
+    p_buffer->format          = tr_format_undefined;
     p_buffer->first_element   = first_element;
     p_buffer->element_count   = element_count;
-    p_buffer->struct_stride   = struct_stride;
-    
+    p_buffer->struct_stride   = raw ? 0 : struct_stride;
+    p_buffer->raw             = raw;
+   
     tr_internal_dx_create_buffer(p_renderer, p_buffer);
 
     *pp_buffer = p_buffer;
 }
 
-void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, tr_buffer_feature_flags features, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
+void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1391,10 +1387,9 @@ void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t f
       assert(NULL != p_counter_buffer);
 
       p_counter_buffer->renderer        = p_renderer;
-      p_counter_buffer->usage           = tr_buffer_usage_storage;
+      p_counter_buffer->usage           = tr_buffer_usage_storage_buffer_uav;
       p_counter_buffer->size            = 4;
       p_counter_buffer->host_visible    = false;
-      p_counter_buffer->features        = features;
       p_counter_buffer->format          = tr_format_undefined;
       p_counter_buffer->first_element   = 0;
       p_counter_buffer->element_count   = 1;
@@ -1411,14 +1406,14 @@ void tr_create_storage_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t f
       assert(NULL != p_buffer);
 
       p_buffer->renderer        = p_renderer;
-      p_buffer->usage           = tr_buffer_usage_storage;
+      p_buffer->usage           = tr_buffer_usage_storage_buffer_uav;
       p_buffer->size            = size;
       p_buffer->host_visible    = false;
-      p_buffer->features        = features;
       p_buffer->format          = tr_format_undefined;
       p_buffer->first_element   = first_element;
       p_buffer->element_count   = element_count;
-      p_buffer->struct_stride   = (features & tr_buffer_feature_raw) ? 0 : struct_stride;
+      p_buffer->struct_stride   = raw ? 0 : struct_stride;
+      p_buffer->raw             = raw;
 
       if (pp_counter_buffer != NULL) {
         p_buffer->counter_buffer = *pp_counter_buffer;
@@ -2346,11 +2341,11 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
-    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_dst);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_dst);
     p_cmd->dx_cmd_list->CopyBufferRegion(p_buffer->dx_resource, count_offset,
                                          buffer->dx_resource, 0,
                                          4);
-    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_storage);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_storage_buffer_uav);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2379,9 +2374,11 @@ void tr_util_clear_buffer(tr_queue* p_queue, tr_buffer* p_buffer)
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, p_buffer->usage, tr_buffer_usage_transfer_dst);
     p_cmd->dx_cmd_list->CopyBufferRegion(p_buffer->dx_resource, 0,
                                          buffer->dx_resource, 0,
                                          p_buffer->size);
+    tr_internal_dx_cmd_buffer_transition(p_cmd, p_buffer, tr_buffer_usage_transfer_dst, p_buffer->usage);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2566,29 +2563,16 @@ D3D12_RESOURCE_STATES tr_util_to_dx_resource_state_buffer(tr_buffer_usage usage)
     D3D12_RESOURCE_STATES result = D3D12_RESOURCE_STATE_COMMON;
     if (tr_buffer_usage_transfer_src == (usage & tr_buffer_usage_transfer_src)) {
         result |= D3D12_RESOURCE_STATE_COPY_SOURCE;
-        //result |= D3D12_RESOURCE_STATE_GENERIC_READ;
     }
     if (tr_buffer_usage_transfer_dst == (usage & tr_buffer_usage_transfer_dst)) {
         result |= D3D12_RESOURCE_STATE_COPY_DEST;
     }
-    //if (tr_buffer_usage_sampled_image == (usage & tr_buffer_usage_sampled_image)) {
-    //    result |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-    //}
-    if (tr_buffer_usage_storage == (usage & tr_buffer_usage_storage)) {
+    if (tr_buffer_usage_storage_buffer_srv == (usage & tr_buffer_usage_storage_buffer_srv)) {
+        result |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    }
+    if (tr_buffer_usage_storage_buffer_uav == (usage & tr_buffer_usage_storage_buffer_uav)) {
         result |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     }
-    //if (tr_buffer_usage_color_attachment == (usage & tr_buffer_usage_color_attachment)) {
-    //    result |= D3D12_RESOURCE_STATE_RENDER_TARGET;
-    //}
-    //if (tr_buffer_usage_depth_stencil_attachment == (usage & tr_buffer_usage_depth_stencil_attachment)) {
-    //    result |= D3D12_RESOURCE_STATE_DEPTH_WRITE;
-    //}
-    //if (tr_buffer_usage_resolve_src == (usage & tr_buffer_usage_resolve_src)) {
-    //    result |= D3D12_RESOURCE_STATE_RESOLVE_SOURCE;
-    //}
-    //if (tr_buffer_usage_resolve_dst == (usage & tr_buffer_usage_resolve_dst)) {
-    //    result |= D3D12_RESOURCE_STATE_RESOLVE_DEST;
-    //}
     return result;
 }
 
@@ -2604,7 +2588,7 @@ D3D12_RESOURCE_STATES tr_util_to_dx_resource_state_texture(tr_texture_usage_flag
     if (tr_texture_usage_sampled_image == (usage & tr_texture_usage_sampled_image)) {
         result |= D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     }
-    if (tr_texture_usage_storage == (usage & tr_texture_usage_storage)) {
+    if (tr_texture_usage_storage_image == (usage & tr_texture_usage_storage_image)) {
         result |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     }
     if (tr_texture_usage_color_attachment == (usage & tr_texture_usage_color_attachment)) {
@@ -2937,13 +2921,14 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
     for (uint32_t i = 0; i < p_descriptor_set->descriptor_count; ++i) {
         uint32_t count = p_descriptor_set->descriptors[i].count;
         switch (p_descriptor_set->descriptors[i].type) {
-            case tr_descriptor_type_sampler                  : sampler_count   += count; break;
-            case tr_descriptor_type_texture                  : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_uniform_buffer           : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_storage_texture          : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_uniform_texel_buffer     : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_storage_texel_buffer     : cbvsrvuav_count += count; break;
-            case tr_descriptor_type_storage_buffer           : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_sampler                 : sampler_count   += count; break;
+            case tr_descriptor_type_uniform_buffer_cbv       : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_storage_buffer_srv       : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_storage_buffer_uav       : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_texture_srv              : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_texture_uav              : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_uniform_texel_buffer_srv : cbvsrvuav_count += count; break;
+            case tr_descriptor_type_storage_texel_buffer_uav : cbvsrvuav_count += count; break;
         }
     }
 
@@ -2981,12 +2966,14 @@ void tr_internal_dx_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_texture:
-            case tr_descriptor_type_uniform_buffer:
-            case tr_descriptor_type_storage_texture:
-            case tr_descriptor_type_uniform_texel_buffer:
-            case tr_descriptor_type_storage_texel_buffer:
-            case tr_descriptor_type_storage_buffer: {
+
+            case tr_descriptor_type_uniform_buffer_cbv:
+            case tr_descriptor_type_storage_buffer_srv:
+            case tr_descriptor_type_storage_buffer_uav:
+            case tr_descriptor_type_uniform_texel_buffer_srv:
+            case tr_descriptor_type_storage_texel_buffer_uav:
+            case tr_descriptor_type_texture_srv:
+            case tr_descriptor_type_texture_uav: {
                 descriptor->dx_heap_offset = cbvsrvuav_heap_offset;
                 cbvsrvuav_heap_offset += descriptor->count;
             }
@@ -3042,7 +3029,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     assert(NULL != p_renderer->dx_device);
 
     // Align the buffer size to multiples of 256
-    if (p_buffer->usage & tr_buffer_usage_uniform) {
+    if (p_buffer->usage & tr_buffer_usage_uniform_buffer_cbv) {
         p_buffer->size = tr_round_up((uint32_t)(p_buffer->size), 256);
     }
 
@@ -3069,7 +3056,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     desc.SampleDesc.Quality         = 0;
     desc.Layout                     = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
     desc.Flags                      = D3D12_RESOURCE_FLAG_NONE;
-    if (p_buffer->usage == tr_buffer_usage_storage) {
+    if (p_buffer->usage & tr_buffer_usage_storage_buffer_uav) {
         desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     }
 
@@ -3081,7 +3068,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     D3D12_RESOURCE_STATES res_states = D3D12_RESOURCE_STATE_COPY_DEST;
     switch (p_buffer->usage) {
-        case tr_buffer_usage_uniform: {
+        case tr_buffer_usage_uniform_buffer_cbv: {
             res_states = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
         }
         break;
@@ -3096,7 +3083,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
         }
         break;
 
-        case tr_buffer_usage_storage: {
+        case tr_buffer_usage_storage_buffer_uav: {
             res_states = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
         }
         break;
@@ -3120,12 +3107,6 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     }
 
     switch (p_buffer->usage) {
-        case tr_buffer_usage_uniform: {
-            p_buffer->dx_cbv_view_desc.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
-            p_buffer->dx_cbv_view_desc.SizeInBytes    = (UINT)p_buffer->size;
-        }
-        break;
-
         case tr_buffer_usage_index: {
             p_buffer->dx_index_buffer_view.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
             p_buffer->dx_index_buffer_view.SizeInBytes    = (UINT)p_buffer->size;
@@ -3140,29 +3121,65 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
         }
         break;
 
-        case tr_buffer_usage_storage: {
-            p_buffer->dx_uav_view_desc.Format                       = DXGI_FORMAT_UNKNOWN;
-            p_buffer->dx_uav_view_desc.ViewDimension                = D3D12_UAV_DIMENSION_BUFFER;
-            p_buffer->dx_uav_view_desc.Buffer.FirstElement          = p_buffer->first_element;
-            p_buffer->dx_uav_view_desc.Buffer.NumElements           = (UINT)(p_buffer->element_count);
-            p_buffer->dx_uav_view_desc.Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
-            p_buffer->dx_uav_view_desc.Buffer.CounterOffsetInBytes  = 0;
-            p_buffer->dx_uav_view_desc.Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_NONE;
-            if (p_buffer->features & tr_buffer_feature_raw) {
-                p_buffer->dx_uav_view_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-                p_buffer->dx_uav_view_desc.Buffer.Flags |= D3D12_BUFFER_UAV_FLAG_RAW;
+        case tr_buffer_usage_uniform_buffer_cbv: {
+            p_buffer->dx_cbv_view_desc.BufferLocation = p_buffer->dx_resource->GetGPUVirtualAddress();
+            p_buffer->dx_cbv_view_desc.SizeInBytes    = (UINT)p_buffer->size;
+        }
+        break;
+
+        case tr_buffer_usage_storage_buffer_srv: {
+            D3D12_SHADER_RESOURCE_VIEW_DESC* desc = &(p_buffer->dx_srv_view_desc);
+            desc->Format                       = DXGI_FORMAT_UNKNOWN;
+            desc->ViewDimension                = D3D12_SRV_DIMENSION_BUFFER;
+            desc->Shader4ComponentMapping      = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            desc->Buffer.FirstElement          = p_buffer->first_element;
+            desc->Buffer.NumElements           = (UINT)(p_buffer->element_count);
+            desc->Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
+            desc->Buffer.Flags                 = D3D12_BUFFER_SRV_FLAG_NONE;
+            if (p_buffer->raw) {
+                desc->Format = DXGI_FORMAT_R32_TYPELESS;
+                desc->Buffer.Flags |= D3D12_BUFFER_SRV_FLAG_RAW;
             }
         }
         break;
 
-        case tr_buffer_usage_uniform_texel: {
-            p_buffer->dx_srv_view_desc.Format                     = tr_util_to_dx_format(p_buffer->format);
-            p_buffer->dx_srv_view_desc.ViewDimension              = D3D12_SRV_DIMENSION_BUFFER;
-            p_buffer->dx_srv_view_desc.Shader4ComponentMapping    = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            p_buffer->dx_srv_view_desc.Buffer.FirstElement        = p_buffer->first_element;
-            p_buffer->dx_srv_view_desc.Buffer.NumElements         = (UINT)(p_buffer->element_count);
-            p_buffer->dx_srv_view_desc.Buffer.StructureByteStride = (UINT)(p_buffer->struct_stride);
-            p_buffer->dx_srv_view_desc.Buffer.Flags               = D3D12_BUFFER_SRV_FLAG_NONE;
+        case tr_buffer_usage_storage_buffer_uav: {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC* desc = &(p_buffer->dx_uav_view_desc);
+            desc->Format                       = DXGI_FORMAT_UNKNOWN;
+            desc->ViewDimension                = D3D12_UAV_DIMENSION_BUFFER;
+            desc->Buffer.FirstElement          = p_buffer->first_element;
+            desc->Buffer.NumElements           = (UINT)(p_buffer->element_count);
+            desc->Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
+            desc->Buffer.CounterOffsetInBytes  = 0;
+            desc->Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_NONE;
+            if (p_buffer->raw) {
+                desc->Format = DXGI_FORMAT_R32_TYPELESS;
+                desc->Buffer.Flags |= D3D12_BUFFER_UAV_FLAG_RAW;
+            }
+        }
+        break;
+
+        case tr_buffer_usage_uniform_texel_buffer_srv: {
+            D3D12_SHADER_RESOURCE_VIEW_DESC* desc = &(p_buffer->dx_srv_view_desc);
+            desc->Format                     = tr_util_to_dx_format(p_buffer->format);
+            desc->ViewDimension              = D3D12_SRV_DIMENSION_BUFFER;
+            desc->Shader4ComponentMapping    = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            desc->Buffer.FirstElement        = p_buffer->first_element;
+            desc->Buffer.NumElements         = (UINT)(p_buffer->element_count);
+            desc->Buffer.StructureByteStride = (UINT)(p_buffer->struct_stride);
+            desc->Buffer.Flags               = D3D12_BUFFER_SRV_FLAG_NONE;
+        }
+        break;
+
+        case tr_buffer_usage_storage_texel_buffer_uav: {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC* desc = &(p_buffer->dx_uav_view_desc);
+            desc->Format                       = DXGI_FORMAT_UNKNOWN;
+            desc->ViewDimension                = D3D12_UAV_DIMENSION_BUFFER;
+            desc->Buffer.FirstElement          = p_buffer->first_element;
+            desc->Buffer.NumElements           = (UINT)(p_buffer->element_count);
+            desc->Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
+            desc->Buffer.CounterOffsetInBytes  = 0;
+            desc->Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_NONE;
         }
         break;
     }
@@ -3217,7 +3234,7 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         if (p_texture->usage & tr_texture_usage_depth_stencil_attachment) {
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
         }
-        if (p_texture->usage & tr_texture_usage_storage) {
+        if (p_texture->usage & tr_texture_usage_storage_image) {
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
 
@@ -3268,7 +3285,7 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
       p_texture->dx_srv_view_desc.Texture2D.MipLevels     = (UINT)p_texture->mip_levels;
     }
 
-    if (p_texture->usage & tr_texture_usage_storage) {
+    if (p_texture->usage & tr_texture_usage_storage_image) {
       p_texture->dx_uav_view_desc.Format                = tr_util_to_dx_format(p_texture->format);
       p_texture->dx_uav_view_desc.ViewDimension         = D3D12_UAV_DIMENSION_TEXTURE2D;
       p_texture->dx_uav_view_desc.Texture2D.MipSlice    = 0;
@@ -3461,13 +3478,14 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
         for (uint32_t i = 0; i < descriptor_count; ++i) {
             uint32_t count = p_descriptor_set->descriptors[i].count;
             switch (p_descriptor_set->descriptors[i].type) {
-                case tr_descriptor_type_sampler                  : sampler_count   += count; break;
-                case tr_descriptor_type_texture                  : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_uniform_buffer           : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_storage_texture          : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_uniform_texel_buffer     : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_storage_texel_buffer     : cbvsrvuav_count += count; break;
-                case tr_descriptor_type_storage_buffer           : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_sampler                 : sampler_count   += count; break;
+                case tr_descriptor_type_uniform_buffer_cbv       : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_storage_buffer_srv       : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_storage_buffer_uav       : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_uniform_texel_buffer_srv : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_storage_texel_buffer_uav : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_texture_srv              : cbvsrvuav_count += count; break;
+                case tr_descriptor_type_texture_uav              : cbvsrvuav_count += count; break;
             }
         }
 
@@ -3538,22 +3556,23 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
                     assign_range = true;
                 }
                 break;
-                case tr_descriptor_type_texture:
-                case tr_descriptor_type_uniform_texel_buffer: {
+                case tr_descriptor_type_storage_buffer_srv:
+                case tr_descriptor_type_uniform_texel_buffer_srv: 
+                case tr_descriptor_type_texture_srv: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
                     assign_range = true;
                 }
                 break;      
-                case tr_descriptor_type_uniform_buffer: {
+                case tr_descriptor_type_uniform_buffer_cbv: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
                     assign_range = true;
                 }
                 break;
-                case tr_descriptor_type_storage_texture: 
-                case tr_descriptor_type_storage_texel_buffer:
-                case tr_descriptor_type_storage_buffer: {
+                case tr_descriptor_type_storage_buffer_uav: 
+                case tr_descriptor_type_storage_texel_buffer_uav: 
+                case tr_descriptor_type_texture_uav: {
                     range_11->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
                     range_10->RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
                     assign_range = true;
@@ -3980,24 +3999,25 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-            case tr_descriptor_type_texture: {
-                assert(NULL != descriptor->textures);
+            case tr_descriptor_type_uniform_buffer_cbv: {
+                assert(NULL != descriptor->uniform_buffers);
 
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
                 UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
                 for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    assert(NULL != descriptor->textures[i]);
+                    assert(NULL != descriptor->uniform_buffers[i]);
 
-                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
-                    D3D12_SHADER_RESOURCE_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_srv_view_desc);
-                    p_renderer->dx_device->CreateShaderResourceView(resource, view_desc, handle);
+                    ID3D12Resource* resource = descriptor->uniform_buffers[i]->dx_resource;
+                    D3D12_CONSTANT_BUFFER_VIEW_DESC* view_desc = &(descriptor->uniform_buffers[i]->dx_cbv_view_desc);
+                    p_renderer->dx_device->CreateConstantBufferView(view_desc, handle);
                     handle.ptr += handle_inc_size;
                 }
             }
             break;
-
-            case tr_descriptor_type_uniform_texel_buffer: {
+           
+            case tr_descriptor_type_storage_buffer_srv:
+            case tr_descriptor_type_uniform_texel_buffer_srv: {
                 assert(NULL != descriptor->buffers);
 
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
@@ -4014,42 +4034,8 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             }
             break;
 
-
-            case tr_descriptor_type_uniform_buffer: {
-                assert(NULL != descriptor->uniform_buffers);
-
-                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
-                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
-                for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    assert(NULL != descriptor->uniform_buffers[i]);
-
-                    ID3D12Resource* resource = descriptor->uniform_buffers[i]->dx_resource;
-                    D3D12_CONSTANT_BUFFER_VIEW_DESC* view_desc = &(descriptor->uniform_buffers[i]->dx_cbv_view_desc);
-                    p_renderer->dx_device->CreateConstantBufferView(view_desc, handle);
-                    handle.ptr += handle_inc_size;
-                }
-            }
-            break;
-
-            case tr_descriptor_type_storage_texture:{
-                assert(NULL != descriptor->textures);
-
-                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
-                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
-                for (uint32_t i = 0; i < descriptor->count; ++i) {
-                    assert(NULL != descriptor->textures[i]);
-
-                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
-                    D3D12_UNORDERED_ACCESS_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_uav_view_desc);
-                    p_renderer->dx_device->CreateUnorderedAccessView(resource, NULL, view_desc, handle);
-                    handle.ptr += handle_inc_size;
-                }
-            }
-            break;
-
-            case tr_descriptor_type_storage_buffer:{
+            case tr_descriptor_type_storage_buffer_uav:
+            case tr_descriptor_type_storage_texel_buffer_uav: {
                 assert(NULL != descriptor->buffers);
 
                 D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
@@ -4067,6 +4053,41 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
                     else {
                       p_renderer->dx_device->CreateUnorderedAccessView(resource, NULL, view_desc, handle);
                     }
+                    handle.ptr += handle_inc_size;
+                }
+            }
+            break;
+
+
+            case tr_descriptor_type_texture_srv: {
+                assert(NULL != descriptor->textures);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    assert(NULL != descriptor->textures[i]);
+
+                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
+                    D3D12_SHADER_RESOURCE_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_srv_view_desc);
+                    p_renderer->dx_device->CreateShaderResourceView(resource, view_desc, handle);
+                    handle.ptr += handle_inc_size;
+                }
+            }
+            break;
+
+            case tr_descriptor_type_texture_uav: {
+                assert(NULL != descriptor->textures);
+
+                D3D12_CPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetCPUDescriptorHandleForHeapStart();
+                UINT handle_inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+                handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
+                for (uint32_t i = 0; i < descriptor->count; ++i) {
+                    assert(NULL != descriptor->textures[i]);
+
+                    ID3D12Resource* resource = descriptor->textures[i]->dx_resource;
+                    D3D12_UNORDERED_ACCESS_VIEW_DESC* view_desc = &(descriptor->textures[i]->dx_uav_view_desc);
+                    p_renderer->dx_device->CreateUnorderedAccessView(resource, NULL, view_desc, handle);
                     handle.ptr += handle_inc_size;
                 }
             }
@@ -4262,11 +4283,13 @@ void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
             }
             break;
 
-            case tr_descriptor_type_texture:
-            case tr_descriptor_type_uniform_buffer:
-            case tr_descriptor_type_storage_texture:
-            case tr_descriptor_type_uniform_texel_buffer:
-            case tr_descriptor_type_storage_buffer: {
+            case tr_descriptor_type_uniform_buffer_cbv:
+            case tr_descriptor_type_storage_buffer_srv:
+            case tr_descriptor_type_storage_buffer_uav:
+            case tr_descriptor_type_texture_srv:
+            case tr_descriptor_type_texture_uav:
+            case tr_descriptor_type_uniform_texel_buffer_srv:
+            case tr_descriptor_type_storage_texel_buffer_uav: {
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_cbvsrvuav_heap->GetGPUDescriptorHandleForHeapStart();
                 UINT handle_inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 handle.ptr += descriptor->dx_heap_offset * handle_inc_size;

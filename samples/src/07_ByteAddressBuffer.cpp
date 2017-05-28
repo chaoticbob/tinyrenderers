@@ -180,8 +180,6 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(kAssetDir + "texture.vs.spv");
     auto frag = load_file(kAssetDir + "texture.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             //vert.size(), (uint32_t*)(vert.data()), "main", 
-                             //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
@@ -196,7 +194,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
-    descriptors[0].type          = tr_descriptor_type_texture;
+    descriptors[0].type          = tr_descriptor_type_texture_srv;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_frag;
@@ -206,11 +204,11 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
 
-    descriptors[0].type          = tr_descriptor_type_storage_buffer;
+    descriptors[0].type          = tr_descriptor_type_storage_buffer_srv;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
-    descriptors[1].type          = tr_descriptor_type_storage_buffer;
+    descriptors[1].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
@@ -270,15 +268,15 @@ void init_tiny_renderer(GLFWwindow* window)
     uint64_t buffer_size = m_image_row_stride * m_image_height;
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = 0;
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, tr_buffer_feature_raw, NULL, &m_compute_src_buffer);
+    tr_create_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, true, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     lc_free_image(image_data);
 
     buffer_size = m_image_row_stride * m_image_height;
     element_count = m_image_width * m_image_height;
     struct_stride = 0;
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, tr_buffer_feature_raw, NULL, &m_compute_dst_buffer);
-    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_dst);
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, true, NULL, &m_compute_dst_buffer);
+    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_dst);
     tr_util_clear_buffer(m_renderer->graphics_queue, m_compute_dst_buffer);
     tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_transfer_src);
  
@@ -319,11 +317,11 @@ void draw_frame()
     tr_begin_cmd(cmd);
 
     // Use compute to swizzle RGB -> BRG in buffer
-    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage);
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage_buffer_uav);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
     tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
-    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_src);
     // Copy compute output buffer to texture
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
     tr_cmd_copy_buffer_to_texture2d(cmd, m_image_width, m_image_height, m_image_row_stride, 0, 0, m_compute_dst_buffer, m_texture);

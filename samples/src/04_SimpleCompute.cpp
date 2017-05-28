@@ -192,7 +192,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
-    descriptors[0].type          = tr_descriptor_type_texture;
+    descriptors[0].type          = tr_descriptor_type_texture_srv;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_frag;
@@ -208,11 +208,11 @@ void init_tiny_renderer(GLFWwindow* window)
     // in compute be done through imageLoad - which requires 
     // a storage image. So we just match it in D3D12.
     //
-    descriptors[0].type          = tr_descriptor_type_texture;
+    descriptors[0].type          = tr_descriptor_type_texture_srv;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
-    descriptors[1].type          = tr_descriptor_type_storage_texture;
+    descriptors[1].type          = tr_descriptor_type_texture_uav;
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
@@ -267,7 +267,7 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
     lc_free_image(image_data);
 
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image | tr_texture_usage_storage, &m_texture_compute_output);
+    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image | tr_texture_usage_storage_image, &m_texture_compute_output);
   
     tr_util_transition_image(m_renderer->graphics_queue, m_texture_compute_output, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
 
@@ -304,13 +304,13 @@ void draw_frame()
 
     tr_begin_cmd(cmd);
     // Use compute to swizzle RGB -> BRG
-    tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_sampled_image, tr_texture_usage_storage);
+    tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_sampled_image, tr_texture_usage_storage_image);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
     const int num_groups_x = m_texture_compute_output->width / NUM_THREADS_X;
     const int num_groups_y = m_texture_compute_output->height / NUM_THREADS_Y;
     tr_cmd_dispatch(cmd, num_groups_x, num_groups_y, 1);
-    tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_storage, tr_texture_usage_sampled_image);
+    tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_storage_image, tr_texture_usage_sampled_image);
     // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);

@@ -196,7 +196,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
-    descriptors[0].type          = tr_descriptor_type_texture;
+    descriptors[0].type          = tr_descriptor_type_texture_srv;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_frag;
@@ -211,32 +211,32 @@ void init_tiny_renderer(GLFWwindow* window)
 #if defined(TINY_RENDERER_VK)
     descriptors.resize(4);
     // Consume buffer data
-    descriptors[0].type          = tr_descriptor_type_storage_buffer;
+    descriptors[0].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
     // Consume buffer counter
-    descriptors[1].type          = tr_descriptor_type_storage_buffer;
+    descriptors[1].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
     // Append buffer data
-    descriptors[2].type          = tr_descriptor_type_storage_buffer;
+    descriptors[2].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[2].count         = 1;
     descriptors[2].binding       = 2;
     descriptors[2].shader_stages = tr_shader_stage_comp;
     // Append buffer counter
-    descriptors[3].type          = tr_descriptor_type_storage_buffer;
+    descriptors[3].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[3].count         = 1;
     descriptors[3].binding       = 3;
     descriptors[3].shader_stages = tr_shader_stage_comp;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_compute_desc_set);
 #elif defined(TINY_RENDERER_DX)
-    descriptors[0].type          = tr_descriptor_type_storage_buffer;
+    descriptors[0].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_comp;
-    descriptors[1].type          = tr_descriptor_type_storage_buffer;
+    descriptors[1].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[1].count         = 1;
     descriptors[1].binding       = 2;
     descriptors[1].shader_stages = tr_shader_stage_comp;
@@ -292,14 +292,14 @@ void init_tiny_renderer(GLFWwindow* window)
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = 4;
     // Consume buffer
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, tr_buffer_feature_none, &m_compute_src_counter_buffer, &m_compute_src_buffer);
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_src_counter_buffer, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, element_count, m_compute_src_counter_buffer);
     lc_free_image(image_data);
     // Append buffer
-    tr_create_storage_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, tr_buffer_feature_none, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);
     tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, 0, m_compute_dst_counter_buffer);
-    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
+    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_src);
     
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
@@ -345,11 +345,11 @@ void draw_frame()
     tr_begin_cmd(cmd);
 
     // Use compute to swizzle RGB -> BRG in buffer
-    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage);
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage_buffer_uav);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
     tr_cmd_dispatch(cmd, m_image_width, m_image_height, 1);
-    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage, tr_buffer_usage_transfer_src);
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_src);
     // Copy compute output buffer to texture
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
     tr_cmd_copy_buffer_to_texture2d(cmd, m_image_width, m_image_height, m_image_row_stride, 0, 0, m_compute_dst_buffer, m_texture);

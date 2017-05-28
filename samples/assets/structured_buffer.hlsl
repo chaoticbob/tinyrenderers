@@ -10,11 +10,7 @@ struct Output {
   uint color;
 };
 
-// 
-// Vulkan version requires 'buffer' for source
-// buffer - so just match it.
-// 
-RWStructuredBuffer<Input>  BufferIn : register(u0);
+StructuredBuffer<Input>  BufferIn : register(t0);
 RWStructuredBuffer<Output> BufferOut : register(u1);
 
 [numthreads(16, 1, 1)]
