@@ -177,13 +177,11 @@ typedef enum tr_buffer_usage {
     tr_buffer_usage_indirect                    = 0x00000004,
     tr_buffer_usage_transfer_src                = 0x00000008,
     tr_buffer_usage_transfer_dst                = 0x00000010,
-    tr_buffer_usage_uniform_buffer_cbv          = 0x00000020,
-    tr_buffer_usage_storage_buffer_srv          = 0x00000040,
-    tr_buffer_usage_storage_buffer_uav          = 0x00000080,
-    tr_buffer_usage_texture_srv                 = 0x00000100,
-    tr_buffer_usage_texture_uav                 = 0x00000200,
-    tr_buffer_usage_uniform_texel_buffer_srv    = 0x00000400,
-    tr_buffer_usage_storage_texel_buffer_uav    = 0x00000800,
+    tr_buffer_usage_uniform_cbv                 = 0x00000020,
+    tr_buffer_usage_storage_srv                 = 0x00000040,
+    tr_buffer_usage_storage_uav                 = 0x00000080,
+    tr_buffer_usage_uniform_texel_srv           = 0x00000100,
+    tr_buffer_usage_storage_texel_uav           = 0x00000200,
 } tr_buffer_usage;
 
 typedef enum tr_texture_type {
@@ -1404,7 +1402,7 @@ void tr_create_index_buffer(tr_renderer* p_renderer, uint64_t size, bool host_vi
 
 void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer)
 {
-    tr_create_buffer(p_renderer, tr_buffer_usage_uniform_buffer_cbv, size, host_visible, pp_buffer);
+    tr_create_buffer(p_renderer, tr_buffer_usage_uniform_cbv, size, host_visible, pp_buffer);
 }
 
 void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer)
@@ -1422,7 +1420,7 @@ void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_
     assert(NULL != p_buffer);
 
     p_buffer->renderer        = p_renderer;
-    p_buffer->usage           = tr_buffer_usage_storage_buffer_srv;
+    p_buffer->usage           = tr_buffer_usage_storage_srv;
     p_buffer->size            = size;
     p_buffer->host_visible    = false;
     p_buffer->format          = tr_format_undefined;
@@ -1446,7 +1444,7 @@ void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint
       assert(NULL != p_counter_buffer);
 
       p_counter_buffer->renderer        = p_renderer;
-      p_counter_buffer->usage           = tr_buffer_usage_storage_buffer_uav;
+      p_counter_buffer->usage           = tr_buffer_usage_storage_uav;
       p_counter_buffer->size            = 4;
       p_counter_buffer->host_visible    = false;
       p_counter_buffer->format          = tr_format_undefined;
@@ -1465,7 +1463,7 @@ void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint
       assert(NULL != p_buffer);
 
       p_buffer->renderer        = p_renderer;
-      p_buffer->usage           = tr_buffer_usage_storage_buffer_uav;
+      p_buffer->usage           = tr_buffer_usage_storage_uav;
       p_buffer->size            = size;
       p_buffer->host_visible    = false;
       p_buffer->format          = tr_format_undefined;
@@ -2448,13 +2446,13 @@ void tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, 
     tr_create_cmd(p_cmd_pool, false, &p_cmd);
 
     tr_begin_cmd(p_cmd);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_storage_buffer_uav, tr_buffer_usage_transfer_dst);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_dst);
     TINY_RENDERER_DECLARE_ZERO(VkBufferCopy, region);
     region.srcOffset = 0;
     region.dstOffset = 0;
     region.size      = (VkDeviceSize)4;
     vkCmdCopyBuffer(p_cmd->vk_cmd_buf, buffer->vk_buffer, p_counter_buffer->vk_buffer, 1, &region);
-    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_storage_buffer_uav);
+    tr_internal_vk_cmd_buffer_transition(p_cmd, p_counter_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_storage_uav);
     tr_end_cmd(p_cmd);
 
     tr_queue_submit(p_queue, 1, &p_cmd, 0, NULL, 0, NULL);
@@ -2728,19 +2726,19 @@ VkBufferUsageFlags tr_util_to_vk_buffer_usage(tr_buffer_usage usage)
     if (tr_buffer_usage_transfer_dst == (usage & tr_buffer_usage_transfer_dst)) {
         result |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     }
-    if (tr_buffer_usage_uniform_buffer_cbv == (usage & tr_buffer_usage_uniform_buffer_cbv)) {
+    if (tr_buffer_usage_uniform_cbv == (usage & tr_buffer_usage_uniform_cbv)) {
         result |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     }
-    if (tr_buffer_usage_storage_buffer_srv == (usage & tr_buffer_usage_storage_buffer_srv)) {
+    if (tr_buffer_usage_storage_srv == (usage & tr_buffer_usage_storage_srv)) {
         result |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     }
-    if (tr_buffer_usage_storage_buffer_uav == (usage & tr_buffer_usage_storage_buffer_uav)) {
+    if (tr_buffer_usage_storage_uav == (usage & tr_buffer_usage_storage_uav)) {
         result |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     }
-    if (tr_buffer_usage_uniform_texel_buffer_srv == (usage & tr_buffer_usage_uniform_texel_buffer_srv)) {
+    if (tr_buffer_usage_uniform_texel_srv == (usage & tr_buffer_usage_uniform_texel_srv)) {
         result |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
     }
-    if (tr_buffer_usage_storage_texel_buffer_uav == (usage & tr_buffer_usage_storage_texel_buffer_uav)) {
+    if (tr_buffer_usage_storage_texel_uav == (usage & tr_buffer_usage_storage_texel_uav)) {
         result |= VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT;
     }
     return result;
@@ -3711,7 +3709,7 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     assert(VK_NULL_HANDLE != p_renderer->vk_device);
 
     // Align the buffer size to multiples of the dynamic uniform buffer minimum size
-    if (p_buffer->usage & tr_buffer_usage_uniform_buffer_cbv) {
+    if (p_buffer->usage & tr_buffer_usage_uniform_cbv) {
         // Make minimum size 256 bytes to match D3D12
         p_buffer->size = tr_round_up(tr_max(p_buffer->size, 256), 
                                      static_cast<uint32_t>(p_renderer->vk_active_gpu_properties.limits.minUniformBufferOffsetAlignment));
@@ -3762,8 +3760,8 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     }
 
     switch (p_buffer->usage) {
-        case tr_buffer_usage_uniform_texel_buffer_srv:
-        case tr_buffer_usage_storage_texel_buffer_uav: {
+        case tr_buffer_usage_uniform_texel_srv:
+        case tr_buffer_usage_storage_texel_uav: {
             TINY_RENDERER_DECLARE_ZERO(VkBufferViewCreateInfo, buffer_view_create_info);
             buffer_view_create_info.sType   = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
             buffer_view_create_info.pNext   = NULL;
@@ -3775,9 +3773,9 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
         }
         break;
 
-        case tr_buffer_usage_uniform_buffer_cbv:
-        case tr_buffer_usage_storage_buffer_srv:
-        case tr_buffer_usage_storage_buffer_uav: {
+        case tr_buffer_usage_uniform_cbv:
+        case tr_buffer_usage_storage_srv:
+        case tr_buffer_usage_storage_uav: {
             p_buffer->vk_buffer_info.buffer = p_buffer->vk_buffer;
             p_buffer->vk_buffer_info.offset = 0;
             p_buffer->vk_buffer_info.range  = VK_WHOLE_SIZE;
@@ -5062,27 +5060,27 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
         }
         break;
 
-        case tr_buffer_usage_uniform_texel_buffer_srv: {
+        case tr_buffer_usage_uniform_texel_srv: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_texel_buffer_uav: {
+        case tr_buffer_usage_storage_texel_uav: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
 
-        case tr_buffer_usage_uniform_buffer_cbv: {
+        case tr_buffer_usage_uniform_cbv: {
             barrier.srcAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_buffer_srv: {
+        case tr_buffer_usage_storage_srv: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_buffer_uav: {
+        case tr_buffer_usage_storage_uav: {
             barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
@@ -5114,27 +5112,27 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
         }
         break;
 
-        case tr_buffer_usage_uniform_texel_buffer_srv: {
+        case tr_buffer_usage_uniform_texel_srv: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_texel_buffer_uav: {
+        case tr_buffer_usage_storage_texel_uav: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
 
-        case tr_buffer_usage_uniform_buffer_cbv: {
+        case tr_buffer_usage_uniform_cbv: {
             barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_buffer_srv: {
+        case tr_buffer_usage_storage_srv: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         }
         break;
 
-        case tr_buffer_usage_storage_buffer_uav: {
+        case tr_buffer_usage_storage_uav: {
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
