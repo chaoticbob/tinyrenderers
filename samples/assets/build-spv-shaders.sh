@@ -34,7 +34,7 @@ function has_file_changed()
     return
   fi
 
-  if ! grep -Fxq "$key" $md5_file 
+  if ! grep -Fxq "$key" $md5_file
   then
     echo "$key" > $md5_file
     echo 1
@@ -45,21 +45,30 @@ function has_file_changed()
   return
 }
 
-function compile_compute() {
+function compile_cs() {
   filepath=$1
-  changed=$(has_file_changed $filepath)
-  if [ $changed -eq 0 ]; then
-    echo "Skipping $filepath no changes detected"
-    return 
-  fi
-
   entry=$2
   filename=$(basename $filepath .hlsl)
+  ouptput_filename=$filename.cs.spv
+
+  build=false
+  if [ ! -f $ouptput_filename ]; then
+    build=true
+  fi
+
+  if [ "$build" = false ]; then
+    changed=$(has_file_changed $filepath $ouptput_filename)
+    if [ $changed -eq 0 ]; then
+      echo "Skipping $filepath no changes detected"
+      return
+    fi
+  fi
+
 
   echo ""
   echo "Compiling $filepath"
 
-  cmd="$glslang -D -V -S comp -e $entry --hlsl-iomap --auto-map-bindings --hlsl-offsets -o $filename.cs.spv $filepath"
+  cmd="$glslang -D -V -S comp -e $entry --hlsl-iomap --auto-map-bindings --hlsl-offsets -o $ouptput_filename $filepath"
   echo $cmd
   $cmd
 
@@ -68,36 +77,59 @@ function compile_compute() {
 
 function compile_vs_ps() {
   filepath=$1
-  changed=$(has_file_changed $filepath)
-  if [ $changed -eq 0 ]; then
-    echo "Skipping $filepath no changes detected"
-    return 
-  fi
-  
   vs_entry=$2
   ps_entry=$3
   filename=$(basename $filepath .hlsl)
+  output_vs_filename=$filename.vs.spv
+  output_ps_filename=$filename.ps.spv
+
+  build_vs=false
+  if [ ! -f $output_vs_filename ]; then
+    build_vs=true
+  fi
+
+  build_ps=false
+  if [ ! -f $output_ps_filename ]; then
+    build_ps=true
+  fi
+
+  changed=$(has_file_changed $filepath)
+  if [ $changed -eq 1 ]; then
+    build_vs=true
+    build_ps=true
+  fi
+
+
+  if [ "$build_vs" = false ] && [ "$build_ps" = false ]; then
+    echo "Skipping $filepath no changes detected"
+    return
+  fi
 
   echo ""
   echo "Compiling $filepath"
 
-  cmd="$glslang -D -V -S vert -e $vs_entry --hlsl-iomap --auto-map-bindings --hlsl-offsets -o $filename.vs.spv $filepath"
-  echo $cmd
-  $cmd
+  if [ "$build_vs" = true ]; then
+    cmd="$glslang -D -V -S vert -e $vs_entry --hlsl-iomap --auto-map-bindings --hlsl-offsets -o $output_vs_filename $filepath"
+    echo $cmd
+    $cmd
+  fi
 
-  cmd="$glslang -D -V -S frag -e $ps_entry --hlsl-iomap --auto-map-bindings --hlsl-offsets -o $filename.ps.spv $filepath"
-  echo $cmd
-  $cmd
+  if [ "$build_ps" = true ]; then
+    cmd="$glslang -D -V -S frag -e $ps_entry --hlsl-iomap --auto-map-bindings --hlsl-offsets -o $output_ps_filename $filepath"
+    echo $cmd
+    $cmd
+  fi
 
   echo ""
 }
 
 echo ""
 
-compile_compute append_consume.hlsl main
-compile_compute byte_address_buffer.hlsl main
-compile_compute simple_compute.hlsl main
-compile_compute structured_buffer.hlsl main
+compile_cs append_consume.hlsl main
+compile_cs byte_address_buffer.hlsl main
+compile_cs simple_compute.hlsl main
+compile_cs structured_buffer.hlsl main
+
 compile_vs_ps color.hlsl VSMain PSMain
 compile_vs_ps constant_buffer.hlsl VSMain PSMain
 compile_vs_ps opaque_args.hlsl VSMain PSMain
