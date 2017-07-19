@@ -5037,8 +5037,8 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
     assert(p_cmd != NULL);
     assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
 
-    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
     VkDependencyFlags dependency_flags = 0;
     TINY_RENDERER_DECLARE_ZERO(VkBufferMemoryBarrier , barrier);
     barrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
