@@ -13,9 +13,6 @@ VSOutput VSMain(float4 Position : POSITION, float3 Color : COLOR)
 	return result;
 }
 
-Texture2D uTex0 : register(t1);
-SamplerState uSampler0 : register(s2);
-
 float4 PSMain(VSOutput input) : SV_TARGET
 {
 	return float4(input.Color, 1);
