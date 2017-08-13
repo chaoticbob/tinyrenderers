@@ -1,0 +1,49 @@
+                          OpCapability Shader
+    %1  =                 OpExtInstImport "GLSL.std.450"
+                          OpMemoryModel Logical GLSL450
+                          OpEntryPoint Fragment %PSMain "PSMain" %in_SV_Position %out_SV_Target
+                          OpExecutionMode %PSMain OriginUpperLeft
+                          OpSource HLSL 500
+
+                          OpName %PSMain "PSMain"
+                          OpName %in_SV_Position "in_SV_Position"
+                          OpName %out_SV_Target "out_SV_Target"
+
+                          OpDecorate %in_SV_Position BuiltIn FragCoord
+                          OpDecorate %out_SV_Target Location 0
+
+  %void                 = OpTypeVoid
+  %void_func            = OpTypeFunction %void
+  %float                = OpTypeFloat 32
+  %v4float              = OpTypeVector %float 4
+  %ptr_function_v4float = OpTypePointer Function %v4float
+  %v4float_func         = OpTypeFunction %v4float %ptr_function_v4float
+  %ptr_input_v4float    = OpTypePointer Input %v4float
+  %ptr_output_v4float   = OpTypePointer Output %v4float
+
+; Constants
+  %constant_float_1     = OpConstant %float 1
+  %constant_float_0     = OpConstant %float 0
+  %constant_v4float     = OpConstantComposite %v4float %constant_float_0 %constant_float_1 %constant_float_0 %constant_float_1
+
+; Input/output variables
+  %in_SV_Position       = OpVariable %ptr_input_v4float Input
+  %out_SV_Target        = OpVariable %ptr_output_v4float Output
+
+; void PSMain(void)
+  %PSMain               = OpFunction %void None %void_func
+  %PSMain_label         = OpLabel
+  %PSMain_var_0         = OpVariable %ptr_function_v4float Function
+  %PSMain_res_0         = OpLoad %v4float %in_SV_Position
+                          OpStore %PSMain_var_0 %PSMain_res_0
+  %PSMain_res_1         = OpFunctionCall %v4float %PSMain_impl %PSMain_var_0
+                          OpStore %out_SV_Target %PSMain_res_1
+                          OpReturn
+                          OpFunctionEnd
+
+; float4 PSMain_impl(ptr_float4)
+  %PSMain_impl          = OpFunction %v4float None %v4float_func
+  %PSMain_impl_param_0  = OpFunctionParameter %ptr_function_v4float
+  %PSMain_impl_label    = OpLabel
+                          OpReturnValue %constant_v4float
+                          OpFunctionEnd
