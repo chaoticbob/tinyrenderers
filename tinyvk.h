@@ -2934,52 +2934,25 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
 
     // Instance
     {
+        // Extensions
         uint32_t extension_count = 0;
         const char* extensions[tr_max_instance_extensions] = { 0 };
-        // Layer extensions
-        for (uint32_t i = 0; i < p_renderer->settings.instance_layers.count; ++i) {
-            const char* layer_name = p_renderer->settings.instance_layers.names[i];
-            uint32_t count = 0;
-            vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL);
-            if (count == 0) {
-              continue;
-            }
-            VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
-            assert(properties != NULL);
-            vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
-            for (uint32_t j = 0; j < count; ++j, ++extension_count) {
-              const char* extension_name = properties[j].extensionName;
-              uint32_t n = extension_count;
-              size_t len = strlen(extension_name);
-              extensions[n] = (const char*)calloc(1, len + 1);
-              memcpy((void*)(extensions[n]), extension_name, len);              
-            }
-            free((void*)properties);
+        // Copy extensions if they're present
+        if (p_renderer->settings.device_extensions.count > 0) {
+          for (; extension_count < p_renderer->settings.instance_extensions.count; ++extension_count) {
+            extensions[extension_count] = p_renderer->settings.instance_extensions.names[extension_count];
+          }
         }
-        // Standalone extensions
-        {
-            const char* layer_name = NULL;
-            uint32_t count = 0;
-            vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL);
-            if (count > 0) {
-              VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
-              assert(properties != NULL);
-              vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
-              for (uint32_t j = 0; j < count; ++j) {
-                const char* extension_name = properties[j].extensionName;
-                if ((strcmp(extension_name, "VK_KHX_external_memory_capabilities") == 0)) {
-                  continue;
-                }
-                uint32_t n = extension_count;
-                size_t len = strlen(extension_name);
-                extensions[n] = (const char*)calloc(1, len + 1);
-                memcpy((void*)(extensions[n]), extension_name, len);
-                ++extension_count;
-              }
-              free((void*)properties);
-            }
+        else {
+          // Use default extensions
+          extensions[extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+#if defined(TINY_RENDERER_LINUX)
+          extensions[extension_count++] = VK_KHR_XCB_SURFACE_EXTENSION_NAME;
+#elif defined(TINY_RENDERER_MSW)
+          extensions[extension_count++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+#endif
         }
-        // Add more extensions here
+
         TINY_RENDERER_DECLARE_ZERO(VkInstanceCreateInfo, create_info);
         create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         create_info.pNext                   = NULL;
@@ -2991,12 +2964,6 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
         create_info.ppEnabledExtensionNames = extensions;
         VkResult vk_res = vkCreateInstance(&create_info, NULL, &(p_renderer->vk_instance));
         assert(VK_SUCCESS == vk_res);
-
-        // Free extension names
-        for (uint32_t i = 0; i < extension_count; ++i) {
-            TINY_RENDERER_SAFE_FREE(extensions[i]);
-        }
-        //TINY_RENDERER_SAFE_FREE(extensions);
     }
 
     // Debug
@@ -3130,47 +3097,24 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
         queue_create_infos[1].pQueuePriorities = queue_priorites;
     }
 
+    // Device extensions
     uint32_t extension_count = 0;
     const char* extensions[tr_max_instance_extensions] = { 0 };
-    // Standalone extensions
-    {
-        const char* layer_name = NULL;
-        uint32_t count = 0;
-        vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, layer_name, &count, NULL);
-        if (count > 0) {
-          VkExtensionProperties* properties = (VkExtensionProperties*)calloc(count, sizeof(*properties));
-          assert(properties != NULL);
-          vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, layer_name, &count, properties);
-          for (uint32_t j = 0; j < count; ++j) {
-            const char* extension_name = properties[j].extensionName;
-            if (strcmp(extension_name, "VK_AMD_negative_viewport_height") == 0) {
-              p_renderer->vk_device_ext_VK_AMD_negative_viewport_height = true;
-            }
-            uint32_t n = extension_count;
-            size_t len = strlen(extension_name);
-            extensions[n] = (const char*)calloc(1, len + 1);
-            memcpy((void*)(extensions[n]), extension_name, len);
-            ++extension_count;
-          }
-          free((void*)properties);
-        }
+    // Copy extensions if they're present
+    if (p_renderer->settings.device_extensions.count > 0) {
+      for (; extension_count < p_renderer->settings.device_extensions.count; ++extension_count) {
+        extensions[extension_count] = p_renderer->settings.device_extensions.names[extension_count];
+      }
     }
-    /*
-    uint32_t extension_count = 0;
-    char** extensions = (char**)calloc(tr_max_instance_extensions, sizeof(*extensions));
-    // Add VK_KHR_surface extension
-    if (extension_count < tr_max_instance_extensions) {
-        ++extension_count;
-        uint32_t n = extension_count - 1;
-        extensions[n] = (char*)calloc(1, strlen(VK_KHR_SWAPCHAIN_EXTENSION_NAME) + 1);
-        memcpy(extensions[n], VK_KHR_SWAPCHAIN_EXTENSION_NAME, strlen(VK_KHR_SWAPCHAIN_EXTENSION_NAME) + 1);
+    else {
+      // Use default extensions
+      extensions[extension_count++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+      extensions[extension_count++] = VK_KHR_MAINTENANCE1_EXTENSION_NAME;
     }
-    */
-    // Add more extensions here
 
     VkPhysicalDeviceFeatures gpu_features = { 0 };
     vkGetPhysicalDeviceFeatures(p_renderer->vk_active_gpu, &gpu_features);
-    //gpu_features.multiViewport = VK_FALSE;
+    gpu_features.multiViewport = false;
         
     TINY_RENDERER_DECLARE_ZERO(VkDeviceCreateInfo, create_info);
     create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -3185,12 +3129,6 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     create_info.pEnabledFeatures        = &gpu_features;
     vk_res = vkCreateDevice(p_renderer->vk_active_gpu, &create_info, NULL, &(p_renderer->vk_device));
     assert(VK_SUCCESS == vk_res);
-
-    // Free extensions names
-    for (uint32_t i = 0; i < extension_count; ++i) {
-        free((void*)extensions[i]);
-    }
-    //free(extensions);
 
     vkGetDeviceQueue(p_renderer->vk_device, p_renderer->graphics_queue->vk_queue_family_index, 0, &(p_renderer->graphics_queue->vk_queue));
     assert(VK_NULL_HANDLE != p_renderer->graphics_queue->vk_queue);
@@ -3396,7 +3334,7 @@ void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer)
 
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
             render_target->color_attachments_multisample[0]->type          = tr_texture_type_2d;
-            render_target->color_attachments_multisample[0]->usage         = tr_texture_usage_color_attachment;
+            render_target->color_attachments_multisample[0]->usage         = (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image);
             render_target->color_attachments_multisample[0]->width         = p_renderer->settings.width;
             render_target->color_attachments_multisample[0]->height        = p_renderer->settings.height;
             render_target->color_attachments_multisample[0]->depth         = 1;
@@ -3411,7 +3349,7 @@ void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer)
 
         if (tr_format_undefined != p_renderer->settings.swapchain.depth_stencil_format) {
             render_target->depth_stencil_attachment->type                = tr_texture_type_2d;
-            render_target->depth_stencil_attachment->usage               = tr_texture_usage_depth_stencil_attachment;
+            render_target->depth_stencil_attachment->usage               = (tr_texture_usage)(tr_texture_usage_depth_stencil_attachment | tr_texture_usage_sampled_image);
             render_target->depth_stencil_attachment->width               = p_renderer->settings.width;
             render_target->depth_stencil_attachment->height              = p_renderer->settings.height;
             render_target->depth_stencil_attachment->depth               = 1;
@@ -4187,9 +4125,9 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         vs.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         vs.pNext                                    = NULL;
         vs.flags                                    = 0;
-        vs.viewportCount                            = 0;
+        vs.viewportCount                            = 1;
         vs.pViewports                               = NULL;
-        vs.scissorCount                             = 0;
+        vs.scissorCount                             = 1;
         vs.pScissors                                = NULL;
 
         VkCullModeFlags cull_mode = VK_CULL_MODE_NONE;
