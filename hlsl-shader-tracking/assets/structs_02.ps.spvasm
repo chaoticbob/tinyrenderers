@@ -1,0 +1,160 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 2
+; Bound: 146
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %4 "psmain" %85 %89 %93
+               OpExecutionMode %4 OriginUpperLeft
+               OpSource HLSL 500
+               OpName %4 "psmain"
+               OpName %11 "Combined"
+               OpMemberName %11 0 "tex"
+               OpMemberName %11 1 "sam"
+               OpName %15 "CreateCombined(t21;p1;"
+               OpName %13 "tex"
+               OpName %14 "sam"
+               OpName %24 "SampleCombined(struct-Combined-t21-p11;vf2;"
+               OpName %21 "s.tex"
+               OpName %22 "s.sam"
+               OpName %23 "uv"
+               OpName %26 "PSInput"
+               OpMemberName %26 0 "Position"
+               OpMemberName %26 1 "TexCoord"
+               OpName %30 "@psmain(struct-PSInput-vf4-vf21;"
+               OpName %29 "input"
+               OpName %32 "s.tex"
+               OpName %34 "s.sam"
+               OpName %37 "s"
+               OpName %42 "value"
+               OpName %52 "flattenTemp"
+               OpName %54 "uTex0"
+               OpName %56 "uSampler0"
+               OpName %57 "param"
+               OpName %59 "param"
+               OpName %62 "s.tex"
+               OpName %67 "s.sam"
+               OpName %71 "output"
+               OpName %72 "param"
+               OpName %74 "param"
+               OpName %76 "param"
+               OpName %85 "input.Position"
+               OpName %89 "input.TexCoord"
+               OpName %93 "@entryPointOutput"
+               OpDecorate %54 DescriptorSet 0
+               OpDecorate %54 Binding 0
+               OpDecorate %56 DescriptorSet 0
+               OpDecorate %56 Binding 1
+               OpDecorate %85 BuiltIn FragCoord
+               OpDecorate %89 Location 0
+               OpDecorate %93 Location 0
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %6 = OpTypeFloat 32
+          %7 = OpTypeImage %6 2D 0 0 0 1 Unknown
+          %8 = OpTypePointer Function %7
+          %9 = OpTypeSampler
+         %10 = OpTypePointer Function %9
+         %11 = OpTypeStruct %7 %9
+         %12 = OpTypeFunction %11 %8 %10
+         %17 = OpTypeVector %6 2
+         %18 = OpTypePointer Function %17
+         %19 = OpTypeVector %6 4
+         %20 = OpTypeFunction %19 %8 %10 %18
+         %26 = OpTypeStruct %19 %17
+         %27 = OpTypePointer Function %26
+         %28 = OpTypeFunction %19 %27
+         %36 = OpTypePointer Function %11
+         %41 = OpTypePointer Function %19
+         %45 = OpTypeSampledImage %7
+         %53 = OpTypePointer UniformConstant %7
+         %54 = OpVariable %53 UniformConstant
+         %55 = OpTypePointer UniformConstant %9
+         %56 = OpVariable %55 UniformConstant
+         %63 = OpTypeInt 32 1
+         %64 = OpConstant %63 0
+         %68 = OpConstant %63 1
+         %84 = OpTypePointer Input %19
+         %85 = OpVariable %84 Input
+         %88 = OpTypePointer Input %17
+         %89 = OpVariable %88 Input
+         %92 = OpTypePointer Output %19
+         %93 = OpVariable %92 Output
+        %145 = OpUndef %11
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+         %90 = OpLoad %17 %89
+        %140 = OpCompositeExtract %7 %145 0
+        %142 = OpCompositeExtract %9 %145 1
+        %131 = OpSampledImage %45 %140 %142
+        %133 = OpImageSampleImplicitLod %19 %131 %90
+               OpStore %93 %133
+               OpReturn
+               OpFunctionEnd
+         %15 = OpFunction %11 None %12
+         %13 = OpFunctionParameter %8
+         %14 = OpFunctionParameter %10
+         %16 = OpLabel
+         %32 = OpVariable %8 Function
+         %34 = OpVariable %10 Function
+         %37 = OpVariable %36 Function
+         %33 = OpLoad %7 %13
+               OpStore %32 %33
+         %35 = OpLoad %9 %14
+               OpStore %34 %35
+         %38 = OpLoad %11 %37
+               OpReturnValue %38
+               OpFunctionEnd
+         %24 = OpFunction %19 None %20
+         %21 = OpFunctionParameter %8
+         %22 = OpFunctionParameter %10
+         %23 = OpFunctionParameter %18
+         %25 = OpLabel
+         %42 = OpVariable %41 Function
+         %43 = OpLoad %7 %21
+         %44 = OpLoad %9 %22
+         %46 = OpSampledImage %45 %43 %44
+         %47 = OpLoad %17 %23
+         %48 = OpImageSampleImplicitLod %19 %46 %47
+               OpStore %42 %48
+         %49 = OpLoad %19 %42
+               OpReturnValue %49
+               OpFunctionEnd
+         %30 = OpFunction %19 None %28
+         %29 = OpFunctionParameter %27
+         %31 = OpLabel
+         %52 = OpVariable %36 Function
+         %57 = OpVariable %8 Function
+         %59 = OpVariable %10 Function
+         %62 = OpVariable %8 Function
+         %67 = OpVariable %10 Function
+         %71 = OpVariable %41 Function
+         %72 = OpVariable %8 Function
+         %74 = OpVariable %10 Function
+         %76 = OpVariable %18 Function
+         %58 = OpLoad %7 %54
+               OpStore %57 %58
+         %60 = OpLoad %9 %56
+               OpStore %59 %60
+         %61 = OpFunctionCall %11 %15 %57 %59
+               OpStore %52 %61
+         %65 = OpAccessChain %8 %52 %64
+         %66 = OpLoad %7 %65
+               OpStore %62 %66
+         %69 = OpAccessChain %10 %52 %68
+         %70 = OpLoad %9 %69
+               OpStore %67 %70
+         %73 = OpLoad %7 %62
+               OpStore %72 %73
+         %75 = OpLoad %9 %67
+               OpStore %74 %75
+         %77 = OpAccessChain %18 %29 %68
+         %78 = OpLoad %17 %77
+               OpStore %76 %78
+         %79 = OpFunctionCall %19 %24 %72 %74 %76
+               OpStore %71 %79
+         %80 = OpLoad %19 %71
+               OpReturnValue %80
+               OpFunctionEnd

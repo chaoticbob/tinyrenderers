@@ -1,0 +1,119 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 2
+; Bound: 96
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %4 "psmain" %62 %66 %70
+               OpExecutionMode %4 OriginUpperLeft
+               OpSource HLSL 500
+               OpName %4 "psmain"
+               OpName %18 "SampleCombined(struct-Combined-t21-p11;vf2;"
+               OpName %15 "s.tex"
+               OpName %16 "s.sam"
+               OpName %17 "uv"
+               OpName %20 "PSInput"
+               OpMemberName %20 0 "Position"
+               OpMemberName %20 1 "TexCoord"
+               OpName %24 "@psmain(struct-PSInput-vf4-vf21;"
+               OpName %23 "input"
+               OpName %27 "value"
+               OpName %37 "s.tex"
+               OpName %39 "uTex0"
+               OpName %41 "s.sam"
+               OpName %43 "uSampler0"
+               OpName %45 "output"
+               OpName %48 "param"
+               OpName %50 "param"
+               OpName %52 "param"
+               OpName %62 "input.Position"
+               OpName %66 "input.TexCoord"
+               OpName %70 "@entryPointOutput"
+               OpDecorate %39 DescriptorSet 0
+               OpDecorate %39 Binding 0
+               OpDecorate %43 DescriptorSet 0
+               OpDecorate %43 Binding 1
+               OpDecorate %62 BuiltIn FragCoord
+               OpDecorate %66 Location 0
+               OpDecorate %70 Location 0
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %6 = OpTypeFloat 32
+          %7 = OpTypeImage %6 2D 0 0 0 1 Unknown
+          %8 = OpTypePointer Function %7
+          %9 = OpTypeSampler
+         %10 = OpTypePointer Function %9
+         %11 = OpTypeVector %6 2
+         %12 = OpTypePointer Function %11
+         %13 = OpTypeVector %6 4
+         %14 = OpTypeFunction %13 %8 %10 %12
+         %20 = OpTypeStruct %13 %11
+         %21 = OpTypePointer Function %20
+         %22 = OpTypeFunction %13 %21
+         %26 = OpTypePointer Function %13
+         %30 = OpTypeSampledImage %7
+         %38 = OpTypePointer UniformConstant %7
+         %39 = OpVariable %38 UniformConstant
+         %42 = OpTypePointer UniformConstant %9
+         %43 = OpVariable %42 UniformConstant
+         %46 = OpTypeInt 32 1
+         %47 = OpConstant %46 1
+         %60 = OpConstant %46 0
+         %61 = OpTypePointer Input %13
+         %62 = OpVariable %61 Input
+         %65 = OpTypePointer Input %11
+         %66 = OpVariable %65 Input
+         %69 = OpTypePointer Output %13
+         %70 = OpVariable %69 Output
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+         %67 = OpLoad %11 %66
+         %81 = OpLoad %7 %39
+         %82 = OpLoad %9 %43
+         %93 = OpSampledImage %30 %81 %82
+         %95 = OpImageSampleImplicitLod %13 %93 %67
+               OpStore %70 %95
+               OpReturn
+               OpFunctionEnd
+         %18 = OpFunction %13 None %14
+         %15 = OpFunctionParameter %8
+         %16 = OpFunctionParameter %10
+         %17 = OpFunctionParameter %12
+         %19 = OpLabel
+         %27 = OpVariable %26 Function
+         %28 = OpLoad %7 %15
+         %29 = OpLoad %9 %16
+         %31 = OpSampledImage %30 %28 %29
+         %32 = OpLoad %11 %17
+         %33 = OpImageSampleImplicitLod %13 %31 %32
+               OpStore %27 %33
+         %34 = OpLoad %13 %27
+               OpReturnValue %34
+               OpFunctionEnd
+         %24 = OpFunction %13 None %22
+         %23 = OpFunctionParameter %21
+         %25 = OpLabel
+         %37 = OpVariable %8 Function
+         %41 = OpVariable %10 Function
+         %45 = OpVariable %26 Function
+         %48 = OpVariable %8 Function
+         %50 = OpVariable %10 Function
+         %52 = OpVariable %12 Function
+         %40 = OpLoad %7 %39
+               OpStore %37 %40
+         %44 = OpLoad %9 %43
+               OpStore %41 %44
+         %49 = OpLoad %7 %37
+               OpStore %48 %49
+         %51 = OpLoad %9 %41
+               OpStore %50 %51
+         %53 = OpAccessChain %12 %23 %47
+         %54 = OpLoad %11 %53
+               OpStore %52 %54
+         %55 = OpFunctionCall %13 %18 %48 %50 %52
+               OpStore %45 %55
+         %56 = OpLoad %13 %45
+               OpReturnValue %56
+               OpFunctionEnd
