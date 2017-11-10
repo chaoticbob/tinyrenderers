@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.0)
 project(samples)
 
 include_directories(${tinyrenders_include_dir})
+include_directories(${CMAKE_SOURCE_DIR}/third_party/stb)
 
 include_directories(${glfw_INCLUDE_DIRS})
 link_libraries(glfw)

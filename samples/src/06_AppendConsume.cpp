@@ -19,8 +19,8 @@
     #include "tinyvk.h"
 #endif
 
-#define LC_IMAGE_IMPLEMENTATION
-#include "lc_image.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 const uint32_t      kImageCount = 3;
 #if defined(__linux__)
@@ -282,7 +282,7 @@ void init_tiny_renderer(GLFWwindow* window)
 
 
     int image_channels = 0;
-    unsigned char* image_data = lc_load_image((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, 4);
+    unsigned char* image_data = stbi_load((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, 4);
     assert(NULL != image_data);
     m_image_row_stride = m_image_width * image_channels;
     uint64_t buffer_size = m_image_row_stride * m_image_height;
@@ -292,7 +292,7 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_src_counter_buffer, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, element_count, m_compute_src_counter_buffer);
-    lc_free_image(image_data);
+    stbi_image_free(image_data);
     // Append buffer
     tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);
     tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, 0, m_compute_dst_counter_buffer);
