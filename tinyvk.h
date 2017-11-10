@@ -2966,6 +2966,17 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
 #endif
         }
 
+        for (uint32_t i = 0; i < p_renderer->settings.instance_layers.count; ++i) {
+          if (extension_count >= tr_max_instance_extensions) {
+            break;
+          }
+
+          int cmp = strcmp(p_renderer->settings.instance_layers.names[i], "VK_LAYER_LUNARG_standard_validation");
+          if (cmp == 0) {
+            extensions[extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
+          }
+        }
+
         TINY_RENDERER_DECLARE_ZERO(VkInstanceCreateInfo, create_info);
         create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         create_info.pNext                   = NULL;
