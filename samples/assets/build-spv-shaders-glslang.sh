@@ -130,6 +130,7 @@ compile_cs byte_address_buffer.hlsl main
 compile_cs simple_compute.hlsl main
 compile_cs structured_buffer.hlsl main
 
+compile_vs_ps simple.hlsl VSMain PSMain
 compile_vs_ps color.hlsl VSMain PSMain
 compile_vs_ps constant_buffer.hlsl VSMain PSMain
 compile_vs_ps opaque_args.hlsl VSMain PSMain
