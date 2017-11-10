@@ -17,3 +17,4 @@ add_subdirectory(third_party/glfw)
 
 set(tinyrenders_include_dir "${CMAKE_SOURCE_DIR}")
 add_subdirectory(samples)
+add_subdirectory(hlsl-shader-tracking)
