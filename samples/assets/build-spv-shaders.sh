@@ -135,6 +135,7 @@ compile_vs_ps constant_buffer.hlsl VSMain PSMain
 compile_vs_ps opaque_args.hlsl VSMain PSMain
 compile_vs_ps passing_arrays.hlsl VSMain PSMain
 compile_vs_ps texture.hlsl VSMain PSMain
+compile_vs_ps textured_cube.hlsl VSMain PSMain
 compile_vs_ps uniformbuffer.hlsl VSMain PSMain
 
 echo ""

@@ -538,8 +538,7 @@ typedef struct tr_pipeline_settings {
     tr_primitive_topo                   primitive_topo;
     tr_cull_mode                        cull_mode;
     tr_front_face                       front_face;
-    bool                                depth_test;
-    bool                                depth_write;
+    bool                                depth;
 } tr_pipeline_settings;
 
 typedef struct tr_pipeline {
@@ -561,6 +560,7 @@ typedef struct tr_render_target {
     tr_texture*                         color_attachments_multisample[tr_max_render_target_attachments];
     tr_format                           depth_stencil_format;
     tr_texture*                         depth_stencil_attachment;
+    tr_texture*                         depth_stencil_attachment_multisample;
     ID3D12DescriptorHeap*               dx_rtv_heap;
     ID3D12DescriptorHeap*               dx_dsv_heap;
 } tr_render_target;
@@ -642,6 +642,7 @@ tr_api_export void tr_cmd_end_render(tr_cmd* p_cmd);
 tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 tr_api_export void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
+tr_api_export void tr_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
@@ -652,6 +653,7 @@ tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void tr_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 tr_api_export void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
@@ -783,6 +785,7 @@ void tr_internal_dx_cmd_end_render(tr_cmd* p_cmd);
 void tr_internal_dx_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 void tr_internal_dx_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
+void tr_cmd_internal_dx_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
 void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
@@ -793,6 +796,7 @@ void tr_internal_dx_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_dx_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_texture, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+void tr_internal_dx_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
@@ -1763,6 +1767,9 @@ void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_rende
         }
     
         // Destroy depth attachment
+        if (NULL != p_render_target->depth_stencil_attachment_multisample) {
+          tr_destroy_texture(p_renderer, p_render_target->depth_stencil_attachment_multisample);
+        }
         if (NULL != p_render_target->depth_stencil_attachment) {
             tr_destroy_texture(p_renderer, p_render_target->depth_stencil_attachment);
         }
@@ -1852,6 +1859,13 @@ void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, con
     tr_cmd_internal_dx_cmd_clear_color_attachment(p_cmd, attachment_index, clear_value);
 }
 
+void tr_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value)
+{
+  assert(NULL != p_cmd);
+
+  tr_cmd_internal_dx_cmd_clear_depth_stencil_attachment(p_cmd, clear_value);
+}
+
 void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
 {
     assert(NULL != p_cmd);
@@ -1923,6 +1937,14 @@ void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_t
     assert(NULL != p_render_target);
 
     tr_internal_dx_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
+}
+
+void tr_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+{
+  assert(NULL != p_cmd);
+  assert(NULL != p_render_target);
+
+  tr_internal_dx_cmd_depth_stencil_transition(p_cmd, p_render_target, old_usage, new_usage);
 }
 
 void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -2784,6 +2806,11 @@ void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer)
         if (tr_format_undefined != p_renderer->settings.swapchain.depth_stencil_format) {
             render_target->depth_stencil_attachment = (tr_texture*)calloc(1, sizeof(*render_target->depth_stencil_attachment));
             assert(NULL != render_target->depth_stencil_attachment);
+
+            if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
+              render_target->depth_stencil_attachment_multisample = (tr_texture*)calloc(1, sizeof(*render_target->depth_stencil_attachment_multisample));
+              assert(NULL != render_target->depth_stencil_attachment_multisample);
+            }
         }
     }
 
@@ -2827,7 +2854,20 @@ void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer)
             render_target->depth_stencil_attachment->mip_levels          = 1;
             render_target->depth_stencil_attachment->clear_value.depth   = p_renderer->settings.swapchain.depth_stencil_clear_value.depth;
             render_target->depth_stencil_attachment->clear_value.stencil = p_renderer->settings.swapchain.depth_stencil_clear_value.stencil;
-            render_target->depth_stencil_attachment->sample_count        = render_target->sample_count;
+            render_target->depth_stencil_attachment->sample_count        = tr_sample_count_1;
+
+            if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
+              render_target->depth_stencil_attachment_multisample->type                = tr_texture_type_2d;
+              render_target->depth_stencil_attachment_multisample->usage               = tr_texture_usage_depth_stencil_attachment;
+              render_target->depth_stencil_attachment_multisample->width               = p_renderer->settings.width;
+              render_target->depth_stencil_attachment_multisample->height              = p_renderer->settings.height;
+              render_target->depth_stencil_attachment_multisample->depth               = 1;
+              render_target->depth_stencil_attachment_multisample->format              = p_renderer->settings.swapchain.depth_stencil_format;
+              render_target->depth_stencil_attachment_multisample->mip_levels          = 1;
+              render_target->depth_stencil_attachment_multisample->clear_value.depth   = p_renderer->settings.swapchain.depth_stencil_clear_value.depth;
+              render_target->depth_stencil_attachment_multisample->clear_value.stencil = p_renderer->settings.swapchain.depth_stencil_clear_value.stencil;
+              render_target->depth_stencil_attachment_multisample->sample_count        = render_target->sample_count;
+            }
         }
     }
 }
@@ -2856,6 +2896,10 @@ void tr_internal_dx_create_swapchain_renderpass(tr_renderer* p_renderer)
 
         if (NULL != render_target->depth_stencil_attachment) {
             tr_internal_dx_create_texture(p_renderer, render_target->depth_stencil_attachment);
+
+            if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
+              tr_internal_dx_create_texture(p_renderer, render_target->depth_stencil_attachment_multisample);
+            }
         }
     }
 
@@ -3255,7 +3299,7 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         }
 
         D3D12_CLEAR_VALUE* p_clear_value = NULL;
-        if ((desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) || (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)) {
+        if ((desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) || (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)) {
             p_clear_value = &clear_value;
         }
 
@@ -3716,7 +3760,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     depth_stencilop_desc.StencilFunc        = D3D12_COMPARISON_FUNC_ALWAYS;
 
     TINY_RENDERER_DECLARE_ZERO(D3D12_DEPTH_STENCIL_DESC, depth_stencil_desc);
-    depth_stencil_desc.DepthEnable          = FALSE;
+    depth_stencil_desc.DepthEnable          = p_pipeline_settings->depth ? TRUE : FALSE;
     depth_stencil_desc.DepthWriteMask       = D3D12_DEPTH_WRITE_MASK_ALL;
     depth_stencil_desc.DepthFunc            = D3D12_COMPARISON_FUNC_LESS;
     depth_stencil_desc.StencilEnable        = FALSE;
@@ -3819,7 +3863,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     pipeline_state_desc.IBStripCutValue                     = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
     pipeline_state_desc.PrimitiveTopologyType               = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pipeline_state_desc.NumRenderTargets                    = render_target_count;
-    pipeline_state_desc.DSVFormat                           = DXGI_FORMAT_UNKNOWN;
+    pipeline_state_desc.DSVFormat                           = tr_util_to_dx_format(p_render_target->depth_stencil_attachment->format);
     pipeline_state_desc.SampleDesc                          = sample_desc;
     pipeline_state_desc.NodeMask                            = 0;
     pipeline_state_desc.CachedPSO                           = cached_pso_desc;
@@ -3928,8 +3972,6 @@ void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_targ
     }
 
     if (tr_format_undefined != p_render_target->depth_stencil_format) {
-        assert(NULL != p_render_target->depth_stencil_attachment);
-        assert(NULL != p_render_target->depth_stencil_attachment->dx_resource);
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_DESCRIPTOR_HEAP_DESC, desc);
         desc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -3942,8 +3984,21 @@ void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_targ
 
         D3D12_CPU_DESCRIPTOR_HANDLE handle = p_render_target->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
         const UINT inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-        p_renderer->dx_device->CreateDepthStencilView(
+
+        if (p_render_target->sample_count > tr_sample_count_1) {
+          assert(NULL != p_render_target->depth_stencil_attachment_multisample);
+          assert(NULL != p_render_target->depth_stencil_attachment_multisample->dx_resource);
+
+          p_renderer->dx_device->CreateDepthStencilView(
+            p_render_target->depth_stencil_attachment_multisample->dx_resource, NULL, handle);
+        }
+        else {
+          assert(NULL != p_render_target->depth_stencil_attachment);
+          assert(NULL != p_render_target->depth_stencil_attachment->dx_resource);
+
+          p_renderer->dx_device->CreateDepthStencilView(
             p_render_target->depth_stencil_attachment->dx_resource, NULL, handle);
+        }
     }
 }
 
@@ -4219,6 +4274,16 @@ void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attac
     p_cmd->dx_cmd_list->ClearRenderTargetView(handle, color_rgba, 0, NULL);
 }
 
+void tr_cmd_internal_dx_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value)
+{
+  assert(NULL != p_cmd->dx_cmd_list);
+  assert(NULL != s_tr_internal->bound_render_target);
+
+  D3D12_CPU_DESCRIPTOR_HANDLE handle = s_tr_internal->bound_render_target->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
+
+  p_cmd->dx_cmd_list->ClearDepthStencilView(handle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, clear_value->depth, (uint8_t)clear_value->stencil, 0, nullptr);
+}
+
 void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
 {
     assert(NULL != p_cmd->dx_cmd_list);
@@ -4419,6 +4484,18 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
             }
         }
     }
+}
+
+void tr_internal_dx_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+{
+  assert(NULL != p_cmd->dx_cmd_list);
+
+  if (p_render_target->sample_count > tr_sample_count_1) {
+    tr_internal_dx_cmd_image_transition(p_cmd, p_render_target->depth_stencil_attachment_multisample, old_usage, new_usage);
+  }
+  else {
+    tr_internal_dx_cmd_image_transition(p_cmd, p_render_target->depth_stencil_attachment, old_usage, new_usage);
+  }
 }
 
 void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)

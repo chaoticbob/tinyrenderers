@@ -15,7 +15,7 @@
  - Samples use GLFW
    - GLFW
      - Works for both Vulkan and D3D12 - renderer takes over after window handle is obtained
-     - Image loading done via [lc_image](https://github.com/libertuscode/libertuscode)'
+     - Image loading done via [stb_image](https://github.com/nothings/stb)
  - Includes basic compute samples
  - Uses CMake 
  - ...more to come soon
@@ -71,11 +71,13 @@ cmake -G "Visual Studio 14 2015 Win64" ..
 Open ```tinyrenderers.sln``` and go
 
 #### Screenshots
+![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-003.png?raw=true)
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-001.png?raw=true)
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-002.png?raw=true)
 
 
 ### Change Log
+[2017/11/10] - Added TexturedCube sample. Updated depth attachment handling on swapchain render pass. Switched out lc_image for stb_image. 
 [2017/05/27] - Fixed some annoying buffer state transitions. Added build script for shaders. Updated shader naming convention to be more exact. Added OpaqueArgs and PassingArrays for investigation.<br>
 [2017/05/20] - Updated Append/Consume sample for Vulkan. Requires latest glslang. ConstantBuffer also works for both platforms.<br>
 [2017/05/13] - Added Linux support. Moved to project files to cmake. Moved glsl shaders to glsl sub directory - forcing HLSL for now.<br>
