@@ -259,9 +259,10 @@ void init_tiny_renderer(GLFWwindow* window)
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
     int image_channels = 0;
-    unsigned char* image_data = stbi_load((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, 4);
+    int required_channels = 4;
+    unsigned char* image_data = stbi_load((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, required_channels);
     assert(NULL != image_data);
-    m_image_row_stride = m_image_width * image_channels;
+    m_image_row_stride = m_image_width * required_channels;
     uint64_t buffer_size = m_image_row_stride * m_image_height;
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = 0;

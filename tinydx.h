@@ -183,6 +183,7 @@ typedef enum tr_buffer_usage {
     tr_buffer_usage_storage_uav                 = 0x00000080,
     tr_buffer_usage_uniform_texel_srv           = 0x00000100,
     tr_buffer_usage_storage_texel_uav           = 0x00000200,
+    tr_buffer_usage_counter_uav                 = 0x00000400,
 } tr_buffer_usage;
 
 typedef enum tr_texture_type {
@@ -1389,7 +1390,7 @@ void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint
       assert(NULL != p_counter_buffer);
 
       p_counter_buffer->renderer        = p_renderer;
-      p_counter_buffer->usage           = tr_buffer_usage_storage_uav;
+      p_counter_buffer->usage           = tr_buffer_usage_counter_uav;
       p_counter_buffer->size            = 4;
       p_counter_buffer->host_visible    = false;
       p_counter_buffer->format          = tr_format_undefined;
@@ -2456,7 +2457,7 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
 
     uint8_t* p_expanded_src_data = NULL;
     const uint32_t dst_channel_count = tr_util_format_channel_count(p_texture->format);
-    assert(src_channel_count < dst_channel_count);
+    assert(src_channel_count <= dst_channel_count);
 
     if (src_channel_count < dst_channel_count) {
         uint32_t expanded_row_stride = src_width * dst_channel_count;
@@ -2761,6 +2762,18 @@ void tr_internal_dx_create_swapchain(tr_renderer* p_renderer)
     desc.SwapEffect         = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     desc.AlphaMode          = DXGI_ALPHA_MODE_UNSPECIFIED;
     desc.Flags              = 0;
+
+    if ((desc.SwapEffect == DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL) || (desc.SwapEffect == DXGI_SWAP_EFFECT_FLIP_DISCARD))  {
+      if (desc.BufferCount < 2) {
+        desc.BufferCount = 2;
+      }      
+    }
+
+    if (desc.BufferCount > DXGI_MAX_SWAP_CHAIN_BUFFERS) {
+      desc.BufferCount = DXGI_MAX_SWAP_CHAIN_BUFFERS;
+    }
+
+    p_renderer->settings.swapchain.image_count = desc.BufferCount;
 
     IDXGISwapChain1* swapchain;
     HRESULT hres = p_renderer->dx_factory->CreateSwapChainForHwnd(
@@ -3098,7 +3111,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
     desc.SampleDesc.Quality         = 0;
     desc.Layout                     = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
     desc.Flags                      = D3D12_RESOURCE_FLAG_NONE;
-    if (p_buffer->usage & tr_buffer_usage_storage_uav) {
+    if ((p_buffer->usage & tr_buffer_usage_storage_uav) || (p_buffer->usage & tr_buffer_usage_counter_uav)) {
         desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     }
 
@@ -3127,6 +3140,11 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
         case tr_buffer_usage_storage_uav: {
             res_states = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        }
+        break;
+
+        case tr_buffer_usage_counter_uav: {
+            res_states = D3D12_RESOURCE_STATE_COMMON;
         }
         break;
     }
@@ -3222,6 +3240,18 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
             desc->Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
             desc->Buffer.CounterOffsetInBytes  = 0;
             desc->Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_NONE;
+        }
+        break;
+
+        case tr_buffer_usage_counter_uav: {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC* desc = &(p_buffer->dx_uav_view_desc);
+            desc->Format                       = DXGI_FORMAT_R32_TYPELESS;
+            desc->ViewDimension                = D3D12_UAV_DIMENSION_BUFFER;
+            desc->Buffer.FirstElement          = p_buffer->first_element;
+            desc->Buffer.NumElements           = (UINT)(p_buffer->element_count);
+            desc->Buffer.StructureByteStride   = (UINT)(p_buffer->struct_stride);
+            desc->Buffer.CounterOffsetInBytes  = 0;
+            desc->Buffer.Flags                 = D3D12_BUFFER_UAV_FLAG_RAW;
         }
         break;
     }
@@ -3725,7 +3755,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     stream_output_desc.RasterizedStream     = 0;
 
     TINY_RENDERER_DECLARE_ZERO(D3D12_BLEND_DESC, blend_desc);
-    blend_desc.AlphaToCoverageEnable            = FALSE;
+    blend_desc.AlphaToCoverageEnable        = FALSE;
     blend_desc.IndependentBlendEnable       = FALSE;
     for( UINT attrib_index = 0; attrib_index < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++attrib_index ) { 
         blend_desc.RenderTarget[attrib_index].BlendEnable           = FALSE;
@@ -3863,7 +3893,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     pipeline_state_desc.IBStripCutValue                     = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
     pipeline_state_desc.PrimitiveTopologyType               = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     pipeline_state_desc.NumRenderTargets                    = render_target_count;
-    pipeline_state_desc.DSVFormat                           = tr_util_to_dx_format(p_render_target->depth_stencil_attachment->format);
+    pipeline_state_desc.DSVFormat                           = (p_render_target->depth_stencil_attachment != NULL) ? tr_util_to_dx_format(p_render_target->depth_stencil_attachment->format) : DXGI_FORMAT_UNKNOWN;
     pipeline_state_desc.SampleDesc                          = sample_desc;
     pipeline_state_desc.NodeMask                            = 0;
     pipeline_state_desc.CachedPSO                           = cached_pso_desc;

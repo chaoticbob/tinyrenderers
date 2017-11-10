@@ -1672,6 +1672,24 @@ void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, con
       strncpy((char*)p_shader_program->vert_entry_point, vert_enpt, strlen(vert_enpt));
     }
 
+    if ((tesc_enpt != NULL) && (strlen(tesc_enpt) > 0)) {
+      p_shader_program->tesc_entry_point = (const char*)calloc(strlen(tesc_enpt) + 1, sizeof(char));
+      assert(p_shader_program->tesc_entry_point != NULL);
+      strncpy((char*)p_shader_program->tesc_entry_point, tesc_enpt, strlen(tesc_enpt));
+    }
+
+    if ((tese_enpt != NULL) && (strlen(tese_enpt) > 0)) {
+      p_shader_program->tese_entry_point = (const char*)calloc(strlen(tese_enpt) + 1, sizeof(char));
+      assert(p_shader_program->tese_entry_point != NULL);
+      strncpy((char*)p_shader_program->tese_entry_point, tese_enpt, strlen(tese_enpt));
+    }
+
+    if ((geom_enpt != NULL) && (strlen(geom_enpt) > 0)) {
+      p_shader_program->geom_entry_point = (const char*)calloc(strlen(geom_enpt) + 1, sizeof(char));
+      assert(p_shader_program->geom_entry_point != NULL);
+      strncpy((char*)p_shader_program->geom_entry_point, geom_enpt, strlen(geom_enpt));
+    }
+
     if ((frag_enpt != NULL) && (strlen(frag_enpt) > 0)) {
       p_shader_program->frag_entry_point = (const char*)calloc(strlen(frag_enpt) + 1, sizeof(char));
       assert(p_shader_program->frag_entry_point != NULL);
@@ -3138,7 +3156,8 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
 
     VkPhysicalDeviceFeatures gpu_features = { 0 };
     vkGetPhysicalDeviceFeatures(p_renderer->vk_active_gpu, &gpu_features);
-    gpu_features.multiViewport = false;
+    gpu_features.multiViewport  = VK_FALSE;
+    gpu_features.geometryShader = VK_TRUE;
         
     TINY_RENDERER_DECLARE_ZERO(VkDeviceCreateInfo, create_info);
     create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -3177,6 +3196,10 @@ void tr_internal_vk_create_swapchain(tr_renderer* p_renderer)
         TINY_RENDERER_DECLARE_ZERO(VkSurfaceCapabilitiesKHR, caps);
         VkResult vk_res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(p_renderer->vk_active_gpu, p_renderer->vk_surface, &caps);
         assert(VK_SUCCESS == vk_res);
+
+        if (p_renderer->settings.swapchain.image_count < caps.minImageCount) {
+          p_renderer->settings.swapchain.image_count = caps.minImageCount;
+        }
 
         if ((caps.maxImageCount > 0) && (p_renderer->settings.swapchain.image_count > caps.maxImageCount)) {
             p_renderer->settings.swapchain.image_count = caps.maxImageCount;
@@ -3558,7 +3581,7 @@ void tr_internal_vk_create_descriptor_set(tr_renderer* p_renderer, tr_descriptor
             case tr_descriptor_type_uniform_texel_buffer_srv : type_index = VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER; break;
             case tr_descriptor_type_storage_texel_buffer_uav : type_index = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER; break;
             case tr_descriptor_type_texture_srv              : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
-            case tr_descriptor_type_texture_uav              : type_index = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
+            case tr_descriptor_type_texture_uav              : type_index = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; break;
         }
         if (UINT32_MAX != type_index) {
             binding->binding            = descriptor->binding;
@@ -4361,18 +4384,21 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, bool is_swapchai
 
     VkAttachmentDescription* attachments = NULL;
     VkAttachmentReference* color_attachment_refs = NULL;
-    VkAttachmentReference* resolve_attachment_refs = NULL;
     VkAttachmentReference* depth_stencil_attachment_ref = NULL;
+    // Resolve is for color attachments only, there's no mapping in 
+    // the subpass description for a depth stencil resolve.
+    VkAttachmentReference* resolve_attachment_refs = NULL;
 
     // Fill out attachment descriptions and references
     if (p_render_target->sample_count > tr_sample_count_1) {
-        attachments = (VkAttachmentDescription*)calloc((2 * color_attachment_count) + depth_stencil_attachment_count, sizeof(*attachments));
+        uint32_t attachment_description_count = (2 * color_attachment_count) + depth_stencil_attachment_count;
+        attachments = (VkAttachmentDescription*)calloc(attachment_description_count, sizeof(*attachments));
         assert(NULL != attachments);
 
         if (color_attachment_count > 0) {
             color_attachment_refs = (VkAttachmentReference*)calloc(color_attachment_count, sizeof(*color_attachment_refs));
             assert(NULL != color_attachment_refs);
-            
+
             resolve_attachment_refs = (VkAttachmentReference*)calloc(color_attachment_count, sizeof(*resolve_attachment_refs));
             assert(NULL != resolve_attachment_refs);
         }
@@ -4417,6 +4443,8 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, bool is_swapchai
         // Depth stencil
         if (depth_stencil_attachment_count > 0) {
             uint32_t idx = (2 * color_attachment_count);
+
+            /// Descriptions
             attachments[idx].flags          = 0;
             attachments[idx].format         = tr_util_to_vk_format(p_render_target->depth_stencil_format);
             attachments[idx].samples        = tr_util_to_vk_sample_count(p_render_target->sample_count);
@@ -4426,12 +4454,15 @@ void tr_internal_vk_create_render_pass(tr_renderer* p_renderer, bool is_swapchai
             attachments[idx].stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
             attachments[idx].initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachments[idx].finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+            // References
             depth_stencil_attachment_ref[0].attachment = idx;
             depth_stencil_attachment_ref[0].layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
     }
     else {
-        attachments = (VkAttachmentDescription*)calloc(color_attachment_count + depth_stencil_attachment_count, sizeof(*attachments));
+        uint32_t attachment_description_count = color_attachment_count + depth_stencil_attachment_count;
+        attachments = (VkAttachmentDescription*)calloc(attachment_description_count, sizeof(*attachments));
         assert(NULL != attachments);
         
         if (color_attachment_count > 0) {
@@ -4542,21 +4573,35 @@ void tr_internal_vk_create_framebuffer(tr_renderer* p_renderer, tr_render_target
     assert(NULL != attachments);
 
     VkImageView* iter_attachments = attachments;
-    // Color
-    for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
-        *iter_attachments = p_render_target->color_attachments[i]->vk_image_view;
-        ++iter_attachments;
-        if (p_render_target->sample_count > tr_sample_count_1) {
+    if (p_render_target->sample_count > tr_sample_count_1) {
+        for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
+            // single sample
+            *iter_attachments = p_render_target->color_attachments[i]->vk_image_view;
+            ++iter_attachments;
+            // multi sample
             *iter_attachments = p_render_target->color_attachments_multisample[i]->vk_image_view;
             ++iter_attachments;
         }
     }
-    // Depth/stencil
-    if (tr_format_undefined != p_render_target->depth_stencil_format) {
-        *iter_attachments = p_render_target->depth_stencil_attachment->vk_image_view;
-        ++iter_attachments;
+    else {
+        for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
+            *iter_attachments = p_render_target->color_attachments[i]->vk_image_view;
+            ++iter_attachments;
+        }
     }
 
+    // Depth/stencil
+    if (tr_format_undefined != p_render_target->depth_stencil_format) {
+        if (p_render_target->sample_count > tr_sample_count_1) {
+            *iter_attachments = p_render_target->depth_stencil_attachment_multisample->vk_image_view;
+            ++iter_attachments;
+        }
+        else {
+            *iter_attachments = p_render_target->depth_stencil_attachment->vk_image_view;
+            ++iter_attachments;
+        }
+    }
+    
     TINY_RENDERER_DECLARE_ZERO(VkFramebufferCreateInfo, create_info);
     create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     create_info.pNext           = NULL;

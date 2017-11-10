@@ -19,10 +19,11 @@ function has_file_changed()
 {
   filepath=$1
   filename=$(basename $filepath)
+  stage=$2
 
-  dirpath=$script_dir/build_files
+  dirpath=$script_dir/tmp_build_files
   mkdir -p $dirpath
-  md5_file=$dirpath/$filename.md5
+  md5_file=$dirpath/$filename.$stage.md5
 
   hash_value=$(md5sum $filepath)
   modified=$(stat -c %y $filepath)
@@ -45,19 +46,19 @@ function has_file_changed()
   return
 }
 
-function compile_cs() {
+function compile_gs() {
   filepath=$1
   entry=$2
   filename=$(basename $filepath .hlsl)
-  ouptput_filename=$filename.cs.spv
+  output_filename=$filename.gs.spv
 
   build=false
-  if [ ! -f $ouptput_filename ]; then
+  if [ ! -f $output_filename ]; then
     build=true
   fi
 
   if [ "$build" = false ]; then
-    changed=$(has_file_changed $filepath $ouptput_filename)
+    changed=$(has_file_changed $filepath gs)
     if [ $changed -eq 0 ]; then
       echo "Skipping $filepath no changes detected"
       return
@@ -68,7 +69,37 @@ function compile_cs() {
   echo ""
   echo "Compiling $filepath"
 
-  cmd="$dxc_exe -spirv -T cs_6_0 -E $entry -Fo $ouptput_filename $filepath"
+  cmd="$dxc_exe -spirv -T gs_6_0 -E $entry -Fo $output_filename $filepath"
+  echo $cmd
+  $cmd
+
+  echo ""
+}
+
+function compile_cs() {
+  filepath=$1
+  entry=$2
+  filename=$(basename $filepath .hlsl)
+  output_filename=$filename.cs.spv
+
+  build=false
+  if [ ! -f $output_filename ]; then
+    build=true
+  fi
+
+  if [ "$build" = false ]; then
+    changed=$(has_file_changed $filepath cs)
+    if [ $changed -eq 0 ]; then
+      echo "Skipping $filepath no changes detected"
+      return
+    fi
+  fi
+
+
+  echo ""
+  echo "Compiling $filepath"
+
+  cmd="$dxc_exe -spirv -T cs_6_0 -E $entry -Fo $output_filename $filepath"
   echo $cmd
   $cmd
 
@@ -93,7 +124,7 @@ function compile_vs_ps() {
     build_ps=true
   fi
 
-  changed=$(has_file_changed $filepath)
+  changed=$(has_file_changed $filepath vs_ps)
   if [ $changed -eq 1 ]; then
     build_vs=true
     build_ps=true
@@ -138,5 +169,8 @@ compile_vs_ps passing_arrays.hlsl VSMain PSMain
 compile_vs_ps texture.hlsl VSMain PSMain
 compile_vs_ps textured_cube.hlsl VSMain PSMain
 compile_vs_ps uniformbuffer.hlsl VSMain PSMain
+compile_vs_ps triangle_wireframe.hlsl VSMain PSMain
+
+compile_gs triangle_wireframe.hlsl GSMain
 
 echo ""
