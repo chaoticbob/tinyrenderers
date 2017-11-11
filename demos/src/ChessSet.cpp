@@ -42,9 +42,9 @@ using float4x3 = glm::mat4x3;
 const char*         k_app_name = "ChessSet";
 const uint32_t      k_image_count = 1;
 #if defined(__linux__)
-const std::string   k_asset_dir = "../show-and-tell/assets/";
+const std::string   k_asset_dir = "../demos/assets/";
 #elif defined(_WIN32)
-const std::string   k_asset_dir = "../../show-and-tell/assets/";
+const std::string   k_asset_dir = "../../demos/assets/";
 #endif
 
 tr_renderer*        m_renderer = nullptr;

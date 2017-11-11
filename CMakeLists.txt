@@ -19,4 +19,4 @@ add_subdirectory(third_party/tinyobjloader)
 
 set(tinyrenders_include_dir "${CMAKE_SOURCE_DIR}")
 add_subdirectory(samples)
-add_subdirectory(show-and-tell)
+add_subdirectory(demos)
