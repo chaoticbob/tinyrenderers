@@ -15,6 +15,8 @@ set(GLFW_BUILD_DOCS     FALSE CACHE BOOL "" FORCE)
 set(GLFW_VULKAN_STATIC  FALSE CACHE BOOL "" FORCE)
 add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/glm)
+add_subdirectory(third_party/tinyobjloader)
 
 set(tinyrenders_include_dir "${CMAKE_SOURCE_DIR}")
 add_subdirectory(samples)
+add_subdirectory(show-and-tell)
