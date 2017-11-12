@@ -78,6 +78,7 @@ Open ```tinyrenderers.sln``` and go
 
 
 ### Change Log
+[2017/11/12] - Added simple tessellation shader sample. Fixed misc issues with pipeline setup for tessellation.
 [2017/11/10] - Added ChessSet demo. Added geometry shader sample. Fixes to depth stencil handling.
 [2017/11/10] - Added TexturedCube sample. Updated depth attachment handling on swapchain render pass. Switched out lc_image for stb_image. Added DXC shader build script.
 [2017/05/27] - Fixed some annoying buffer state transitions. Added build script for shaders. Updated shader naming convention to be more exact. Added OpaqueArgs and PassingArrays for investigation.<br>
