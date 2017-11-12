@@ -71,12 +71,15 @@ cmake -G "Visual Studio 14 2015 Win64" ..
 Open ```tinyrenderers.sln``` and go
 
 #### Screenshots
+![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-004.png?raw=true)
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-003.png?raw=true)
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-001.png?raw=true)
 ![](https://github.com/chaoticbob/tinyrenderers/blob/master/screenshots/tr-002.png?raw=true)
 
 
 ### Change Log
+[2017/11/12] - Added simple tessellation shader sample. Fixed misc issues with pipeline setup for tessellation.
+[2017/11/10] - Added ChessSet demo. Added geometry shader sample. Fixes to depth stencil handling.
 [2017/11/10] - Added TexturedCube sample. Updated depth attachment handling on swapchain render pass. Switched out lc_image for stb_image. Added DXC shader build script.
 [2017/05/27] - Fixed some annoying buffer state transitions. Added build script for shaders. Updated shader naming convention to be more exact. Added OpaqueArgs and PassingArrays for investigation.<br>
 [2017/05/20] - Updated Append/Consume sample for Vulkan. Requires latest glslang. ConstantBuffer also works for both platforms.<br>

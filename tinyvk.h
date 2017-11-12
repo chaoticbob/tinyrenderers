@@ -281,6 +281,10 @@ typedef enum tr_primitive_topo {
     tr_primitive_topo_tri_list,
     tr_primitive_topo_tri_strip,
     tr_primitive_topo_tri_fan,
+    tr_primitive_topo_1_point_patch,
+    tr_primitive_topo_2_point_patch,
+    tr_primitive_topo_3_point_patch,
+    tr_primitive_topo_4_point_patch,
 } tr_primitive_topo;
 
 typedef enum tr_index_type {
@@ -643,6 +647,7 @@ tr_api_export void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render
 tr_api_export void tr_cmd_end_render(tr_cmd* p_cmd);
 tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+tr_api_export void tr_cmd_set_line_width(tr_cmd* p_cmd, float line_width);
 tr_api_export void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
@@ -785,6 +790,7 @@ void tr_internal_vk_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_t
 void tr_internal_vk_cmd_end_render(tr_cmd* p_cmd);
 void tr_internal_vk_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 void tr_internal_vk_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+void tr_internal_vk_cmd_set_line_width(tr_cmd* p_cmd, float line_width);
 void tr_cmd_internal_vk_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 void tr_cmd_internal_vk_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
 void tr_internal_vk_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
@@ -1937,6 +1943,13 @@ void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, u
     assert(NULL != p_cmd);
 
     tr_internal_vk_cmd_set_scissor(p_cmd, x, y, width, height);
+}
+
+void tr_cmd_set_line_width(tr_cmd* p_cmd, float line_width)
+{
+    assert(NULL != p_cmd);
+
+    tr_internal_vk_cmd_set_line_width(p_cmd,  line_width);
 }
 
 void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value)
@@ -4171,11 +4184,15 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
                                                 
         VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         switch(p_pipeline_settings->primitive_topo) {
-            case tr_primitive_topo_point_list : topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST; break;
-            case tr_primitive_topo_line_list  : topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
-            case tr_primitive_topo_line_strip : topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP; break;
-            case tr_primitive_topo_tri_strip  : topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP; break;
-            case tr_primitive_topo_tri_fan    : topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN; break;
+            case tr_primitive_topo_point_list     : topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST; break;
+            case tr_primitive_topo_line_list      : topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST; break;
+            case tr_primitive_topo_line_strip     : topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP; break;
+            case tr_primitive_topo_tri_strip      : topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP; break;
+            case tr_primitive_topo_tri_fan        : topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN; break;
+            case tr_primitive_topo_1_point_patch  : topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; break;
+            case tr_primitive_topo_2_point_patch  : topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; break;
+            case tr_primitive_topo_3_point_patch  : topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; break;
+            case tr_primitive_topo_4_point_patch  : topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST; break;
         }
         TINY_RENDERER_DECLARE_ZERO(VkPipelineInputAssemblyStateCreateInfo, ia);
         ia.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -4188,7 +4205,13 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         ts.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
         ts.pNext                                    = NULL;
         ts.flags                                    = 0;
-        ts.patchControlPoints                       = 1;
+        ts.patchControlPoints                       = 0;
+        switch (p_pipeline_settings->primitive_topo) {
+          case tr_primitive_topo_1_point_patch: ts.patchControlPoints = 1; break;
+          case tr_primitive_topo_2_point_patch: ts.patchControlPoints = 2; break;
+          case tr_primitive_topo_3_point_patch: ts.patchControlPoints = 3; break;
+          case tr_primitive_topo_4_point_patch: ts.patchControlPoints = 4; break;
+        }
 
         TINY_RENDERER_DECLARE_ZERO(VkPipelineViewportStateCreateInfo, vs);
         vs.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -4952,6 +4975,14 @@ void tr_internal_vk_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint3
     rect.extent.height = height;
     vkCmdSetScissor(p_cmd->vk_cmd_buf, 0, 1, &rect);
 }
+
+void tr_internal_vk_cmd_set_line_width(tr_cmd* p_cmd, float line_width)
+{
+    assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
+
+    vkCmdSetLineWidth(p_cmd->vk_cmd_buf, line_width);
+}
+
 
 void tr_cmd_internal_vk_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value)
 {

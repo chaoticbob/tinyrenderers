@@ -106,6 +106,54 @@ function compile_cs() {
   echo ""
 }
 
+function compile_hs_ds() {
+  filepath=$1
+  vs_entry=$2
+  ps_entry=$3
+  filename=$(basename $filepath .hlsl)
+  output_hs_filename=$filename.hs.spv
+  output_ds_filename=$filename.ds.spv
+
+  build_hs=false
+  if [ ! -f $output_hs_filename ]; then
+    build_hs=true
+  fi
+
+  build_ds=false
+  if [ ! -f $output_ds_filename ]; then
+    build_ds=true
+  fi
+
+  changed=$(has_file_changed $filepath vs_ds)
+  if [ $changed -eq 1 ]; then
+    build_hs=true
+    build_ds=true
+  fi
+
+
+  if [ "$build_hs" = false ] && [ "$build_ds" = false ]; then
+    echo "Skipping $filepath no changes detected"
+    return
+  fi
+
+  echo ""
+  echo "Compiling $filepath"
+
+  if [ "$build_hs" = true ]; then
+    cmd="$dxc_exe -spirv -T hs_6_0 -E $vs_entry -Fo $output_hs_filename $filepath"
+    echo $cmd
+    $cmd
+  fi
+
+  if [ "$build_ds" = true ]; then
+    cmd="$dxc_exe -spirv -T ds_6_0 -E $ps_entry -Fo $output_ds_filename $filepath"
+    echo $cmd
+    $cmd
+  fi
+
+  echo ""
+}
+
 function compile_vs_ps() {
   filepath=$1
   vs_entry=$2
@@ -169,8 +217,12 @@ compile_vs_ps passing_arrays.hlsl VSMain PSMain
 compile_vs_ps texture.hlsl VSMain PSMain
 compile_vs_ps textured_cube.hlsl VSMain PSMain
 compile_vs_ps uniformbuffer.hlsl VSMain PSMain
-compile_vs_ps triangle_wireframe.hlsl VSMain PSMain
 
+compile_vs_ps triangle_wireframe.hlsl VSMain PSMain
 compile_gs triangle_wireframe.hlsl GSMain
+
+compile_vs_ps simple_tess_color.hlsl VSMain PSMain
+compile_vs_ps simple_tess_isoline.hlsl VSMain PSMain
+compile_hs_ds simple_tess_isoline.hlsl HSMain DSMain
 
 echo ""

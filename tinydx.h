@@ -285,6 +285,10 @@ typedef enum tr_primitive_topo {
     tr_primitive_topo_tri_list,
     tr_primitive_topo_tri_strip,
     tr_primitive_topo_tri_fan,
+    tr_primitive_topo_1_point_patch,
+    tr_primitive_topo_2_point_patch,
+    tr_primitive_topo_3_point_patch,
+    tr_primitive_topo_4_point_patch,
 } tr_primitive_topo;
 
 typedef enum tr_index_type {
@@ -642,6 +646,7 @@ tr_api_export void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render
 tr_api_export void tr_cmd_end_render(tr_cmd* p_cmd);
 tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+tr_api_export void tr_cmd_set_line_width(tr_cmd* p_cmd, float line_width);
 tr_api_export void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
 tr_api_export void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
@@ -1852,6 +1857,10 @@ void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, u
     tr_internal_dx_cmd_set_scissor(p_cmd, x, y, width, height);
 }
 
+void tr_cmd_set_line_width(tr_cmd* p_cmd, float line_width)
+{
+    // Purposely does nothing
+}
 
 void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value)
 {
@@ -3877,6 +3886,21 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     cached_pso_desc.pCachedBlob                             = NULL;
     cached_pso_desc.CachedBlobSizeInBytes                   = 0;
 
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
+    switch(p_pipeline->settings.primitive_topo) {
+        case tr_primitive_topo_point_list     : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT; break;
+        case tr_primitive_topo_line_list      : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE; break;
+        case tr_primitive_topo_line_strip     : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE; break;
+        case tr_primitive_topo_tri_list       : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; break;
+        case tr_primitive_topo_tri_strip      : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; break;
+        case tr_primitive_topo_1_point_patch  : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH; break;
+        case tr_primitive_topo_2_point_patch  : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH; break;
+        case tr_primitive_topo_3_point_patch  : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH; break;
+        case tr_primitive_topo_4_point_patch  : topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH; break;
+        default: break;
+    }
+    assert(topology != D3D_PRIMITIVE_TOPOLOGY_UNDEFINED);
+
     TINY_RENDERER_DECLARE_ZERO(D3D12_GRAPHICS_PIPELINE_STATE_DESC, pipeline_state_desc);
     pipeline_state_desc.pRootSignature                      = p_pipeline->dx_root_signature;
     pipeline_state_desc.VS                                  = VS;
@@ -3891,7 +3915,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     pipeline_state_desc.DepthStencilState                   = depth_stencil_desc;
     pipeline_state_desc.InputLayout                         = input_layout_desc;
     pipeline_state_desc.IBStripCutValue                     = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
-    pipeline_state_desc.PrimitiveTopologyType               = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    pipeline_state_desc.PrimitiveTopologyType               = topology;
     pipeline_state_desc.NumRenderTargets                    = render_target_count;
     pipeline_state_desc.DSVFormat                           = (p_render_target->depth_stencil_attachment != NULL) ? tr_util_to_dx_format(p_render_target->depth_stencil_attachment->format) : DXGI_FORMAT_UNKNOWN;
     pipeline_state_desc.SampleDesc                          = sample_desc;
@@ -4325,11 +4349,15 @@ void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
     if (p_pipeline->type == tr_pipeline_type_graphics) {
       D3D_PRIMITIVE_TOPOLOGY topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
       switch(p_pipeline->settings.primitive_topo) {
-          case tr_primitive_topo_point_list : topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST; break;
-          case tr_primitive_topo_line_list  : topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST; break;
-          case tr_primitive_topo_line_strip : topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP; break;
-          case tr_primitive_topo_tri_list   : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST; break;
-          case tr_primitive_topo_tri_strip  : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP; break;
+          case tr_primitive_topo_point_list     : topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST; break;
+          case tr_primitive_topo_line_list      : topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST; break;
+          case tr_primitive_topo_line_strip     : topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP; break;
+          case tr_primitive_topo_tri_list       : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST; break;
+          case tr_primitive_topo_tri_strip      : topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP; break;
+          case tr_primitive_topo_1_point_patch  : topology = D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST; break;
+          case tr_primitive_topo_2_point_patch  : topology = D3D_PRIMITIVE_TOPOLOGY_2_CONTROL_POINT_PATCHLIST; break;
+          case tr_primitive_topo_3_point_patch  : topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST; break;
+          case tr_primitive_topo_4_point_patch  : topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST; break;
           default: break;
       }
       assert(D3D_PRIMITIVE_TOPOLOGY_UNDEFINED != topology);
