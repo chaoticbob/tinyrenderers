@@ -31,8 +31,8 @@ function process_spv()
   --eliminate-dead-code-aggressive \
   --eliminate-common-uniform \
   -o $build_dir/$spv_file.tmp_1 $spv_file
-  
-  spirv-opt -Os -o $spv_file $build_dir/$spv_file.tmp_1 
+
+  spirv-opt -Os -o $spv_file $build_dir/$spv_file.tmp_1
 }
 
 # @fn disassemble_spv
@@ -52,5 +52,15 @@ dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
 
 # structs_02
 file=structs_02
+dxc -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
+dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+
+# structs_03
+file=structs_03
+dxc -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
+dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+
+# structs_04
+file=structs_04
 dxc -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
 dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl

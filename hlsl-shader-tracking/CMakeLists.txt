@@ -18,7 +18,7 @@ function(add_vk sample_name)
                                   ${CMAKE_CURRENT_SOURCE_DIR}/assets/${sample_name}.hlsl
                                   ${CMAKE_SOURCE_DIR}/tinyvk.h)
     set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/assets/${sample_name}.hlsl
-                                PROPERTIES HEADER_FILE_ONLY TRUE)                                  
+                                PROPERTIES HEADER_FILE_ONLY TRUE)
     target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_VK)
     if(UNIX)
         target_link_libraries(${target_name} PRIVATE X11-xcb)
@@ -30,6 +30,8 @@ endfunction()
 
 add_vk(structs_01)
 add_vk(structs_02)
+add_vk(structs_03)
+add_vk(structs_04)
 
 if(WIN32)
     function(add_dx sample_name)
@@ -46,4 +48,6 @@ if(WIN32)
 
     add_dx(structs_01)
     add_dx(structs_02)
+    add_dx(structs_03)
+    add_dx(structs_04)
 endif()

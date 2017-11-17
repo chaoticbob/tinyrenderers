@@ -1,0 +1,77 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 2
+; Bound: 194
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %4 "psmain" %110 %114 %118
+               OpExecutionMode %4 OriginUpperLeft
+               OpSource HLSL 500
+               OpName %4 "psmain"
+               OpName %13 "Combined"
+               OpMemberName %13 0 "tex"
+               OpMemberName %13 1 "sam"
+               OpMemberName %13 2 "which"
+               OpName %30 "PSInput"
+               OpMemberName %30 0 "Position"
+               OpMemberName %30 1 "TexCoord"
+               OpName %74 "uTex0"
+               OpName %76 "uSampler0"
+               OpName %110 "input.Position"
+               OpName %114 "input.TexCoord"
+               OpName %118 "@entryPointOutput"
+               OpDecorate %74 DescriptorSet 0
+               OpDecorate %74 Binding 0
+               OpDecorate %76 DescriptorSet 0
+               OpDecorate %76 Binding 1
+               OpDecorate %110 BuiltIn FragCoord
+               OpDecorate %114 Location 0
+               OpDecorate %118 Location 0
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %6 = OpTypeFloat 32
+          %7 = OpTypeImage %6 2D 0 0 0 1 Unknown
+          %9 = OpTypeSampler
+         %11 = OpTypeInt 32 1
+         %13 = OpTypeStruct %7 %9 %11
+         %20 = OpTypeVector %6 2
+         %22 = OpTypeVector %6 4
+         %30 = OpTypeStruct %22 %20
+         %51 = OpTypeSampledImage %7
+         %56 = OpConstant %11 1
+         %57 = OpTypeBool
+         %61 = OpConstant %6 0.5
+         %73 = OpTypePointer UniformConstant %7
+         %74 = OpVariable %73 UniformConstant
+         %75 = OpTypePointer UniformConstant %9
+         %76 = OpVariable %75 UniformConstant
+        %109 = OpTypePointer Input %22
+        %110 = OpVariable %109 Input
+        %113 = OpTypePointer Input %20
+        %114 = OpVariable %113 Input
+        %117 = OpTypePointer Output %22
+        %118 = OpVariable %117 Output
+        %192 = OpUndef %13
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+        %115 = OpLoad %20 %114
+        %181 = OpCompositeExtract %7 %192 0
+        %183 = OpCompositeExtract %9 %192 1
+        %185 = OpCompositeExtract %11 %192 2
+        %164 = OpSampledImage %51 %181 %183
+        %166 = OpImageSampleImplicitLod %22 %164 %115
+        %168 = OpIEqual %57 %185 %56
+               OpSelectionMerge %169 None
+               OpBranchConditional %168 %170 %169
+        %170 = OpLabel
+        %189 = OpCompositeExtract %6 %166 0
+        %173 = OpFAdd %6 %189 %61
+        %191 = OpCompositeInsert %22 %173 %166 0
+               OpBranch %169
+        %169 = OpLabel
+        %193 = OpPhi %22 %166 %5 %191 %170
+               OpStore %118 %193
+               OpReturn
+               OpFunctionEnd
