@@ -64,3 +64,8 @@ dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
 file=structs_04
 dxc -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
 dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+
+# opvariable_init
+file=opvariable_init
+dxc -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
+dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
