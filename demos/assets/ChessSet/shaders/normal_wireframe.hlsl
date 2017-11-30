@@ -1,8 +1,15 @@
-cbuffer UniformBlock0 : register(b0)
+cbuffer ViewTransform : register(b0)
 {
-  float4x4 mv_matrix;
-  float4x4 proj_matrix;
-  float3x3 normal_matrix;
+  float4x4  model_matrix;
+  float4x4  view_matrix;
+  float4x4  projection_matrix;
+  float4x4  model_view_matrix;
+  float4x4  view_projection_matrix;
+  float4x4  model_view_projection_matrix;
+  float3x3  normal_matrix_world_space;
+  float3x3  normal_matrix_view_space;
+  float3    view_direction;
+  float3    color;  
 };
 
 
@@ -10,21 +17,21 @@ cbuffer UniformBlock0 : register(b0)
 // Vertex Shader
 // =============================================================================
 struct VSInput {
-  float3 Position : POSITION;
-  float3 Normal   : NORMAL;
-  float2 TexCoord : TEXCOORD0;
+  float3 PositionOS : POSITION;
+  float3 NormalOS   : NORMAL;
+  float2 TexCoord   : TEXCOORD0;
 };
 
 struct VSOutput {
   float4 SV_Position : SV_Position;
-  float3 Normal      : NORMAL;
+  float3 NormalOS    : NORMAL;
 };
 
 VSOutput VSMain(VSInput input)
 {
   VSOutput result;
-  result.SV_Position = float4(input.Position, 1.0);
-  result.Normal      = normalize(input.Normal);
+  result.SV_Position = float4(input.PositionOS, 1.0);
+  result.NormalOS    = normalize(input.NormalOS);
   return result;
 }
 
@@ -32,8 +39,8 @@ VSOutput VSMain(VSInput input)
 // Geometry Shader
 // =============================================================================
 struct GSVertexInput {
-  float4 Position : SV_POSITION;
-  float3 Normal   : NORMAL;
+  float4 PositionOS : SV_POSITION;
+  float3 NormalOS   : NORMAL;
 };
 
 struct GSVertexOutput {
@@ -47,12 +54,12 @@ void GSMain(
   inout LineStream<GSVertexOutput>  output)
 {
 
-  float3 P0 = mul(mv_matrix, input[0].Position).xyz;
-  float3 P1 = mul(mv_matrix, input[1].Position).xyz;
-  float3 P2 = mul(mv_matrix, input[2].Position).xyz;
-  float3 N0 = mul(normal_matrix, input[0].Normal);
-  float3 N1 = mul(normal_matrix, input[1].Normal);
-  float3 N2 = mul(normal_matrix, input[2].Normal);
+  float3 P0 = mul(model_view_matrix, input[0].PositionOS).xyz;
+  float3 P1 = mul(model_view_matrix, input[1].PositionOS).xyz;
+  float3 P2 = mul(model_view_matrix, input[2].PositionOS).xyz;
+  float3 N0 = mul(normal_matrix_world_space, input[0].NormalOS);
+  float3 N1 = mul(normal_matrix_world_space, input[1].NormalOS);
+  float3 N2 = mul(normal_matrix_world_space, input[2].NormalOS);
 
   float4 Pa;
   float4 Pb;
@@ -68,8 +75,8 @@ void GSMain(
 
   // Face normal
   vertex.Color = float3(0.9, 0.9, 0.0);
-  Pa = mul(proj_matrix, Pa);
-  Pb = mul(proj_matrix, Pb);
+  Pa = mul(projection_matrix, Pa);
+  Pb = mul(projection_matrix, Pb);
 
   vertex.Position = Pa;
   output.Append(vertex);
@@ -84,9 +91,9 @@ void GSMain(
   P0.z += 0.001;
   P1.z += 0.001;
   P2.z += 0.001;
-  float4 Q0 = mul(proj_matrix, float4(P0, 1.0));
-  float4 Q1 = mul(proj_matrix, float4(P1, 1.0));
-  float4 Q2 = mul(proj_matrix, float4(P2, 1.0));
+  float4 Q0 = mul(projection_matrix, float4(P0, 1.0));
+  float4 Q1 = mul(projection_matrix, float4(P1, 1.0));
+  float4 Q2 = mul(projection_matrix, float4(P2, 1.0));
 
   // Edge 0
   vertex.Position = Q0;
@@ -114,8 +121,8 @@ void GSMain(
 // Pixel Shader
 // =============================================================================
 struct PSInput {
-  float4 Position : SV_POSITION;
-  float3 Color    : COLOR;
+  float4 PositionCS : SV_POSITION;
+  float3 Color      : COLOR;
 };
 
 float4 PSMain(PSInput input) : SV_TARGET

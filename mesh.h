@@ -1,5 +1,15 @@
+#ifndef __cplusplus
+  #error "C++ is required"
+#endif
+
 #ifndef MESH_H
 #define MESH_H
+
+#define GLM_FORCE_RADIANS 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <string.h>
 #include <vector>
@@ -9,18 +19,20 @@
   #include <tiny_obj_loader.h>
 #endif
 
-namespace mesh {
+namespace tr {
 
-struct float2 {
-  float x;
-  float y;
-};
-
-struct float3 {
-  float x;
-  float y;
-  float z;
-};
+using float2   = glm::vec2;
+using float3   = glm::vec3;
+using float4   = glm::vec4;
+using float2x2 = glm::mat2x2;
+using float2x3 = glm::mat2x3;
+using float2x4 = glm::mat2x4;
+using float3x2 = glm::mat3x2;
+using float3x3 = glm::mat3x3;
+using float3x4 = glm::mat3x4;
+using float4x2 = glm::mat4x2;
+using float4x3 = glm::mat4x3;
+using float4x4 = glm::mat4x4;
 
 struct Vertex {
   float3 position;

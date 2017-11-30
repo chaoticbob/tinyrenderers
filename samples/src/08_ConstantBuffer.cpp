@@ -21,11 +21,12 @@
     #include "tinyvk.h"
 #endif
 
-const uint32_t      kImageCount = 3;
+const char*         k_app_name = "08_ConstantBuffer";
+const uint32_t      k_image_count = 3;
 #if defined(__linux__)
-const std::string   kAssetDir = "../samples/assets/";
+const std::string   k_asset_dir = "../samples/assets/";
 #elif defined(_WIN32)
-const std::string   kAssetDir = "../../samples/assets/";
+const std::string   k_asset_dir = "../../samples/assets/";
 #endif
 
 tr_renderer*        m_renderer = nullptr;
@@ -147,7 +148,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
     settings.width                          = s_window_width;
     settings.height                         = s_window_height;
-    settings.swapchain.image_count          = kImageCount;
+    settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
     settings.swapchain.depth_stencil_format = tr_format_undefined;
@@ -162,17 +163,17 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_renderer("ColorApp", &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
-    tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
+    tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
     // Uses GLSL source
-    auto vert = load_file(kAssetDir + "constant_buffer.vs.spv");
-    auto frag = load_file(kAssetDir + "constant_buffer.ps.spv");
+    auto vert = load_file(k_asset_dir + "constant_buffer.vs.spv");
+    auto frag = load_file(k_asset_dir + "constant_buffer.ps.spv");
     tr_create_shader_program(m_renderer, 
                              vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file(kAssetDir + "constant_buffer.hlsl");
+    auto hlsl = load_file(k_asset_dir + "constant_buffer.hlsl");
     tr_create_shader_program(m_renderer, 
 
                              hlsl.size(), hlsl.data(), "VSMain", 
@@ -324,7 +325,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "08_ConstantBuffer", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, k_app_name, NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {

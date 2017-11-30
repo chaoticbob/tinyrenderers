@@ -1,10 +1,25 @@
-cbuffer UniformBlock0 : register(b0)
+cbuffer ViewTransform : register(b0)
 {
-  float4x4 mvp_matrix;
-  float3x3 normal_matrix;
-  float3   color;
-  float3   view_dir;
+  float4x4  model_matrix;
+  float4x4  view_matrix;
+  float4x4  projection_matrix;
+  float4x4  model_view_matrix;
+  float4x4  view_projection_matrix;
+  float4x4  model_view_projection_matrix;
+  float3x3  normal_matrix_world_space;
+  float3x3  normal_matrix_view_space;
+  float3    view_direction;
+  float3    color;
 };
+
+cbuffer BlinnPhong : register(b1) {
+  float4  base_color;
+  float4  specular_color;
+  float4  specular_power;
+  float4  kA;
+  float4  kD;
+  float4  kS;
+}
 
 
 // =============================================================================
@@ -27,9 +42,9 @@ VSOutput VSMain(VSInput input)
   float4 Position4 = float4(input.Position, 1);
 
   VSOutput result;
-  result.SV_Position = mul(mvp_matrix, Position4);
-  result.PositionWS  = input.Position;
-  result.Normal      = normalize(mul(normal_matrix, input.Normal));
+  result.SV_Position = mul(model_view_projection_matrix, Position4);
+  result.PositionWS  = mul(model_matrix, input.Position);
+  result.Normal      = normalize(mul(normal_matrix_world_space, input.Normal));
   return result;
 }
 
@@ -39,7 +54,7 @@ VSOutput VSMain(VSInput input)
 struct PSInput {
   float4 SV_Position : SV_Position;
   float3 PositionWS  : POSITION;
-  float3 Normal      : NORMAL;
+  float3 NormalWS    : NORMAL;
 };
 
 float lambert(float3 N, float3 L)
@@ -59,14 +74,15 @@ float phong(float3 N, float3 L, float3 V, float3 R, float specularExponent)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-  float3 N = input.Normal;
-  float3 L = normalize(float3(15, 3, 40));
-  float3 V = view_dir;
-  float3 R = reflect(-L, N);
+  float3 LP = float3(5, 8, 10);
+  float3 N  = input.NormalWS;
+  float3 L  = normalize(LP - input.PositionWS);
+  float3 V  = view_direction;
+  float3 R  = reflect(L, N);
 
-  float  A = 0.1;
+  float  A = 0.3;
   float  D = 0.5 * lambert(N, L);
-  float  S = 2.0 * phong(N, L, V, R, 8.0);
+  float  S = 4.0 * phong(N, L, V, R, 6.0);
   float3 C = color;
   float3 Co = C * (0.3 + D + S); // * (A + D + S);
 

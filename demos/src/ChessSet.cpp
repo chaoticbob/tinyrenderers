@@ -18,6 +18,8 @@
 #elif defined(TINY_RENDERER_VK)
     #include "tinyvk.h"
 #endif
+#include "camera.h"
+#include "cbuffer.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -51,7 +53,10 @@ tr_renderer*        m_renderer = nullptr;
 tr_cmd_pool*        m_cmd_pool = nullptr;
 tr_cmd**            m_cmds = nullptr;
 
-tr_pipeline*        m_phong_pipeline = nullptr;
+tr_pipeline*        m_chess_board_1_pipeline = nullptr;
+tr_pipeline*        m_chess_board_2_pipeline = nullptr;
+tr_pipeline*        m_chess_pieces_1_pipeline = nullptr;
+tr_pipeline*        m_chess_pieces_2_pipeline = nullptr;
 tr_pipeline*        m_normal_wireframe_pipeline = nullptr;
 
 tr_shader_program*  m_phong_shader = nullptr;
@@ -81,6 +86,10 @@ tr_buffer*          m_chess_pieces_2_vertex_buffer = nullptr;
 uint32_t            s_window_width;
 uint32_t            s_window_height;
 uint64_t            s_frame_count = 0;
+
+tr::Camera              m_camera;
+tr::Transform           m_transform;
+tr::ViewTransformBuffer m_cbuffer;
 
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
                     platform_log(ss.str().c_str()); }
@@ -278,7 +287,10 @@ void init_tiny_renderer(GLFWwindow* window)
       tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
       pipeline_settings.depth = true;
       pipeline_settings.cull_mode = tr_cull_mode_back;   
-      tr_create_pipeline(m_renderer, m_phong_shader, &vertex_layout, m_chess_board_1_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_phong_pipeline);
+      tr_create_pipeline(m_renderer, m_phong_shader, &vertex_layout, m_chess_board_1_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_chess_board_1_pipeline);
+      tr_create_pipeline(m_renderer, m_phong_shader, &vertex_layout, m_chess_board_2_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_chess_board_2_pipeline);
+      tr_create_pipeline(m_renderer, m_phong_shader, &vertex_layout, m_chess_pieces_1_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_chess_pieces_1_pipeline);
+      tr_create_pipeline(m_renderer, m_phong_shader, &vertex_layout, m_chess_pieces_2_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_chess_pieces_2_pipeline);
     }
     // Normal wireframe pipeline
     {
@@ -290,29 +302,29 @@ void init_tiny_renderer(GLFWwindow* window)
     // Vertex data
     {
       // Chess board 1
-      mesh::Mesh mesh;
-      bool mesh_load_res = mesh::Mesh::Load(k_asset_dir + "ChessSet/models/board1.obj", &mesh);
+      tr::Mesh mesh;
+      bool mesh_load_res = tr::Mesh::Load(k_asset_dir + "ChessSet/models/board1.obj", &mesh);
       assert(mesh_load_res);
       tr_create_vertex_buffer(m_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &m_chess_board_1_vertex_buffer);
       memcpy(m_chess_board_1_vertex_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
       m_chess_board_1_vertex_count = mesh.GetVertexCount();
       
       // Chess board 2
-      mesh_load_res = mesh::Mesh::Load(k_asset_dir + "ChessSet/models/board2.obj", &mesh);
+      mesh_load_res = tr::Mesh::Load(k_asset_dir + "ChessSet/models/board2.obj", &mesh);
       assert(mesh_load_res);
       tr_create_vertex_buffer(m_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &m_chess_board_2_vertex_buffer);
       memcpy(m_chess_board_2_vertex_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
       m_chess_board_2_vertex_count = mesh.GetVertexCount();
       
       // Chest pieces 1
-      mesh_load_res = mesh::Mesh::Load(k_asset_dir + "ChessSet/models/pieces1.obj", &mesh);
+      mesh_load_res = tr::Mesh::Load(k_asset_dir + "ChessSet/models/pieces1.obj", &mesh);
       assert(mesh_load_res);
       tr_create_vertex_buffer(m_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &m_chess_pieces_1_vertex_buffer);
       memcpy(m_chess_pieces_1_vertex_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
       m_chess_pieces_1_vertex_count = mesh.GetVertexCount();
      
       // Chest pieces 2
-      mesh_load_res = mesh::Mesh::Load(k_asset_dir + "ChessSet/models/pieces2.obj", &mesh);
+      mesh_load_res = tr::Mesh::Load(k_asset_dir + "ChessSet/models/pieces2.obj", &mesh);
       assert(mesh_load_res);
       tr_create_vertex_buffer(m_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &m_chess_pieces_2_vertex_buffer);
       memcpy(m_chess_pieces_2_vertex_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
@@ -321,10 +333,7 @@ void init_tiny_renderer(GLFWwindow* window)
 
     // Uniform buffers
     {
-      uint32_t uniform_buffer_size =    sizeof(float4x4)    // float4x4
-                                      + sizeof(float3x4)    // float3x3
-                                      + sizeof(float4)      // float3
-                                      + sizeof(float4);     // float3
+      uint32_t uniform_buffer_size = m_cbuffer.GetDataSize();
      
       // Chess board 1
       tr_create_uniform_buffer(m_renderer, uniform_buffer_size, true, &m_chess_board_1_uniform_buffer);
@@ -347,9 +356,6 @@ void init_tiny_renderer(GLFWwindow* window)
       tr_update_descriptor_set(m_renderer, m_chess_pieces_2_desc_set);
 
       // Normal wireframe
-      uniform_buffer_size =   sizeof(float4x4)    // float4x4
-                            + sizeof(float4x4)    // float4x4
-                            + sizeof(float3x4);   // float3x3
       tr_create_uniform_buffer(m_renderer, uniform_buffer_size, true, &m_normal_wireframe_uniform_buffer);
       m_normal_wireframe_desc_set->descriptors[0].uniform_buffers[0] = m_normal_wireframe_uniform_buffer;
       tr_update_descriptor_set(m_renderer, m_normal_wireframe_desc_set);
@@ -374,78 +380,44 @@ void draw_frame()
     uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
     tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
 
-    // Projection
-    float4x4 proj  = glm::perspective(glm::radians(65.0f), (float)s_window_width / (float)s_window_height, 0.1f, 10000.0f);
-    // View
     float3 eye = float3(0, 7, 12);
     float3 look_at = float3(0, 0, 0);
-    float4x4 view  = glm::lookAt(eye, look_at, float3(0, 1, 0));                               
+    m_camera.LookAt(eye, look_at);
+    m_camera.Perspective(65.0f, (float)s_window_width / (float)s_window_height);
+
     // Model
     float t = static_cast<float>(glfwGetTime());
-    float4x4 rot_x = glm::rotate(t, float3(1, 0, 0));
-    float4x4 rot_y = glm::rotate(t / 2.0f, float3(0, 1, 0));
-    float4x4 rot_z = glm::rotate(t / 3.0f, float3(0, 0, 1));
-    float4x4 model = rot_y; //rot_x * rot_y * rot_z;
+    m_transform.Rotate(0, t / 2.0, 0);
     
-    // UBO for phong shader
+    // Constant buffer for phong shader
     {
-      struct UBO {
-        float4x4  mvp_matrix;     // float4x4
-        float3x4  normal_matrix;  // float3x3
-        float4    color;          // float3
-        float4    view_dir;       // float3
-      };
-    
-      UBO ubo = {};
-      // MVP matrix
-      ubo.mvp_matrix = proj * view * model;
-      // Normal matrix
-      float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(view * model)));
-      ubo.normal_matrix[0] = float4(normal_matrix[0], 0.0f);
-      ubo.normal_matrix[1] = float4(normal_matrix[1], 0.0f);
-      ubo.normal_matrix[2] = float4(normal_matrix[2], 0.0f);
-      // View Dir
-      ubo.view_dir = float4(glm::normalize(look_at - eye), 0.0f);
+      m_cbuffer.SetTransform(m_transform);
+      m_cbuffer.SetCamera(m_camera);
       // Color
       {
         // Board 1
-        ubo.color = float4(0.23f);
-        memcpy(m_chess_board_1_uniform_buffer->cpu_mapped_address, &ubo, sizeof(ubo));
+        m_cbuffer.SetColor(float3(0.23f));
+        m_cbuffer.Write(m_chess_board_1_uniform_buffer->cpu_mapped_address);
      
         // Board 2
-        ubo.color = float4(0.88f);
-        memcpy(m_chess_board_2_uniform_buffer->cpu_mapped_address, &ubo, sizeof(ubo));
+        m_cbuffer.SetColor(float3(0.88f));
+        m_cbuffer.Write(m_chess_board_2_uniform_buffer->cpu_mapped_address);
 
         // Pieces 1
-        ubo.color = float4(0.85f, 0.3f, 0.3f, 0);
-        memcpy(m_chess_pieces_1_uniform_buffer->cpu_mapped_address, &ubo, sizeof(ubo));
+        m_cbuffer.SetColor(0.85f, 0.3f, 0.3f);
+        m_cbuffer.Write(m_chess_pieces_1_uniform_buffer->cpu_mapped_address);
      
         // Pieces 2
-        ubo.color = float4(0.4f, 0.4f, 0.8f, 0);
-        memcpy(m_chess_pieces_2_uniform_buffer->cpu_mapped_address, &ubo, sizeof(ubo));
+        m_cbuffer.SetColor(0.4f, 0.4f, 0.8f);
+        m_cbuffer.Write(m_chess_pieces_2_uniform_buffer->cpu_mapped_address);
       }
     }
 
-    // UBO for normal wireframe shader
+    // Constant buffer for normal wireframe shader
     {
-      struct UBO {
-        float4x4  mv_matrix;      // float4x4
-        float4x4  proj_matrix;    // float4x4
-        float3x4  normal_matrix;  // float3x3
-      };
-    
-      UBO ubo = {};
-      // MV matrix
-      ubo.mv_matrix = view * model;
-      // Proj matrix
-      ubo.proj_matrix = proj;
-      // Normal matrix
-      float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(view * model)));
-      ubo.normal_matrix[0] = float4(normal_matrix[0], 0.0f);
-      ubo.normal_matrix[1] = float4(normal_matrix[1], 0.0f);
-      ubo.normal_matrix[2] = float4(normal_matrix[2], 0.0f);
-      // Copy
-      memcpy(m_normal_wireframe_uniform_buffer->cpu_mapped_address, &ubo, sizeof(ubo));
+      m_cbuffer.SetTransform(m_transform);
+      m_cbuffer.SetCamera(m_camera);      
+      m_cbuffer.Write(m_normal_wireframe_uniform_buffer->cpu_mapped_address);
     }
 
     tr_cmd* cmd = m_cmds[frameIdx];
@@ -463,36 +435,38 @@ void draw_frame()
     tr_cmd_clear_depth_stencil_attachment(cmd, &depth_stencil_clear_value);
     // Draw phong
     {
-      tr_cmd_bind_pipeline(cmd, m_phong_pipeline);
-
       // Draw board 1
-      tr_cmd_bind_descriptor_sets(cmd, m_phong_pipeline, m_chess_board_1_desc_set);
+      tr_cmd_bind_pipeline(cmd, m_chess_board_1_pipeline);
+      tr_cmd_bind_descriptor_sets(cmd, m_chess_board_1_pipeline, m_chess_board_1_desc_set);
       tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_board_1_vertex_buffer);
       tr_cmd_draw(cmd, m_chess_board_1_vertex_count, 0);
       // Draw board 2
-      tr_cmd_bind_descriptor_sets(cmd, m_phong_pipeline, m_chess_board_2_desc_set);
+      tr_cmd_bind_pipeline(cmd, m_chess_board_2_pipeline);
+      tr_cmd_bind_descriptor_sets(cmd, m_chess_board_2_pipeline, m_chess_board_2_desc_set);
       tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_board_2_vertex_buffer);
       tr_cmd_draw(cmd, m_chess_board_2_vertex_count, 0);
       // Draw pieces 1
-      tr_cmd_bind_descriptor_sets(cmd, m_phong_pipeline, m_chess_pieces_1_desc_set);
+      tr_cmd_bind_pipeline(cmd, m_chess_pieces_1_pipeline);
+      tr_cmd_bind_descriptor_sets(cmd, m_chess_pieces_1_pipeline, m_chess_pieces_1_desc_set);
       tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_1_vertex_buffer);
       tr_cmd_draw(cmd, m_chess_pieces_1_vertex_count, 0);
       // Draw pieces 2
-      tr_cmd_bind_descriptor_sets(cmd, m_phong_pipeline, m_chess_pieces_2_desc_set);
+      tr_cmd_bind_pipeline(cmd, m_chess_pieces_2_pipeline);
+      tr_cmd_bind_descriptor_sets(cmd, m_chess_pieces_2_pipeline, m_chess_pieces_2_desc_set);
       tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_2_vertex_buffer);
       tr_cmd_draw(cmd, m_chess_pieces_2_vertex_count, 0);
     }
     // Draw normal wireframe 
     {
-      tr_cmd_bind_pipeline(cmd, m_normal_wireframe_pipeline);
-
       // Draw pieces 2
-      tr_cmd_bind_descriptor_sets(cmd, m_phong_pipeline, m_normal_wireframe_desc_set);
+      tr_cmd_bind_pipeline(cmd, m_normal_wireframe_pipeline);
+      tr_cmd_bind_descriptor_sets(cmd, m_normal_wireframe_pipeline, m_normal_wireframe_desc_set);
       tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_1_vertex_buffer);
       tr_cmd_draw(cmd, m_chess_pieces_1_vertex_count, 0);
 
       // Draw pieces 2
-      tr_cmd_bind_descriptor_sets(cmd, m_phong_pipeline, m_normal_wireframe_desc_set);
+      tr_cmd_bind_pipeline(cmd, m_normal_wireframe_pipeline);
+      tr_cmd_bind_descriptor_sets(cmd, m_normal_wireframe_pipeline, m_normal_wireframe_desc_set);
       tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_2_vertex_buffer);
       tr_cmd_draw(cmd, m_chess_pieces_2_vertex_count, 0);
     }
