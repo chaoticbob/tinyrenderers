@@ -30,6 +30,7 @@ function(add_vk sample_name)
 endfunction()
 
 add_vk(ChessSet)
+add_vk(TriangleTessellation)
 
 if(WIN32)
     function(add_dx sample_name)
@@ -46,4 +47,5 @@ if(WIN32)
     endfunction()
 
     add_dx(ChessSet)
+    add_dx(TriangleTessellation)    
 endif()
