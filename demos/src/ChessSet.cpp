@@ -231,16 +231,16 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "ChessSet/shaders/phong.hlsl");
     tr_create_shader_program(m_renderer,
-                             hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
                              &m_phong_shader);    
     hlsl = load_file(k_asset_dir + "ChessSet/shaders/normal_wireframe.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               hlsl.size(), hlsl.data(), "VSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
                                0, nullptr, nullptr,
                                0, nullptr, nullptr,
-                               hlsl.size(), hlsl.data(), "GSMain",
-                               hlsl.size(), hlsl.data(), "PSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "GSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain",
                                0, nullptr, nullptr, 
                                &m_normal_wireframe_shader);    
 #endif
@@ -253,12 +253,12 @@ void init_tiny_renderer(GLFWwindow* window)
       descriptors[0].binding       = 0;
       descriptors[0].shader_stages = (tr_shader_stage)(tr_shader_stage_vert | tr_shader_stage_geom | tr_shader_stage_frag);
 
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_chess_board_1_desc_set);    
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_chess_board_2_desc_set);
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_chess_pieces_1_desc_set);
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_chess_pieces_2_desc_set);
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_board_1_desc_set);    
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_board_2_desc_set);
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_pieces_1_desc_set);
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_pieces_2_desc_set);
 
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_normal_wireframe_desc_set);
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_normal_wireframe_desc_set);
     }
 
     // Vertex layout
@@ -424,7 +424,7 @@ void draw_frame()
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, static_cast<float>(s_window_width), static_cast<float>(s_window_height), 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value color_clear_value = {0.1f, 0.1f, 0.1f, 0.1f};

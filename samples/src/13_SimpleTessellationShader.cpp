@@ -205,17 +205,17 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "simple_tess_color.hlsl");
     tr_create_shader_program(m_renderer,
-                             hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
                              &m_color_shader);
 
     hlsl = load_file(k_asset_dir + "simple_tess_isoline.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               hlsl.size(), hlsl.data(), "VSMain", 
-                               hlsl.size(), hlsl.data(), "HSMain", 
-                               hlsl.size(), hlsl.data(), "DSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "HSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "DSMain", 
                                0, nullptr, nullptr,
-                               hlsl.size(), hlsl.data(), "PSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
                                0, nullptr, nullptr,
                                &m_isoline_shader);
 #endif
@@ -225,8 +225,8 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = (tr_shader_stage)(tr_shader_stage_vert | tr_shader_stage_tesc | tr_shader_stage_tese | tr_shader_stage_frag);
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_color_desc_set);
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_isoline_desc_set);
+    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_color_desc_set);
+    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_isoline_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 1;
@@ -435,7 +435,7 @@ void draw_frame()
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, static_cast<float>(s_window_width), static_cast<float>(s_window_height), 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value color_clear_value = {0.0f, 0.0f, 0.0f, 0.0f};

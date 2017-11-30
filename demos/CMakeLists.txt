@@ -20,10 +20,11 @@ function(add_vk sample_name)
                                   ${CMAKE_SOURCE_DIR}/mesh.h
                                   ${CMAKE_SOURCE_DIR}/tinyvk.h
                                   ${CMAKE_SOURCE_DIR}/transform.h)
-    target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_VK)
     if(UNIX)
+	    target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_VK)
         target_link_libraries(${target_name} PRIVATE X11-xcb)
     elseif(WIN32)
+		target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_VK -D_CRT_SECURE_NO_WARNINGS)
         set_target_properties(${target_name} PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:Windows /INCREMENTAL:NO")
         set_target_properties(${target_name} PROPERTIES FOLDER "demos/vk")        
     endif()     
@@ -41,7 +42,7 @@ if(WIN32)
                                       ${CMAKE_SOURCE_DIR}/mesh.h
                                       ${CMAKE_SOURCE_DIR}/tinydx.h
                                       ${CMAKE_SOURCE_DIR}/transform.h)
-        target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_DX)
+        target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_DX -D_CRT_SECURE_NO_WARNINGS)
             set_target_properties(${target_name} PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:Windows /INCREMENTAL:NO")
             set_target_properties(${target_name} PROPERTIES FOLDER "demos/dx")
     endfunction()

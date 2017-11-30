@@ -176,17 +176,17 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(k_asset_dir + "texture.vs.spv");
     auto frag = load_file(k_asset_dir + "texture.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "VSMain", 
-                             frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
+                             static_cast<uint32_t>(vert.size()), (uint32_t*)(vert.data()), "VSMain", 
+                             static_cast<uint32_t>(frag.size()), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "simple_compute.hlsl");
     tr_create_shader_program_compute(m_renderer, 
-                                     hlsl.size(), hlsl.data(), "main", &m_compute_shader);
+                                     static_cast<uint32_t>(hlsl.size()), hlsl.data(), "main", &m_compute_shader);
 
     hlsl = load_file(k_asset_dir + "texture.hlsl");
     tr_create_shader_program(m_renderer, 
-                             hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", &m_texture_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
@@ -198,7 +198,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set);
 
     //
     // In D3D12, the first descriptor can also just be a texture 
@@ -214,7 +214,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_compute_desc_set);
+    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_compute_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -242,7 +242,7 @@ void init_tiny_renderer(GLFWwindow* window)
     };
 
     uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-    uint64_t vertexStride = sizeof(float) * 6;
+    uint32_t vertexStride = sizeof(float) * 6;
     tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
     memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
         
@@ -312,7 +312,7 @@ void draw_frame()
     tr_cmd_image_transition(cmd, m_texture_compute_output, tr_texture_usage_storage_image, tr_texture_usage_sampled_image);
     // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, static_cast<float>(s_window_width), static_cast<float>(s_window_height), 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
