@@ -252,36 +252,36 @@ void init_tiny_renderer(GLFWwindow* window)
     // Base
     auto hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/base.hlsl");
     tr_create_shader_program(m_renderer,
-                             hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
                              &m_base_shader);    
     hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/base_wireframe.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               hlsl.size(), hlsl.data(), "VSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
                                0, nullptr, nullptr,
                                0, nullptr, nullptr,
-                               hlsl.size(), hlsl.data(), "GSMain",
-                               hlsl.size(), hlsl.data(), "PSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "GSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain",
                                0, nullptr, nullptr, 
                                &m_base_wireframe_shader);    
     // Tess phong
     hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               hlsl.size(), hlsl.data(), "VSMain", 
-                               hlsl.size(), hlsl.data(), "HSMain",
-                               hlsl.size(), hlsl.data(), "DSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "HSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "DSMain",
                                0, nullptr, nullptr, 
-                               hlsl.size(), hlsl.data(), "PSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain",
                                0, nullptr, nullptr, 
                                &m_tess_phong_shader);     
     // Tess phong
     hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               hlsl.size(), hlsl.data(), "VSMain", 
-                               hlsl.size(), hlsl.data(), "HSMain",
-                               hlsl.size(), hlsl.data(), "DSMain",
-                               hlsl.size(), hlsl.data(), "GSMain",
-                               hlsl.size(), hlsl.data(), "PSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "HSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "DSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "GSMain",
+                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain",
                                0, nullptr, nullptr, 
                                &m_tess_phong_wireframe_shader);  
 #endif
@@ -294,8 +294,8 @@ void init_tiny_renderer(GLFWwindow* window)
       descriptors[0].binding = 0;
       descriptors[0].shader_stages = tr_shader_stage_all_graphics;
 
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_base_desc_set);
-      tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_tess_phong_desc_set);
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_base_desc_set);
+      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_tess_phong_desc_set);
     }
 
     // Vertex layout
@@ -440,7 +440,7 @@ void draw_frame()
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, static_cast<float>(s_window_width), static_cast<float>(s_window_height), 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value color_clear_value = { 0.1f, 0.1f, 0.1f, 0.1f };
