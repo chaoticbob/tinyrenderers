@@ -21,28 +21,37 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-const char*         k_app_name = "structs_03";
-const uint32_t      k_image_count = 3;
+const char*         k_app_name = "structured_buffers_01";
+const uint32_t      kImageCount = 3;
 #if defined(__linux__)
-const std::string   k_asset_dir = "../hlsl-shader-tracking/assets/";
+const std::string   kAssetDir = "../samples/assets/";
 #elif defined(_WIN32)
-const std::string   k_asset_dir = "../../hlsl-shader-tracking/assets/";
+const std::string   kAssetDir = "../../samples/assets/";
 #endif
 
 tr_renderer*        m_renderer = nullptr;
 tr_descriptor_set*  m_desc_set = nullptr;
+tr_descriptor_set*  m_compute_desc_set = nullptr;
 tr_cmd_pool*        m_cmd_pool = nullptr;
 tr_cmd**            m_cmds = nullptr;
-tr_shader_program*  m_shader = nullptr;
+tr_shader_program*  m_compute_shader = nullptr;
+tr_shader_program*  m_texture_shader = nullptr;
+tr_buffer*          m_compute_src_buffer = nullptr;
+tr_buffer*          m_compute_dst_buffer = nullptr;
 tr_buffer*          m_rect_index_buffer = nullptr;
 tr_buffer*          m_rect_vertex_buffer = nullptr;
 tr_pipeline*        m_pipeline = nullptr;
+tr_pipeline*        m_compute_pipeline = nullptr;
 tr_texture*         m_texture = nullptr;
 tr_sampler*         m_sampler = nullptr;
 
 uint32_t            s_window_width;
 uint32_t            s_window_height;
 uint64_t            s_frame_count = 0;
+
+int                 m_image_width = 0;
+int                 m_image_height = 0;
+int                 m_image_row_stride = 0;
 
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
                     platform_log(ss.str().c_str()); }
@@ -145,7 +154,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
     settings.width                          = s_window_width;
     settings.height                         = s_window_height;
-    settings.swapchain.image_count          = k_image_count;
+    settings.swapchain.image_count          = kImageCount;
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
     settings.swapchain.depth_stencil_format = tr_format_undefined;
@@ -155,23 +164,32 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #endif
-    tr_create_renderer(k_app_name, &settings, &m_renderer);
+    tr_create_renderer("StructuredBuffer", &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
-    tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
+    tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    // Uses HLSL source
-    auto vert = load_file(k_asset_dir + "structs_03.vs.spv");
-    auto frag = load_file(k_asset_dir + "structs_03.ps.spv");
+    auto comp = load_file(kAssetDir + "structured_buffer.cs.spv");
+    tr_create_shader_program_compute(m_renderer, 
+                                     comp.size(), comp.data(), "main", &m_compute_shader);
+
+    auto vert = load_file(kAssetDir + "texture.vs.spv");
+    auto frag = load_file(kAssetDir + "texture.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "vsmain", 
-                             frag.size(), (uint32_t*)(frag.data()), "psmain", &m_shader);
+                             //vert.size(), (uint32_t*)(vert.data()), "main", 
+                             //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
+                             vert.size(), (uint32_t*)(vert.data()), "VSMain", 
+                             frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file(k_asset_dir + "structs_03.hlsl");
+    auto hlsl = load_file(kAssetDir + "structured_buffer.hlsl");
+    tr_create_shader_program_compute(m_renderer, 
+                                     hlsl.size(), hlsl.data(), "main", &m_compute_shader);
+
+    hlsl = load_file(kAssetDir + "texture.hlsl");
     tr_create_shader_program(m_renderer, 
-                             hlsl.size(), hlsl.data(), "vsmain", 
-                             hlsl.size(), hlsl.data(), "psmain", &m_shader);
+                             hlsl.size(), hlsl.data(), "VSMain", 
+                             hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
@@ -184,6 +202,16 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
+
+    descriptors[0].type          = tr_descriptor_type_storage_buffer_srv;
+    descriptors[0].count         = 1;
+    descriptors[0].binding       = 0;
+    descriptors[0].shader_stages = tr_shader_stage_comp;
+    descriptors[1].type          = tr_descriptor_type_storage_buffer_uav;
+    descriptors[1].count         = 1;
+    descriptors[1].binding       = 1;
+    descriptors[1].shader_stages = tr_shader_stage_comp;
+    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_compute_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -198,7 +226,10 @@ void init_tiny_renderer(GLFWwindow* window)
     vertex_layout.attribs[1].location = 1;
     vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32a32_float);
     tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
-    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+    tr_create_pipeline(m_renderer, m_texture_shader, &vertex_layout, m_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+
+    pipeline_settings = {};
+    tr_create_compute_pipeline(m_renderer, m_compute_shader, m_compute_desc_set, &pipeline_settings, &m_compute_pipeline);
 
     std::vector<float> vertexData = {
         -0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f,
@@ -221,21 +252,55 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
-    int image_width = 0;
-    int image_height = 0;
+    struct Input {
+      uint32_t color;
+      float    r;
+      float    g;
+      float    b;
+    };
+
     int image_channels = 0;
-    unsigned char* image_data = stbi_load((k_asset_dir + "box_panel.jpg").c_str(), &image_width, &image_height, &image_channels, 0);
+    int required_channels = 4;
+    unsigned char* image_data = stbi_load((kAssetDir + "box_panel.jpg").c_str(), &m_image_width, &m_image_height, &image_channels, required_channels);
     assert(NULL != image_data);
-    int image_row_stride = image_width * image_channels;
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
-    tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
-	stbi_image_free(image_data);
+    m_image_row_stride = m_image_width * required_channels;
+    std::vector<Input> input_buffer;
+    for (uint32_t i = 0; i < m_image_height; ++i) {
+      for (uint32_t j = 0; j < m_image_width; ++j) {
+        uint32_t offset = (i * m_image_row_stride) + (j * 4);
+        Input elem = {};
+        elem.color = *((uint32_t*)(image_data + offset));
+        elem.r = 0.0f + (j / (float)m_image_width);
+        elem.g = 0.0f + (i / (float)m_image_height);
+        elem.b = 0.0f + (j / (float)m_image_width) + (i / (float)m_image_height);
+        input_buffer.push_back(elem);
+      }
+    }
+    uint64_t buffer_size = input_buffer.size() * sizeof(Input);
+    uint64_t element_count = m_image_width * m_image_height;
+    uint64_t struct_stride = sizeof(Input);
+    tr_create_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_src_buffer);
+    tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, input_buffer.data(), m_compute_src_buffer);
+    stbi_image_free(image_data);
+
+    buffer_size = m_image_row_stride * m_image_height;
+    element_count = m_image_width * m_image_height;
+    struct_stride = 4;
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, NULL, &m_compute_dst_buffer);
+    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
+
+    tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
+    tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
 
     tr_create_sampler(m_renderer, &m_sampler);
 
     m_desc_set->descriptors[0].textures[0] = m_texture;
     m_desc_set->descriptors[1].samplers[0] = m_sampler;
     tr_update_descriptor_set(m_renderer, m_desc_set);
+
+    m_compute_desc_set->descriptors[0].buffers[0] = m_compute_src_buffer;
+    m_compute_desc_set->descriptors[1].buffers[0] = m_compute_dst_buffer;
+    tr_update_descriptor_set(m_renderer, m_compute_desc_set);
 }
 
 void destroy_tiny_renderer()
@@ -259,6 +324,18 @@ void draw_frame()
     tr_cmd* cmd = m_cmds[frameIdx];
 
     tr_begin_cmd(cmd);
+
+    // Use compute to swizzle RGB -> BRG in buffer
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage_uav);
+    tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
+    tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
+    tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
+    tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
+    // Copy compute output buffer to texture
+    tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
+    tr_cmd_copy_buffer_to_texture2d(cmd, m_image_width, m_image_height, m_image_row_stride, 0, 0, m_compute_dst_buffer, m_texture);
+    tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
+    // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
@@ -288,7 +365,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "02_Texture", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, k_app_name, NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {

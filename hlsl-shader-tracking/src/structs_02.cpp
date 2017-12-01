@@ -18,16 +18,15 @@
     #include "tinyvk.h"
 #endif
 
-const char * k_app_name = "structs_02";
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-const uint32_t      kImageCount = 3;
+const char*         k_app_name = "structs_02";
+const uint32_t      k_image_count = 3;
 #if defined(__linux__)
-const std::string   kAssetDir = "../hlsl-shader-tracking/assets/";
+const std::string   k_asset_dir = "../hlsl-shader-tracking/assets/";
 #elif defined(_WIN32)
-const std::string   kAssetDir = "../../hlsl-shader-tracking/assets/";
+const std::string   k_asset_dir = "../../hlsl-shader-tracking/assets/";
 #endif
 
 tr_renderer*        m_renderer = nullptr;
@@ -146,7 +145,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
     settings.width                          = s_window_width;
     settings.height                         = s_window_height;
-    settings.swapchain.image_count          = kImageCount;
+    settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
     settings.swapchain.depth_stencil_format = tr_format_undefined;
@@ -159,17 +158,17 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_renderer(k_app_name, &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
-    tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
+    tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
     // Uses HLSL source
-    auto vert = load_file(kAssetDir + "structs_02.vs.spv");
-    auto frag = load_file(kAssetDir + "structs_02.ps.spv");
+    auto vert = load_file(k_asset_dir + "structs_02.vs.spv");
+    auto frag = load_file(k_asset_dir + "structs_02.ps.spv");
     tr_create_shader_program(m_renderer, 
                              vert.size(), (uint32_t*)(vert.data()), "vsmain", 
                              frag.size(), (uint32_t*)(frag.data()), "psmain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file(kAssetDir + "structs_02.hlsl");
+    auto hlsl = load_file(k_asset_dir + "structs_02.hlsl");
     tr_create_shader_program(m_renderer, 
                              hlsl.size(), hlsl.data(), "vsmain", 
                              hlsl.size(), hlsl.data(), "psmain", &m_shader);
@@ -225,7 +224,7 @@ void init_tiny_renderer(GLFWwindow* window)
     int image_width = 0;
     int image_height = 0;
     int image_channels = 0;
-    unsigned char* image_data = stbi_load((kAssetDir + "box_panel.jpg").c_str(), &image_width, &image_height, &image_channels, 0);
+    unsigned char* image_data = stbi_load((k_asset_dir + "box_panel.jpg").c_str(), &image_width, &image_height, &image_channels, 0);
     assert(NULL != image_data);
     int image_row_stride = image_width * image_channels;
     tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);

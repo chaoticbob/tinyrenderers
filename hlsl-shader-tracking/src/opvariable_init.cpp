@@ -18,11 +18,12 @@
     #include "tinyvk.h"
 #endif
 
-const uint32_t      kImageCount = 3;
+const char*         k_app_name = "opvariable_init";
+const uint32_t      k_image_count = 3;
 #if defined(__linux__)
-const std::string   kAssetDir = "../hlsl-shader-tracking/assets/";
+const std::string   k_asset_dir = "../hlsl-shader-tracking/assets/";
 #elif defined(_WIN32)
-const std::string   kAssetDir = "../../hlsl-shader-tracking/assets/";
+const std::string   k_asset_dir = "../../hlsl-shader-tracking/assets/";
 #endif
 
 tr_renderer*        m_renderer = nullptr;
@@ -139,7 +140,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #endif
     settings.width                          = s_window_width;
     settings.height                         = s_window_height;
-    settings.swapchain.image_count          = kImageCount;
+    settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
     settings.swapchain.depth_stencil_format = tr_format_undefined;
@@ -152,17 +153,17 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_renderer("ColorApp", &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
-    tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
+    tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
     // Uses HLSL source
-    auto vert = load_file(kAssetDir + "opvariable_init.vs.spv");
-    auto frag = load_file(kAssetDir + "opvariable_init.ps.spv");
+    auto vert = load_file(k_asset_dir + "opvariable_init.vs.spv");
+    auto frag = load_file(k_asset_dir + "opvariable_init.ps.spv");
     tr_create_shader_program(m_renderer, 
                              vert.size(), (uint32_t*)(vert.data()), "vsmain", 
                              frag.size(), (uint32_t*)(frag.data()), "psmain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file(kAssetDir + "opvariable_init.hlsl");
+    auto hlsl = load_file(k_asset_dir + "opvariable_init.hlsl");
     tr_create_shader_program(m_renderer, 
                              hlsl.size(), hlsl.data(), "vsmain", 
                              hlsl.size(), hlsl.data(), "psmain", &m_shader);
@@ -277,7 +278,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, "opvariable_init", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(640, 480, k_app_name, NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {
