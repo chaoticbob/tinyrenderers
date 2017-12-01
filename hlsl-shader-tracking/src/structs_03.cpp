@@ -165,13 +165,13 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(k_asset_dir + "structs_03.vs.spv");
     auto frag = load_file(k_asset_dir + "structs_03.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "vsmain", 
-                             frag.size(), (uint32_t*)(frag.data()), "psmain", &m_shader);
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "vsmain", 
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "psmain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "structs_03.hlsl");
     tr_create_shader_program(m_renderer, 
-                             hlsl.size(), hlsl.data(), "vsmain", 
-                             hlsl.size(), hlsl.data(), "psmain", &m_shader);
+                             (uint32_t)hlsl.size(), hlsl.data(), "vsmain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "psmain", &m_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
@@ -183,7 +183,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -207,8 +207,8 @@ void init_tiny_renderer(GLFWwindow* window)
          0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
     };
 
-    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-    uint64_t vertexStride = sizeof(float) * 6;
+    uint32_t vertexDataSize = sizeof(float) * (uint32_t)vertexData.size();
+    uint32_t vertexStride = sizeof(float) * 6;
     tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
     memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
         
@@ -217,7 +217,7 @@ void init_tiny_renderer(GLFWwindow* window)
         0, 2, 3
     };
         
-    uint64_t indexDataSize = sizeof(uint16_t) * indexData.size();
+    uint32_t indexDataSize = sizeof(uint16_t) * (uint32_t)indexData.size();
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
@@ -260,7 +260,7 @@ void draw_frame()
 
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, (float)s_window_width, (float)s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
