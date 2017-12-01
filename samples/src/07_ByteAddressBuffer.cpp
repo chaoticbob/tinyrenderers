@@ -165,7 +165,7 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #endif
-    tr_create_renderer("StructuredBuffer", &settings, &m_renderer);
+    tr_create_renderer(k_app_name, &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
     tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
@@ -173,7 +173,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #if defined(TINY_RENDERER_VK)
     auto comp = load_file(k_asset_dir + "byte_address_buffer.cs.spv");
     tr_create_shader_program_compute(m_renderer, 
-                                     comp.size(), comp.data(), "main", &m_compute_shader);
+                                     static_cast<uint32_t>(comp.size()), comp.data(), "main", &m_compute_shader);
 
     auto vert = load_file(k_asset_dir + "texture.vs.spv");
     auto frag = load_file(k_asset_dir + "texture.ps.spv");
@@ -183,12 +183,12 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "byte_address_buffer.hlsl");
     tr_create_shader_program_compute(m_renderer, 
-                                     static_cast<uint32_t>(hlsl.size()), hlsl.data(), "main", &m_compute_shader);
+                                     (uint32_t)hlsl.size(), hlsl.data(), "main", &m_compute_shader);
 
     hlsl = load_file(k_asset_dir + "texture.hlsl");
     tr_create_shader_program(m_renderer, 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", &m_texture_shader);
+                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
@@ -200,7 +200,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
     descriptors[0].type          = tr_descriptor_type_storage_buffer_srv;
     descriptors[0].count         = 1;
@@ -210,7 +210,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_compute_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_compute_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -319,7 +319,7 @@ void draw_frame()
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage_uav);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
-    tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
+    tr_cmd_dispatch(cmd, (uint32_t)m_compute_dst_buffer->element_count, 1, 1);
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
     // Copy compute output buffer to texture
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
