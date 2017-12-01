@@ -135,8 +135,8 @@ void init_tiny_renderer(GLFWwindow* window)
     int width = 0;
     int height = 0;
     glfwGetWindowSize(window, &width, &height);
-    s_window_width = static_cast<uint32_t>(width);
-    s_window_height = static_cast<uint32_t>(height);
+    s_window_width = (uint32_t)width;
+    s_window_height = (uint32_t)height;
 
     tr_renderer_settings settings = {0};
 #if defined(__linux__)
@@ -155,7 +155,7 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
-    settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
+    settings.instance_layers.count          = (uint32_t)instance_layers.size();
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #elif defined(TINY_RENDERER_DX)
     settings.dx_shader_target               = tr_dx_shader_target_5_1;
@@ -170,8 +170,8 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(k_asset_dir + "constant_buffer.vs.spv");
     auto frag = load_file(k_asset_dir + "constant_buffer.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             static_cast<uint32_t>(vert.size()), (uint32_t*)(vert.data()), "VSMain", 
-                             static_cast<uint32_t>(frag.size()), (uint32_t*)(frag.data()), "PSMain", &m_shader);
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain", 
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "constant_buffer.hlsl");
     tr_create_shader_program(m_renderer, 
@@ -291,7 +291,7 @@ void draw_frame()
 
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-    tr_cmd_set_viewport(cmd, 0, 0, static_cast<float>(s_window_width), static_cast<float>(s_window_height), 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, (float)s_window_width, (float)s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};
