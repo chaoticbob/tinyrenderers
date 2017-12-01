@@ -69,3 +69,10 @@ dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
 file=opvariable_init
 dxc -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
 dxc -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+
+# structured_buffers_01
+file=structured_buffers_01
+dxc -no-warnings -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
+dxc -no-warnings -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+dxc -no-warnings -spirv -T cs_6_0 -E csmain -Fo $file.cs.spv $file.hlsl
+

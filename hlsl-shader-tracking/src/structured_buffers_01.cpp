@@ -24,9 +24,9 @@
 const char*         k_app_name = "structured_buffers_01";
 const uint32_t      kImageCount = 3;
 #if defined(__linux__)
-const std::string   kAssetDir = "../samples/assets/";
+const std::string   kAssetDir = "../hlsl-shader-tracking/assets/";
 #elif defined(_WIN32)
-const std::string   kAssetDir = "../../samples/assets/";
+const std::string   kAssetDir = "../../hlsl-shader-tracking/assets/";
 #endif
 
 tr_renderer*        m_renderer = nullptr;
@@ -170,26 +170,24 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, kImageCount, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto comp = load_file(kAssetDir + "structured_buffer.cs.spv");
+    auto comp = load_file(kAssetDir + "structured_buffers_01.cs.spv");
     tr_create_shader_program_compute(m_renderer, 
-                                     comp.size(), comp.data(), "main", &m_compute_shader);
+                                     (uint32_t)comp.size(), comp.data(), "csmain", &m_compute_shader);
 
-    auto vert = load_file(kAssetDir + "texture.vs.spv");
-    auto frag = load_file(kAssetDir + "texture.ps.spv");
+    auto vert = load_file(kAssetDir + "structured_buffers_01.vs.spv");
+    auto frag = load_file(kAssetDir + "structured_buffers_01.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             //vert.size(), (uint32_t*)(vert.data()), "main", 
-                             //frag.size(), (uint32_t*)(frag.data()), "main", &m_shader);
-                             vert.size(), (uint32_t*)(vert.data()), "VSMain", 
-                             frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "vsmain", 
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "psmain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file(kAssetDir + "structured_buffer.hlsl");
+    auto hlsl = load_file(kAssetDir + "structured_buffers_01.hlsl");
     tr_create_shader_program_compute(m_renderer, 
-                                     hlsl.size(), hlsl.data(), "main", &m_compute_shader);
+                                     (uint32_t)hlsl.size(), hlsl.data(), "csmain", &m_compute_shader);
 
-    hlsl = load_file(kAssetDir + "texture.hlsl");
+    hlsl = load_file(kAssetDir + "structured_buffers_01.hlsl");
     tr_create_shader_program(m_renderer, 
-                             hlsl.size(), hlsl.data(), "VSMain", 
-                             hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
+                             (uint32_t)hlsl.size(), hlsl.data(), "vsmain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "psmain", &m_texture_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
@@ -201,7 +199,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
     descriptors[0].type          = tr_descriptor_type_storage_buffer_srv;
     descriptors[0].count         = 1;
@@ -211,7 +209,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_comp;
-    tr_create_descriptor_set(m_renderer, descriptors.size(), descriptors.data(), &m_compute_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_compute_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -238,8 +236,8 @@ void init_tiny_renderer(GLFWwindow* window)
          0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f,
     };
 
-    uint64_t vertexDataSize = sizeof(float) * vertexData.size();
-    uint64_t vertexStride = sizeof(float) * 6;
+    uint32_t vertexDataSize = sizeof(float) * (uint32_t)vertexData.size();
+    uint32_t vertexStride = sizeof(float) * 6;
     tr_create_vertex_buffer(m_renderer, vertexDataSize, true, vertexStride, &m_rect_vertex_buffer);
     memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertexData.data(), vertexDataSize);
         
@@ -248,7 +246,7 @@ void init_tiny_renderer(GLFWwindow* window)
         0, 2, 3
     };
         
-    uint64_t indexDataSize = sizeof(uint16_t) * indexData.size();
+    uint32_t indexDataSize = sizeof(uint16_t) * (uint32_t)indexData.size();
     tr_create_index_buffer(m_renderer, indexDataSize, true, tr_index_type_uint16, &m_rect_index_buffer);
     memcpy(m_rect_index_buffer->cpu_mapped_address, indexData.data(), indexDataSize);
 
@@ -265,8 +263,8 @@ void init_tiny_renderer(GLFWwindow* window)
     assert(NULL != image_data);
     m_image_row_stride = m_image_width * required_channels;
     std::vector<Input> input_buffer;
-    for (uint32_t i = 0; i < m_image_height; ++i) {
-      for (uint32_t j = 0; j < m_image_width; ++j) {
+    for (uint32_t i = 0; i < (uint32_t)m_image_height; ++i) {
+      for (uint32_t j = 0; j < (uint32_t)m_image_width; ++j) {
         uint32_t offset = (i * m_image_row_stride) + (j * 4);
         Input elem = {};
         elem.color = *((uint32_t*)(image_data + offset));
@@ -276,9 +274,9 @@ void init_tiny_renderer(GLFWwindow* window)
         input_buffer.push_back(elem);
       }
     }
-    uint64_t buffer_size = input_buffer.size() * sizeof(Input);
-    uint64_t element_count = m_image_width * m_image_height;
-    uint64_t struct_stride = sizeof(Input);
+    uint32_t buffer_size = (uint32_t)input_buffer.size() * sizeof(Input);
+    uint32_t element_count = m_image_width * m_image_height;
+    uint32_t struct_stride = sizeof(Input);
     tr_create_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, input_buffer.data(), m_compute_src_buffer);
     stbi_image_free(image_data);
@@ -329,7 +327,8 @@ void draw_frame()
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_transfer_src, tr_buffer_usage_storage_uav);
     tr_cmd_bind_pipeline(cmd, m_compute_pipeline);
     tr_cmd_bind_descriptor_sets(cmd, m_compute_pipeline, m_compute_desc_set);
-    tr_cmd_dispatch(cmd, m_compute_dst_buffer->element_count, 1, 1);
+    tr_cmd_dispatch(cmd, m_image_width / 16, m_image_height / 16, 1);
+    //tr_cmd_dispatch(cmd, 1, 1, 1);
     tr_cmd_buffer_transition(cmd, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
     // Copy compute output buffer to texture
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_sampled_image, tr_texture_usage_transfer_dst);
@@ -337,7 +336,7 @@ void draw_frame()
     tr_cmd_image_transition(cmd, m_texture, tr_texture_usage_transfer_dst, tr_texture_usage_sampled_image);
     // Draw compute result to screen
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-    tr_cmd_set_viewport(cmd, 0, 0, s_window_width, s_window_height, 0.0f, 1.0f);
+    tr_cmd_set_viewport(cmd, 0, 0, (float)s_window_width, (float)s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_clear_value clear_value = {0.0f, 0.0f, 0.0f, 0.0f};

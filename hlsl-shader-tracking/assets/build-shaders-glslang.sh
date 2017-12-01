@@ -88,3 +88,15 @@ spirv-dis --raw-id $file.vs.spv > $file.vs.spvasm
 spirv-dis --raw-id $file.ps.spv > $file.ps.spvasm
 disassemble_spv $file.vs.spv $file.vs.spvasm
 disassemble_spv $file.ps.spv $file.ps.spvasm
+
+# structured_buffers_01
+file=structured_buffers_01
+glslangValidator -V -D -Os -S vert -e vsmain -o $file.vs.spv $file.hlsl
+glslangValidator -V -D -Os -S frag -e psmain -o $file.ps.spv $file.hlsl
+glslangValidator -V -D -Os -S comp -e csmain -o $file.cs.spv $file.hlsl
+#spirv-dis --raw-id $file.vs.spv > $file.vs.spvasm
+#spirv-dis --raw-id $file.ps.spv > $file.ps.spvasm
+#spirv-dis --raw-id $file.cs.spv > $file.cs.spvasm
+#disassemble_spv $file.vs.spv $file.vs.spvasm
+#disassemble_spv $file.ps.spv $file.ps.spvasm
+#disassemble_spv $file.cs.spv $file.cs.spvasm
