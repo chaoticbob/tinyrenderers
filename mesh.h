@@ -53,23 +53,23 @@ public:
     return m_vertices; 
   }
 
-  size_t GetIndexCount() const { 
-    size_t count = m_indices.size();
+  uint32_t GetIndexCount() const { 
+    uint32_t count = (uint32_t)m_indices.size();
     return count;
   }
 
-  size_t GetVertexStride() const {
-    size_t stride = sizeof(Vertex);
+  uint32_t GetVertexStride() const {
+    uint32_t stride = (uint32_t)sizeof(Vertex);
     return stride;
   }
 
-  size_t GetVertexCount() const { 
-    size_t count = m_vertices.size();
+  uint32_t GetVertexCount() const { 
+    uint32_t count = (uint32_t)m_vertices.size();
     return count;
   }
 
-  size_t GetVertexDataSize() const {
-    size_t size = GetVertexStride() * GetVertexCount();
+  uint32_t GetVertexDataSize() const {
+    uint32_t size = GetVertexStride() * GetVertexCount();
     return size;
   }
 

@@ -167,7 +167,7 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #endif
-    tr_create_renderer("StructuredBuffer", &settings, &m_renderer);
+    tr_create_renderer(k_app_name, &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
     tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
@@ -175,7 +175,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #if defined(TINY_RENDERER_VK)
     auto comp = load_file(k_asset_dir + "append_consume.cs.spv");
     tr_create_shader_program_compute(m_renderer, 
-                                     comp.size(), comp.data(), "main", &m_compute_shader);
+                                     static_cast<uint32_t>(comp.size()), comp.data(), "main", &m_compute_shader);
 
     auto vert = load_file(k_asset_dir + "texture.vs.spv");
     auto frag = load_file(k_asset_dir + "texture.ps.spv");
@@ -185,12 +185,12 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "append_consume.hlsl");
     tr_create_shader_program_compute(m_renderer, 
-                                     static_cast<uint32_t>(hlsl.size()), hlsl.data(), "main", &m_compute_shader);
+                                     (uint32_t)hlsl.size(), hlsl.data(), "main", &m_compute_shader);
 
     hlsl = load_file(k_asset_dir + "texture.hlsl");
     tr_create_shader_program(m_renderer, 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", &m_texture_shader);
+                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", &m_texture_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(2);
@@ -202,7 +202,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 1;
     descriptors[1].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
 
     // See append_consume.hlsl for bindings for both Vulkan and D3D12
@@ -228,7 +228,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[3].count         = 1;
     descriptors[3].binding       = 3;
     descriptors[3].shader_stages = tr_shader_stage_comp;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_compute_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_compute_desc_set);
 #elif defined(TINY_RENDERER_DX)
     descriptors[0].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[0].count         = 1;
@@ -238,7 +238,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[1].count         = 1;
     descriptors[1].binding       = 2;
     descriptors[1].shader_stages = tr_shader_stage_comp;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_compute_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_compute_desc_set);
 #endif
 
     tr_vertex_layout vertex_layout = {};
@@ -293,7 +293,7 @@ void init_tiny_renderer(GLFWwindow* window)
     // Consume buffer
     tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_src_counter_buffer, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
-    tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, element_count, m_compute_src_counter_buffer);
+    tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, (uint32_t)element_count, m_compute_src_counter_buffer);
     stbi_image_free(image_data);
     // Append buffer
     tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);

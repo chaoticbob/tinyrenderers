@@ -160,7 +160,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     settings.dx_shader_target               = tr_dx_shader_target_5_1;
 #endif
-    tr_create_renderer("ColorApp", &settings, &m_renderer);
+    tr_create_renderer(k_app_name, &settings, &m_renderer);
 
     tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
     tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
@@ -176,8 +176,8 @@ void init_tiny_renderer(GLFWwindow* window)
     auto hlsl = load_file(k_asset_dir + "constant_buffer.hlsl");
     tr_create_shader_program(m_renderer, 
 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", &m_shader);
+                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", &m_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(1);
@@ -185,8 +185,8 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = tr_shader_stage_vert;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set_tri);
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set_quad);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set_tri);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set_quad);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 1;

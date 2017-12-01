@@ -213,34 +213,34 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(k_asset_dir + "ChessSet/shaders/phong.vs.spv");
     auto frag = load_file(k_asset_dir + "ChessSet/shaders/phong.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                             frag.size(), (uint32_t*)(frag.data()), "PSMain",
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
                              &m_phong_shader);
 
          vert = load_file(k_asset_dir + "ChessSet/shaders/normal_wireframe.vs.spv");
     auto geom = load_file(k_asset_dir + "ChessSet/shaders/normal_wireframe.gs.spv");
          frag = load_file(k_asset_dir + "ChessSet/shaders/normal_wireframe.ps.spv");
     tr_create_shader_program_n(m_renderer, 
-                               vert.size(), (uint32_t*)(vert.data()), "VSMain",
+                               (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
                                0, nullptr, nullptr,
                                0, nullptr, nullptr,
-                               geom.size(), (uint32_t*)(geom.data()), "GSMain",
-                               frag.size(), (uint32_t*)(frag.data()), "PSMain",
+                               (uint32_t)geom.size(), (uint32_t*)(geom.data()), "GSMain",
+                               (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
                                0, nullptr, nullptr,
                                &m_normal_wireframe_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "ChessSet/shaders/phong.hlsl");
     tr_create_shader_program(m_renderer,
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", 
                              &m_phong_shader);    
     hlsl = load_file(k_asset_dir + "ChessSet/shaders/normal_wireframe.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
                                0, nullptr, nullptr,
                                0, nullptr, nullptr,
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "GSMain",
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain",
+                               (uint32_t)hlsl.size(), hlsl.data(), "GSMain",
+                               (uint32_t)hlsl.size(), hlsl.data(), "PSMain",
                                0, nullptr, nullptr, 
                                &m_normal_wireframe_shader);    
 #endif
@@ -253,12 +253,12 @@ void init_tiny_renderer(GLFWwindow* window)
       descriptors[0].binding       = 0;
       descriptors[0].shader_stages = (tr_shader_stage)(tr_shader_stage_vert | tr_shader_stage_geom | tr_shader_stage_frag);
 
-      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_board_1_desc_set);    
-      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_board_2_desc_set);
-      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_pieces_1_desc_set);
-      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_chess_pieces_2_desc_set);
+      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_chess_board_1_desc_set);    
+      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_chess_board_2_desc_set);
+      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_chess_pieces_1_desc_set);
+      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_chess_pieces_2_desc_set);
 
-      tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_normal_wireframe_desc_set);
+      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_normal_wireframe_desc_set);
     }
 
     // Vertex layout
@@ -387,7 +387,7 @@ void draw_frame()
 
     // Model
     float t = static_cast<float>(glfwGetTime());
-    m_transform.Rotate(0, t / 2.0, 0);
+    m_transform.Rotate(0, t / 2.0f, 0);
     
     // Constant buffer for phong shader
     {

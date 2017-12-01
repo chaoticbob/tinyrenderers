@@ -180,21 +180,21 @@ void init_tiny_renderer(GLFWwindow* window)
     auto geom = load_file(k_asset_dir + "triangle_wireframe.gs.spv");
     auto frag = load_file(k_asset_dir + "triangle_wireframe.ps.spv");
     tr_create_shader_program_n(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "VSMain",
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
                              0, nullptr, nullptr,
                              0, nullptr, nullptr,
-                             geom.size(), (uint32_t*)(geom.data()), "GSMain", 
-                             frag.size(), (uint32_t*)(frag.data()), "PSMain",
+                             (uint32_t)geom.size(), (uint32_t*)(geom.data()), "GSMain", 
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
                              0, nullptr, nullptr,
                              &m_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "triangle_wireframe.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
                                0, nullptr, nullptr,
                                0, nullptr, nullptr,
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "GSMain", 
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "GSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "PSMain", 
                                0, nullptr, nullptr,
                                &m_shader);                               
 #endif
@@ -212,7 +212,7 @@ void init_tiny_renderer(GLFWwindow* window)
     //descriptors[2].count         = 1;
     //descriptors[2].binding       = 2;
     //descriptors[2].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -298,9 +298,9 @@ void init_tiny_renderer(GLFWwindow* window)
       { positions[2], uvs[3] },
     };
 
-    uint64_t vertex_stride   = sizeof(Vertex);
-    uint64_t vertex_count    = vertex_data.size();
-    uint64_t vertex_data_size = vertex_stride * vertex_count;
+    uint32_t vertex_stride   = sizeof(Vertex);
+    uint32_t vertex_count    = (uint32_t)vertex_data.size();
+    uint32_t vertex_data_size = vertex_stride * vertex_count;
 
     tr_create_vertex_buffer(m_renderer, vertex_data_size, true, vertex_stride, &m_rect_vertex_buffer);
     memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertex_data.data(), vertex_data_size);

@@ -185,8 +185,8 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "textured_cube.hlsl");
     tr_create_shader_program(m_renderer, 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", &m_shader);
+                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", &m_shader);
 #endif
 
     std::vector<tr_descriptor> descriptors(3);
@@ -202,7 +202,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[2].count         = 1;
     descriptors[2].binding       = 2;
     descriptors[2].shader_stages = tr_shader_stage_frag;
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 2;
@@ -288,9 +288,9 @@ void init_tiny_renderer(GLFWwindow* window)
       { positions[2], uvs[3] },
     };
 
-    uint64_t vertex_stride   = sizeof(Vertex);
-    uint64_t vertex_count    = vertex_data.size();
-    uint64_t vertex_data_size = vertex_stride * vertex_count;
+    uint32_t vertex_stride   = sizeof(Vertex);
+    uint32_t vertex_count    = (uint32_t)vertex_data.size();
+    uint32_t vertex_data_size = vertex_stride * vertex_count;
 
     tr_create_vertex_buffer(m_renderer, vertex_data_size, true, vertex_stride, &m_rect_vertex_buffer);
     memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertex_data.data(), vertex_data_size);

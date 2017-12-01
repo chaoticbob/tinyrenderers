@@ -186,8 +186,8 @@ void init_tiny_renderer(GLFWwindow* window)
     auto vert = load_file(k_asset_dir + "simple_tess_color.vs.spv");
     auto frag = load_file(k_asset_dir + "simple_tess_color.ps.spv");
     tr_create_shader_program(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                             frag.size(), (uint32_t*)(frag.data()), "PSMain",
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
                              &m_color_shader);
 
          vert = load_file(k_asset_dir + "simple_tess_isoline.vs.spv");
@@ -195,27 +195,27 @@ void init_tiny_renderer(GLFWwindow* window)
     auto tese = load_file(k_asset_dir + "simple_tess_isoline.ds.spv");
          frag = load_file(k_asset_dir + "simple_tess_isoline.ps.spv");
     tr_create_shader_program_n(m_renderer, 
-                             vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                             tesc.size(), (uint32_t*)(tesc.data()), "HSMain", 
-                             tese.size(), (uint32_t*)(tese.data()), "DSMain", 
+                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
+                             (uint32_t)tesc.size(), (uint32_t*)(tesc.data()), "HSMain", 
+                             (uint32_t)tese.size(), (uint32_t*)(tese.data()), "DSMain", 
                              0, nullptr, nullptr,
-                             frag.size(), (uint32_t*)(frag.data()), "PSMain",
+                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
                              0, nullptr, nullptr,
                              &m_isoline_shader);
 #elif defined(TINY_RENDERER_DX)
     auto hlsl = load_file(k_asset_dir + "simple_tess_color.hlsl");
     tr_create_shader_program(m_renderer,
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                             static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", 
                              &m_color_shader);
 
     hlsl = load_file(k_asset_dir + "simple_tess_isoline.hlsl");
     tr_create_shader_program_n(m_renderer,
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "VSMain", 
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "HSMain", 
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "DSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "HSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "DSMain", 
                                0, nullptr, nullptr,
-                               static_cast<uint32_t>(hlsl.size()), hlsl.data(), "PSMain", 
+                               (uint32_t)hlsl.size(), hlsl.data(), "PSMain", 
                                0, nullptr, nullptr,
                                &m_isoline_shader);
 #endif
@@ -225,8 +225,8 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = (tr_shader_stage)(tr_shader_stage_vert | tr_shader_stage_tesc | tr_shader_stage_tese | tr_shader_stage_frag);
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_color_desc_set);
-    tr_create_descriptor_set(m_renderer, static_cast<uint32_t>(descriptors.size()), descriptors.data(), &m_isoline_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_color_desc_set);
+    tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_isoline_desc_set);
 
     tr_vertex_layout vertex_layout = {};
     vertex_layout.attrib_count = 1;
@@ -280,12 +280,12 @@ void init_tiny_renderer(GLFWwindow* window)
         { positions[12] },
       };
 
-      uint64_t vertex_stride   = sizeof(Vertex);
-      uint64_t vertex_count    = vertex_data.size();
-      uint64_t vertex_data_size = vertex_stride * vertex_count;
+      uint32_t vertex_stride    = sizeof(Vertex);
+      uint32_t vertex_count     = (uint32_t)vertex_data.size();
+      uint32_t vertex_data_size = vertex_stride * vertex_count;
       tr_create_vertex_buffer(m_renderer, vertex_data_size, true, vertex_stride, &m_color_vertex_buffer);
       memcpy(m_color_vertex_buffer->cpu_mapped_address, vertex_data.data(), vertex_data_size);
-      m_color_vertex_count = vertex_data.size();
+      m_color_vertex_count = (uint32_t)vertex_data.size();
     }
 
     // Isoline vertex data
@@ -353,12 +353,12 @@ void init_tiny_renderer(GLFWwindow* window)
         { positions[ 2] },
       };
 
-      uint64_t vertex_stride   = sizeof(Vertex);
-      uint64_t vertex_count    = vertex_data.size();
-      uint64_t vertex_data_size = vertex_stride * vertex_count;
+      uint32_t vertex_stride   = sizeof(Vertex);
+      uint32_t vertex_count    = (uint32_t)vertex_data.size();
+      uint32_t vertex_data_size = vertex_stride * vertex_count;
       tr_create_vertex_buffer(m_renderer, vertex_data_size, true, vertex_stride, &m_isoline_vertex_buffer);
       memcpy(m_isoline_vertex_buffer->cpu_mapped_address, vertex_data.data(), vertex_data_size);
-      m_isoline_vertex_count = vertex_data.size();
+      m_isoline_vertex_count = (uint32_t)vertex_data.size();
     }
 
     uint32_t ubo_size = sizeof(float4x4)  // float4x4  model_view_matrix

@@ -22,8 +22,8 @@ public:
   ConstantBuffer() {}
   ~ConstantBuffer() {}
 
-  size_t GetDataSize() const {
-    size_t size = sizeof(data);
+  uint32_t GetDataSize() const {
+    uint32_t size = sizeof(data);
     return size;
   }
 
