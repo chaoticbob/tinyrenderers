@@ -127,8 +127,8 @@ void init_tiny_renderer(GLFWwindow* window)
     int width = 0;
     int height = 0;
     glfwGetWindowSize(window, &width, &height);
-    s_window_width = static_cast<uint32_t>(width);
-    s_window_height = static_cast<uint32_t>(height);
+    s_window_width = (uint32_t)width;
+    s_window_height = (uint32_t)height;
 
     tr_renderer_settings settings = {0};
 #if defined(__linux__)
@@ -147,7 +147,7 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
-    settings.instance_layers.count          = static_cast<uint32_t>(instance_layers.size());
+    settings.instance_layers.count          = (uint32_t)instance_layers.size();
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #endif
     tr_create_renderer("ColorApp", &settings, &m_renderer);
