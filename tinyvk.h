@@ -58,7 +58,8 @@ COMPILING & LINKING
 
 */
 
-#pragma once
+#ifndef TINY_RENDERER_VK_H
+#define TINY_RENDERER_VK_H
 
 #include <assert.h>
 #include <stdbool.h>
@@ -5537,3 +5538,5 @@ void tr_internal_vk_queue_wait_idle(tr_queue* p_queue)
 #if defined(__cplusplus) && defined(TINY_RENDERER_CPP_NAMESPACE)
 } // namespace TINY_RENDERER_CPP_NAMESPACE
 #endif
+
+#endif // TINY_RENDERER_VK_H

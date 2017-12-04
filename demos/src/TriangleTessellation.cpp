@@ -23,21 +23,7 @@
 #include "stb_image.h"
 
 #include "mesh.h"
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/transform.hpp>
-using float2   = glm::vec2;
-using float3   = glm::vec3;
-using float4   = glm::vec4;
-using float3x3 = glm::mat3;
-using float4x4 = glm::mat4;
-using float3x4 = glm::mat3x4;
-using float4x3 = glm::mat4x3;
-
+using namespace tr;
 
 const char*         k_app_name = "TriangleTessellation";
 const uint32_t      k_image_count = 1;

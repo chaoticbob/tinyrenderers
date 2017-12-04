@@ -35,9 +35,27 @@ public:
   void Write(void* p_dst_buffer) {
     const void* p_src_buffer = GetData();
     size_t size = GetDataSize();
+    // Empty struct
+    if (size == 1) {
+      return;
+    }
     assert((size % 4) == 0);
     std::memcpy(p_dst_buffer, p_src_buffer, size);
   }
+};
+
+/*! @struct NullData
+
+*/
+struct NullData {};
+
+/*! @class NullBuffer
+
+*/
+class NullBuffer : public ConstantBuffer<NullData> {
+public:
+  NullBuffer() {}
+  ~NullBuffer() {}
 };
 
 /*! @struct ViewData
@@ -63,29 +81,8 @@ class ViewTransformBuffer : public ConstantBuffer<ViewTransformData> {
 public:
   ViewTransformBuffer() {}
   ~ViewTransformBuffer() {}
-
-  void SetTransform(const Transform& transform) {
-    data.model_matrix = transform.GetModelMatrix();
-
-    data.model_view_matrix = data.view_matrix 
-                           * data.model_matrix;
-
-    data.model_view_projection_matrix = data.projection_matrix
-                                      * data.view_matrix
-                                      * data.model_matrix;
-
-    float3x3 normal = float3x3(glm::transpose(glm::inverse(data.model_matrix)));
-    data.normal_matrix_world_space[0] = float4(normal[0], 0.0f);
-    data.normal_matrix_world_space[1] = float4(normal[1], 0.0f);
-    data.normal_matrix_world_space[2] = float4(normal[2], 0.0f);
-
-    normal = float3x3(glm::transpose(glm::inverse(data.model_view_matrix)));
-    data.normal_matrix_view_space[0] = float4(normal[0], 0.0f);
-    data.normal_matrix_view_space[1] = float4(normal[1], 0.0f);
-    data.normal_matrix_view_space[2] = float4(normal[2], 0.0f);
-  }
-  
-  void SetCamera(const Camera& camera) {
+ 
+  void SetView(const Camera& camera) {
     data.view_matrix = camera.GetViewMatrix();
 
     data.projection_matrix = camera.GetProjectionMatrix();
@@ -103,6 +100,27 @@ public:
     data.view_direction = float4(camera.GetViewDirection(), 0);
 
     float3x3 normal = float3x3(glm::transpose(glm::inverse(data.model_view_matrix)));
+    data.normal_matrix_view_space[0] = float4(normal[0], 0.0f);
+    data.normal_matrix_view_space[1] = float4(normal[1], 0.0f);
+    data.normal_matrix_view_space[2] = float4(normal[2], 0.0f);
+  }
+
+  void SetTransform(const Transform& transform) {
+    data.model_matrix = transform.GetModelMatrix();
+
+    data.model_view_matrix = data.view_matrix 
+                           * data.model_matrix;
+
+    data.model_view_projection_matrix = data.projection_matrix
+                                      * data.view_matrix
+                                      * data.model_matrix;
+
+    float3x3 normal = float3x3(glm::transpose(glm::inverse(data.model_matrix)));
+    data.normal_matrix_world_space[0] = float4(normal[0], 0.0f);
+    data.normal_matrix_world_space[1] = float4(normal[1], 0.0f);
+    data.normal_matrix_world_space[2] = float4(normal[2], 0.0f);
+
+    normal = float3x3(glm::transpose(glm::inverse(data.model_view_matrix)));
     data.normal_matrix_view_space[0] = float4(normal[0], 0.0f);
     data.normal_matrix_view_space[1] = float4(normal[1], 0.0f);
     data.normal_matrix_view_space[2] = float4(normal[2], 0.0f);
