@@ -95,7 +95,7 @@ void csmain(uint3 tid : SV_DispatchThreadID)
   float g = 255.0 - ReadGreen(tid.x, tid.y, pair);
   WriteRedGreen(tid.x, tid.y, r, g, pair);
 
-  // Write constant value or B channel
+  // Write constant value for B channel
   uint index = tid.y * 1024 + tid.x;
   uint B = 0x7F << B_SHIFT;
   BufferOut[index].color |= B;
