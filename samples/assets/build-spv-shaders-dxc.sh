@@ -9,7 +9,7 @@ fi
 
 dxc_exe=$1
 if [ ! $(which $dxc_exe) ];  then
-  echo "glslangValidator not found at $dxc_exe"
+  echo "dxc not found at $dxc_exe"
   exit
 fi
 
@@ -79,8 +79,12 @@ function compile_gs() {
 function compile_cs() {
   filepath=$1
   entry=$2
+  append_entry=$3  
   filename=$(basename $filepath .hlsl)
   output_filename=$filename.cs.spv
+  if [ -n "$append_entry" ]; then
+	output_filename=$filename.$entry.cs.spv
+  fi
 
   build=false
   if [ ! -f $output_filename ]; then
@@ -208,6 +212,8 @@ compile_cs append_consume.hlsl main
 compile_cs byte_address_buffer.hlsl main
 compile_cs simple_compute.hlsl main
 compile_cs structured_buffer.hlsl main
+compile_cs compute_blur.hlsl hblur_main 1
+compile_cs compute_blur.hlsl vblur_main 1
 
 compile_vs_ps simple.hlsl VSMain PSMain
 compile_vs_ps color.hlsl VSMain PSMain
