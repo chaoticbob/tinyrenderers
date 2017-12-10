@@ -76,3 +76,14 @@ dxc -no-warnings -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
 dxc -no-warnings -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
 dxc -no-warnings -spirv -T cs_6_0 -E csmain -Fo $file.cs.spv $file.hlsl
 
+# array_inout
+file=array_inout
+dxc -O0 -no-warnings -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
+dxc -O0 -no-warnings -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+dxc -O0 -no-warnings -spirv -T cs_6_0 -E csmain -Fo $file.cs.spv $file.hlsl
+
+# bad_loop_opt_01
+file=bad_loop_opt_01
+dxc -O3 -spirv -T vs_6_0 -E vsmain -Fo $file.vs.spv $file.hlsl
+dxc -O3 -spirv -T ps_6_0 -E psmain -Fo $file.ps.spv $file.hlsl
+
