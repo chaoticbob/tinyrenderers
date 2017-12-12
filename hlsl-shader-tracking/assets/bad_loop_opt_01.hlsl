@@ -20,6 +20,11 @@ float4 psmain(float4 PositionCS : SV_Position) : SV_Target
   //input[1] = values[1];
   
   // DXC/SPIRV: Only works with -O0, otherwise final output is yellow
+  // 
+  // UPDATE: This issue was addressed in SPIRV-Tools around this commit:
+  //         059fe0822a8075511aee8622f9daeb9a9abedb1b 
+  //
+  //
   for (int i = 0; i < 2; ++i) {
     input[i] = values[i];
   }
