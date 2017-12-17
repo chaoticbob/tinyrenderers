@@ -156,6 +156,24 @@ public:
     return true;
   }
 
+  static bool Load(const std::string& file_path, tr_renderer* p_renderer, tr_buffer** pp_buffer, uint32_t* p_vertex_count) {
+    tr::Mesh mesh;
+    bool mesh_load_res = tr::Mesh::Load(file_path, &mesh);
+    if (!mesh_load_res) {
+      return false;
+    }
+
+    tr_buffer* p_buffer = nullptr;
+    tr_create_vertex_buffer(p_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &p_buffer);
+    assert(p_buffer != nullptr);
+
+    memcpy(p_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
+
+    *pp_buffer = p_buffer;
+    *p_vertex_count = mesh.GetVertexCount();
+    return true;    
+  }
+
 private:
   std::vector<uint32_t> m_indices;
   std::vector<Vertex>   m_vertices;

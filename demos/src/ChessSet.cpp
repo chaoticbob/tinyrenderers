@@ -69,6 +69,9 @@ uint64_t              g_frame_count = 0;
 
 tr::Camera            g_camera;
 
+tr_clear_value        g_color_clear_value = {};
+tr_clear_value        g_depth_stencil_clear_value = {};
+
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
                     platform_log(ss.str().c_str()); }
 
@@ -146,6 +149,10 @@ void init_tiny_renderer(GLFWwindow* window)
     g_window_width = (uint32_t)width;
     g_window_height = (uint32_t)height;
 
+    g_color_clear_value = { 0.1f, 0.1f, 0.1f, 0.1f };
+    g_depth_stencil_clear_value.depth = 1.0f;
+    g_depth_stencil_clear_value.stencil = 255;
+
     tr_renderer_settings settings = {0};
 #if defined(__linux__)
     settings.handle.connection              = XGetXCBConnection(glfwGetX11Display());
@@ -160,8 +167,8 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
     settings.swapchain.depth_stencil_format = tr_format_d32_float;
-    settings.swapchain.depth_stencil_clear_value.depth    = 1.0f;
-    settings.swapchain.depth_stencil_clear_value.stencil  = 255;
+    settings.swapchain.color_clear_value          = g_color_clear_value;
+    settings.swapchain.depth_stencil_clear_value  = g_depth_stencil_clear_value;
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
@@ -209,11 +216,12 @@ void init_tiny_renderer(GLFWwindow* window)
   // Entities
   {
     tr::EntityCreateInfo entity_create_info = {};
-    entity_create_info.shader_program           = g_phong_shader;
-    entity_create_info.vertex_layout            = tr::Mesh::DefaultVertexLayout();
-    entity_create_info.render_target            = g_renderer->swapchain_render_targets[0];
-    entity_create_info.pipeline_settings.depth  = true;
-    entity_create_info.pipeline_settings.cull_mode  = tr_cull_mode_back;
+    entity_create_info.shader_program                   = g_phong_shader;
+    entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+    entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+    entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
+    entity_create_info.pipeline_settings.depth          = true;
+    entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
 
     // Create solids
     g_chess_board_1_solid.Create(g_renderer, entity_create_info);
@@ -222,10 +230,11 @@ void init_tiny_renderer(GLFWwindow* window)
     g_chess_pieces_2_solid.Create(g_renderer, entity_create_info);
 
     entity_create_info = {};
-    entity_create_info.shader_program           = g_normal_wireframe_shader;
-    entity_create_info.vertex_layout            = tr::Mesh::DefaultVertexLayout();
-    entity_create_info.render_target            = g_renderer->swapchain_render_targets[0];
-    entity_create_info.pipeline_settings.depth  = true;
+    entity_create_info.shader_program                   = g_normal_wireframe_shader;
+    entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+    entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+    entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
+    entity_create_info.pipeline_settings.depth          = true;
 
     // Create wireframes
     g_chess_pieces_1_wireframe.Create(g_renderer, entity_create_info);
@@ -300,12 +309,14 @@ void draw_frame()
     g_chess_pieces_1_wireframe.SetView(g_camera);
     g_chess_pieces_2_wireframe.SetView(g_camera);
 
-    g_chess_board_1_solid.GetTransform().SetRotate(0, ry, 0);
-    g_chess_board_2_solid.GetTransform().SetRotate(0, ry, 0);
-    g_chess_pieces_1_solid.GetTransform().SetRotate(0, ry, 0);
-    g_chess_pieces_2_solid.GetTransform().SetRotate(0, ry, 0);
-    g_chess_pieces_1_wireframe.GetTransform().SetRotate(0, ry, 0);
-    g_chess_pieces_2_wireframe.GetTransform().SetRotate(0, ry, 0);
+    tr::Transform transform;
+    transform.Rotate(0, ry, 0);
+    g_chess_board_1_solid.SetTransform(transform);
+    g_chess_board_2_solid.SetTransform(transform);
+    g_chess_pieces_1_solid.SetTransform(transform);
+    g_chess_pieces_2_solid.SetTransform(transform);
+    g_chess_pieces_1_wireframe.SetTransform(transform);
+    g_chess_pieces_2_wireframe.SetTransform(transform);
 
     g_chess_board_1_solid.UpdateGpuBuffers();
     g_chess_board_2_solid.UpdateGpuBuffers();
@@ -321,12 +332,8 @@ void draw_frame()
     tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, g_window_width, g_window_height);
     tr_cmd_begin_render(cmd, render_target);
-    tr_clear_value color_clear_value = {0.1f, 0.1f, 0.1f, 0.1f};
-    tr_cmd_clear_color_attachment(cmd, 0, &color_clear_value);
-    tr_clear_value depth_stencil_clear_value = { 0 };
-    depth_stencil_clear_value.depth = 1.0f;
-    depth_stencil_clear_value.stencil = 255;
-    tr_cmd_clear_depth_stencil_attachment(cmd, &depth_stencil_clear_value);
+    tr_cmd_clear_color_attachment(cmd, 0, &g_color_clear_value);
+    tr_cmd_clear_depth_stencil_attachment(cmd, &g_depth_stencil_clear_value);
     // Draw phong
     {
       g_chess_board_1_solid.Draw(cmd);

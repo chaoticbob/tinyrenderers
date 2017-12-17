@@ -35,6 +35,7 @@ using float4x4 = glm::mat4x4;
 
 */
 class Transform {
+/*
 private:
   enum DirtyMask {
     DIRTY_MASK_TRANSLATE  = 0x01,
@@ -42,6 +43,7 @@ private:
     DIRTY_MASK_SCALE      = 0x04,
     DIRTY_MASK_MODEL      = 0x08,
   };
+*/
 
 public:
   enum RotationOrder {
@@ -56,6 +58,96 @@ public:
   Transform() {}
   ~Transform() {}
 
+  void Clear() {
+    m_model_matrix = float4x4(1.0f);
+    ClearModelDirty();
+  }
+
+  void Translate(const float3& xyz) {
+    float4x4 m = glm::translate(xyz);
+    m_model_matrix = m * m_model_matrix;
+    SetModelDirty();
+  }
+
+  void Translate(float x, float y, float z) {
+    Translate(float3(x, y, z));
+  }
+
+  void Rotate(const float3& xyz, RotationOrder rotation_order = ROTATION_ORDER_ZYX) {
+    float4x4 rot_x = glm::rotate(xyz.x, float3(1, 0, 0));
+    float4x4 rot_y = glm::rotate(xyz.y, float3(0, 1, 0));
+    float4x4 rot_z = glm::rotate(xyz.z, float3(0, 0, 1));
+    float4x4 m = float4x4(1.0f);
+    switch (rotation_order) {
+      case ROTATION_ORDER_ZYX: m = rot_z * rot_y * rot_x; break;
+      case ROTATION_ORDER_ZXY: m = rot_z * rot_x * rot_y; break;
+      case ROTATION_ORDER_YZX: m = rot_y * rot_z * rot_x; break;
+      case ROTATION_ORDER_YXZ: m = rot_y * rot_x * rot_z; break;
+      case ROTATION_ORDER_XZY: m = rot_x * rot_z * rot_y; break;
+      case ROTATION_ORDER_XYZ: m = rot_x * rot_y * rot_z; break;
+    }
+    m_model_matrix = m * m_model_matrix;
+    SetModelDirty();
+  }
+
+  void Rotate(float x, float y, float z, RotationOrder rotation_order = ROTATION_ORDER_ZYX) {
+    Rotate(float3(x, y, z), rotation_order);
+  }
+
+  void RotateX(float angle) {
+    float4x4 m = glm::rotate(angle, float3(1, 0, 0));
+    m_model_matrix = m * m_model_matrix;
+    SetModelDirty();
+  }
+
+  void RotateY(float angle) {
+    float4x4 m = glm::rotate(angle, float3(0, 1, 0));
+    m_model_matrix = m * m_model_matrix;
+    SetModelDirty();
+  }
+
+  void RotateZ(float angle) {
+    float4x4 m = glm::rotate(angle, float3(0, 0, 1));
+    m_model_matrix = m * m_model_matrix;
+    SetModelDirty();
+  }
+
+  void Scale(const float3& xyz) {
+    float4x4 m = glm::translate(xyz);
+    m_model_matrix = m * m_model_matrix;
+    SetModelDirty();
+  }
+
+  void Scale(float x, float y, float z) {
+    Scale(float3(x, y, z));
+  }
+
+  const float4x4& GetModelMatrix() const {   
+    return m_model_matrix;
+  }
+
+  void SetModelChangedCallback(std::function<void(bool)> fn) {
+    m_model_changed_callback = fn;
+  }
+
+private:
+  void SetModelDirty() const {
+    m_model_dirty = true;
+    if (m_model_changed_callback) {
+      m_model_changed_callback(true);
+    }
+  }
+
+  void ClearModelDirty() const {
+    m_model_dirty = false;
+  }
+
+private:
+  mutable bool              m_model_dirty = true;
+  mutable float4x4          m_model_matrix = float4x4(1.0f);
+  std::function<void(bool)> m_model_changed_callback;
+
+/*
   void Translate(const float3& delta) {
     m_translate += delta;
     SetDirty(DIRTY_MASK_TRANSLATE);
@@ -63,6 +155,11 @@ public:
 
   void SetTranslate(const float3& pos) {
     m_translate = pos;
+    SetDirty(DIRTY_MASK_TRANSLATE);
+  }
+
+  void SetTranslate(float x, float y, float z) {
+    m_translate = float3(x, y, z);
     SetDirty(DIRTY_MASK_TRANSLATE);
   }
 
@@ -243,6 +340,7 @@ private:
   mutable float4x4          m_scale_matrix;
   mutable float4x4          m_model_matrix;
   std::function<void(bool)> m_model_changed_callback;
+*/
 };
 
 } // namespace tr

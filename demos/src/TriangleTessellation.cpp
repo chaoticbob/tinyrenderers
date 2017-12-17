@@ -18,6 +18,9 @@
 #elif defined(TINY_RENDERER_VK)
     #include "tinyvk.h"
 #endif
+#include "camera.h"
+#include "cbuffer.h"
+#include "entity.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -28,47 +31,45 @@ using namespace tr;
 const char*         k_app_name = "TriangleTessellation";
 const uint32_t      k_image_count = 1;
 #if defined(__linux__)
-const std::string   k_asset_dir = "../demos/assets/";
+const tr::fs::path  k_asset_dir = "../demos/assets/";
 #elif defined(_WIN32)
-const std::string   k_asset_dir = "../../demos/assets/";
+const tr::fs::path  k_asset_dir = "../../demos/assets/";
 #endif
 
-tr_renderer*        m_renderer = nullptr;
-tr_cmd_pool*        m_cmd_pool = nullptr;
-tr_cmd**            m_cmds = nullptr;
-
-tr_pipeline*        m_base_pipeline = nullptr;
-tr_shader_program*  m_base_shader = nullptr;
-tr_buffer*          m_base_uniform_buffer = nullptr;
-tr_descriptor_set*  m_base_desc_set = nullptr;
-tr_pipeline*        m_base_wireframe_pipeline = nullptr;
-tr_shader_program*  m_base_wireframe_shader = nullptr;
-
-tr_pipeline*        m_tess_phong_pipeline = nullptr;
-tr_shader_program*  m_tess_phong_shader = nullptr;
-tr_buffer*          m_tess_phong_uniform_buffer = nullptr;
-tr_descriptor_set*  m_tess_phong_desc_set = nullptr;
-tr_pipeline*        m_tess_phong_wireframe_pipeline = nullptr;
-tr_shader_program*  m_tess_phong_wireframe_shader = nullptr;
-
-tr_buffer*          m_chess_pieces_vertex_buffer = nullptr;
-uint32_t            m_chess_pieces_vertex_count = 0;
-
-uint32_t            s_window_width;
-uint32_t            s_window_height;
-uint64_t            s_frame_count = 0;
-
-// ConstantBuffer0
-struct ConstantBuffer0 {
-  // Padded C++                     // HLSL
-  float4x4 model_matrix;            // float4x4 model_view_matrix;
-  float4x4 proj_matrix;             // float4x4 proj_matrix;
-  float4x4 model_view_proj_matrix;  // float4x4 model_view_proj_matrix;
-  float3x4 normal_matrix;           // float3x3 normal_matrix;
-  float4   color;                   // float3   color;
-  float4   view_dir;                // float3   view_dir;
-  float4   tess_factor;             // float3   tess_factor;
+struct TessData {
+  // Padded C++         // HLSL
+  float4  tess_factor;  // float
 };
+
+using TessParams            = tr::ConstantBuffer<TessData>;
+using TessBlinnPhongEntity  = tr::EntityT<tr::BlinnPhongBuffer, TessParams>;
+using TessBasicEntity       = tr::EntityT<NullBuffer,TessParams>;
+
+tr_renderer*          g_renderer = nullptr;
+tr_cmd_pool*          g_cmd_pool = nullptr;
+tr_cmd**              g_cmds = nullptr;
+
+tr::BlinnPhongEntity  g_chess_pieces_base;
+tr::BasicEntity       g_chess_pieces_base_wireframe;
+TessBlinnPhongEntity  g_chess_pieces_tess;
+TessBasicEntity       g_chess_pieces_tess_wireframe;
+
+tr_shader_program*    g_base_shader = nullptr;
+tr_shader_program*    g_base_wireframe_shader = nullptr;
+tr_shader_program*    g_tess_shader = nullptr;
+tr_shader_program*    g_tess_wireframe_shader = nullptr;
+
+tr_buffer*            g_vertex_buffer = nullptr;
+uint32_t              g_vertex_count = 0;
+
+uint32_t              g_window_width;
+uint32_t              g_window_height;
+uint64_t              g_frame_count = 0;
+
+tr::Camera            g_camera;
+
+tr_clear_value        g_color_clear_value = {};
+tr_clear_value        g_depth_stencil_clear_value = {};
 
 
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
@@ -159,8 +160,12 @@ void init_tiny_renderer(GLFWwindow* window)
     int width = 0;
     int height = 0;
     glfwGetWindowSize(window, &width, &height);
-    s_window_width = (uint32_t)width;
-    s_window_height = (uint32_t)height;
+    g_window_width = (uint32_t)width;
+    g_window_height = (uint32_t)height;
+
+    g_color_clear_value = { 0.1f, 0.1f, 0.1f, 0.1f };
+    g_depth_stencil_clear_value.depth = 1.0f;
+    g_depth_stencil_clear_value.stencil = 255;
 
     tr_renderer_settings settings = {0};
 #if defined(__linux__)
@@ -170,308 +175,234 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.handle.hinstance               = ::GetModuleHandle(NULL);
     settings.handle.hwnd                    = glfwGetWin32Window(window);
 #endif
-    settings.width                          = s_window_width;
-    settings.height                         = s_window_height;
+    settings.width                          = g_window_width;
+    settings.height                         = g_window_height;
     settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
-    settings.swapchain.color_clear_value    = { 0.1f, 0.1f, 0.1f, 0.1f };
     settings.swapchain.depth_stencil_format = tr_format_d32_float;
-    settings.swapchain.depth_stencil_clear_value.depth    = 1.0f;
-    settings.swapchain.depth_stencil_clear_value.stencil  = 255;
+    settings.swapchain.color_clear_value          = g_color_clear_value;
+    settings.swapchain.depth_stencil_clear_value  = g_depth_stencil_clear_value;
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
     settings.instance_layers.count          = (uint32_t)instance_layers.size();
     settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #endif
-    tr_create_renderer(k_app_name, &settings, &m_renderer);
+    tr_create_renderer(k_app_name, &settings, &g_renderer);
 
-    tr_create_cmd_pool(m_renderer, m_renderer->graphics_queue, false, &m_cmd_pool);
-    tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
+    tr_create_cmd_pool(g_renderer, g_renderer->graphics_queue, false, &g_cmd_pool);
+    tr_create_cmd_n(g_cmd_pool, false, k_image_count, &g_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto vert = load_file(k_asset_dir + "TriangleTessellation/shaders/base.vs.spv");
-    auto frag = load_file(k_asset_dir + "TriangleTessellation/shaders/base.ps.spv");
-    tr_create_shader_program(m_renderer, 
-                             (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                             (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
-                             &m_base_shader);
-
-         vert = load_file(k_asset_dir + "TriangleTessellation/shaders/base_wireframe.vs.spv");
-    auto geom = load_file(k_asset_dir + "TriangleTessellation/shaders/base_wireframe.gs.spv");
-         frag = load_file(k_asset_dir + "TriangleTessellation/shaders/base_wireframe.ps.spv");
-    tr_create_shader_program_n(m_renderer, 
-                               (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                               0, nullptr, nullptr,
-                               0, nullptr, nullptr,
-                               (uint32_t)geom.size(), (uint32_t*)(geom.data()), "GSMain",
-                               (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
-                               0, nullptr, nullptr,
-                               &m_base_wireframe_shader);
-         vert = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong.vs.spv");
-    auto tesc = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong.hs.spv");
-    auto tese = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong.ds.spv");
-         frag = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong.ps.spv");
-    tr_create_shader_program_n(m_renderer, 
-                               (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                               (uint32_t)tesc.size(), (uint32_t*)(tesc.data()), "HSMain",
-                               (uint32_t)tese.size(), (uint32_t*)(tese.data()), "DSMain",
-                               0, nullptr, nullptr,
-                               (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
-                               0, nullptr, nullptr,
-                               &m_tess_phong_shader);
-         vert = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.vs.spv");
-         tesc = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.hs.spv");
-         tese = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.ds.spv");
-         geom = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.gs.spv");
-         frag = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.ps.spv");
-    tr_create_shader_program_n(m_renderer, 
-                               (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain",
-                               (uint32_t)tesc.size(), (uint32_t*)(tesc.data()), "HSMain",
-                               (uint32_t)tese.size(), (uint32_t*)(tese.data()), "DSMain",
-                               (uint32_t)geom.size(), (uint32_t*)(geom.data()), "GSMain",
-                               (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain",
-                               0, nullptr, nullptr,
-                               &m_tess_phong_wireframe_shader);
+    tr::fs::path base_vs_file_path            = k_asset_dir / "TriangleTessellation/shaders/base.vs.spv"; 
+    tr::fs::path base_ps_file_path            = k_asset_dir / "TriangleTessellation/shaders/base.ps.spv"; 
+    tr::fs::path base_wireframe_vs_file_path  = k_asset_dir / "TriangleTessellation/shaders/base_wireframe.vs.spv"; 
+    tr::fs::path base_wireframe_gs_file_path  = k_asset_dir / "TriangleTessellation/shaders/base_wireframe.gs.spv"; 
+    tr::fs::path base_wireframe_ps_file_path  = k_asset_dir / "TriangleTessellation/shaders/base_wireframe.ps.spv"; 
+    tr::fs::path tess_vs_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.vs.spv"; 
+    tr::fs::path tess_hs_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.hs.spv"; 
+    tr::fs::path tess_ds_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.ds.spv"; 
+    tr::fs::path tess_ps_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.ps.spv"; 
+    tr::fs::path tess_wireframe_vs_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.vs.spv"; 
+    tr::fs::path tess_wireframe_hs_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.hs.spv"; 
+    tr::fs::path tess_wireframe_ds_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.ds.spv"; 
+    tr::fs::path tess_wireframe_gs_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.gs.spv"; 
+    tr::fs::path tess_wireframe_ps_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.ps.spv"; 
 #elif defined(TINY_RENDERER_DX)
-    // Base
-    auto hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/base.hlsl");
-    tr_create_shader_program(m_renderer,
-                             (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
-                             (uint32_t)hlsl.size(), hlsl.data(), "PSMain", 
-                             &m_base_shader);    
-    hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/base_wireframe.hlsl");
-    tr_create_shader_program_n(m_renderer,
-                               (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
-                               0, nullptr, nullptr,
-                               0, nullptr, nullptr,
-                               (uint32_t)hlsl.size(), hlsl.data(), "GSMain",
-                               (uint32_t)hlsl.size(), hlsl.data(), "PSMain",
-                               0, nullptr, nullptr, 
-                               &m_base_wireframe_shader);    
-    // Tess phong
-    hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong.hlsl");
-    tr_create_shader_program_n(m_renderer,
-                               (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
-                               (uint32_t)hlsl.size(), hlsl.data(), "HSMain",
-                               (uint32_t)hlsl.size(), hlsl.data(), "DSMain",
-                               0, nullptr, nullptr, 
-                               (uint32_t)hlsl.size(), hlsl.data(), "PSMain",
-                               0, nullptr, nullptr, 
-                               &m_tess_phong_shader);     
-    // Tess phong
-    hlsl = load_file(k_asset_dir + "TriangleTessellation/shaders/tess_phong_wireframe.hlsl");
-    tr_create_shader_program_n(m_renderer,
-                               (uint32_t)hlsl.size(), hlsl.data(), "VSMain", 
-                               (uint32_t)hlsl.size(), hlsl.data(), "HSMain",
-                               (uint32_t)hlsl.size(), hlsl.data(), "DSMain",
-                               (uint32_t)hlsl.size(), hlsl.data(), "GSMain",
-                               (uint32_t)hlsl.size(), hlsl.data(), "PSMain",
-                               0, nullptr, nullptr, 
-                               &m_tess_phong_wireframe_shader);  
+    tr::fs::path base_vs_file_path            = k_asset_dir / "TriangleTessellation/shaders/base.hlsl"; 
+    tr::fs::path base_ps_file_path            = k_asset_dir / "TriangleTessellation/shaders/base.hlsl"; 
+    tr::fs::path base_wireframe_vs_file_path  = k_asset_dir / "TriangleTessellation/shaders/base_wireframe.hlsl"; 
+    tr::fs::path base_wireframe_gs_file_path  = k_asset_dir / "TriangleTessellation/shaders/base_wireframe.hlsl"; 
+    tr::fs::path base_wireframe_ps_file_path  = k_asset_dir / "TriangleTessellation/shaders/base_wireframe.hlsl"; 
+    tr::fs::path tess_vs_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.hlsl"; 
+    tr::fs::path tess_hs_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.hlsl"; 
+    tr::fs::path tess_ds_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.hlsl"; 
+    tr::fs::path tess_ps_file_path            = k_asset_dir / "TriangleTessellation/shaders/tess_phong.hlsl"; 
+    tr::fs::path tess_wireframe_vs_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.hlsl";
+    tr::fs::path tess_wireframe_hs_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.hlsl";
+    tr::fs::path tess_wireframe_ds_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.hlsl";
+    tr::fs::path tess_wireframe_gs_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.hlsl";
+    tr::fs::path tess_wireframe_ps_file_path  = k_asset_dir / "TriangleTessellation/shaders/tess_phong_wireframe.hlsl";
 #endif
+    g_base_shader = tr::CreateShaderProgram(g_renderer,
+                                            base_vs_file_path, "VSMain",
+                                            base_ps_file_path, "PSMain");
+    g_base_wireframe_shader = tr::CreateShaderProgram(g_renderer,
+                                                      base_wireframe_vs_file_path, "VSMain",
+                                                      base_wireframe_gs_file_path, "GSMain",
+                                                      base_wireframe_ps_file_path, "PSMain");
+    g_tess_shader = tr::CreateShaderProgram(g_renderer,
+                                            tess_vs_file_path, "VSMain",
+                                            tess_hs_file_path, "HSMain",
+                                            tess_ds_file_path, "DSMain",
+                                            tess_ps_file_path, "PSMain");
+    g_tess_wireframe_shader = tr::CreateShaderProgram(g_renderer,
+                                                      tess_wireframe_vs_file_path, "VSMain",
+                                                      tess_wireframe_hs_file_path, "HSMain",
+                                                      tess_wireframe_ds_file_path, "DSMain",
+                                                      tess_wireframe_gs_file_path, "GSMain",
+                                                      tess_wireframe_ps_file_path, "PSMain");
 
-    // Descriptors
+    // Entities
     {
-      std::vector<tr_descriptor> descriptors(1);
-      descriptors[0].type = tr_descriptor_type_uniform_buffer_cbv;
-      descriptors[0].count = 1;
-      descriptors[0].binding = 0;
-      descriptors[0].shader_stages = tr_shader_stage_all_graphics;
+      tr::EntityCreateInfo entity_create_info = {};
 
-      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_base_desc_set);
-      tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_tess_phong_desc_set);
-    }
+      // Base chess pieces
+      entity_create_info.shader_program                   = g_base_shader;
+      entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+      entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+      entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
+      entity_create_info.pipeline_settings.depth          = true;      
+      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
+      g_chess_pieces_base.Create(g_renderer, entity_create_info);
 
-    // Vertex layout
-    tr_vertex_layout vertex_layout = {};
-    vertex_layout.attrib_count = 3;
-    // Position
-    vertex_layout.attribs[0].semantic = tr_semantic_position;
-    vertex_layout.attribs[0].format   = tr_format_r32g32b32_float;
-    vertex_layout.attribs[0].binding  = 0;
-    vertex_layout.attribs[0].location = 0;
-    vertex_layout.attribs[0].offset   = 0;
-    // Normal
-    vertex_layout.attribs[1].semantic = tr_semantic_normal;
-    vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
-    vertex_layout.attribs[1].binding  = 0;
-    vertex_layout.attribs[1].location = 1;   
-    vertex_layout.attribs[1].offset   = tr_util_format_stride(tr_format_r32g32b32_float);
-    // Tex Coord
-    vertex_layout.attribs[2].semantic = tr_semantic_texcoord0;
-    vertex_layout.attribs[2].format   = tr_format_r32g32_float;
-    vertex_layout.attribs[2].binding  = 0;
-    vertex_layout.attribs[2].location = 2;
-    vertex_layout.attribs[2].offset   = tr_util_format_stride(tr_format_r32g32b32_float) + tr_util_format_stride(tr_format_r32g32b32_float);
-    // Base pipeline
-    {
-      tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
-      pipeline_settings.depth = true;
-      pipeline_settings.cull_mode = tr_cull_mode_back;   
-      tr_create_pipeline(m_renderer, m_base_shader, &vertex_layout, m_base_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_base_pipeline);
-      tr_create_pipeline(m_renderer, m_base_wireframe_shader, &vertex_layout, m_base_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_base_wireframe_pipeline);
-    }
-    // Tess phong pipeline
-    {
-      tr_pipeline_settings pipeline_settings = {tr_primitive_topo_3_point_patch};
-      pipeline_settings.depth = true;
-      pipeline_settings.cull_mode = tr_cull_mode_back;   
-      tr_create_pipeline(m_renderer, m_tess_phong_shader, &vertex_layout, m_tess_phong_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_tess_phong_pipeline);
-      tr_create_pipeline(m_renderer, m_tess_phong_wireframe_shader, &vertex_layout, m_tess_phong_desc_set, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_tess_phong_wireframe_pipeline);
+      // Base wireframe chess pieces
+      entity_create_info.shader_program                   = g_base_wireframe_shader;
+      entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+      entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+      entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
+      entity_create_info.pipeline_settings.depth          = true;      
+      g_chess_pieces_base_wireframe.Create(g_renderer, entity_create_info);
+
+      // Tessellated chess pieces
+      entity_create_info.shader_program                   = g_tess_shader;
+      entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+      entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+      entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_3_point_patch;
+      entity_create_info.pipeline_settings.depth          = true;      
+      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
+      g_chess_pieces_tess.Create(g_renderer, entity_create_info);
+
+      // Tessellated wireframe chess pieces
+      entity_create_info.shader_program                   = g_tess_wireframe_shader;
+      entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+      entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+      entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_3_point_patch;
+      entity_create_info.pipeline_settings.depth          = true;
+      g_chess_pieces_tess_wireframe.Create(g_renderer, entity_create_info);
     }
 
     // Vertex data
     {
-      // Chess board 1
-      tr::Mesh mesh;
-      bool mesh_load_res = tr::Mesh::Load(k_asset_dir + "TriangleTessellation/models/chess_pieces_shared_normals.obj", &mesh);
-      assert(mesh_load_res);
-      tr_create_vertex_buffer(m_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &m_chess_pieces_vertex_buffer);
-      memcpy(m_chess_pieces_vertex_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
-      m_chess_pieces_vertex_count = mesh.GetVertexCount();      
+      tr::fs::path file_path = k_asset_dir / "TriangleTessellation/models/chess_pieces_shared_normals.obj";
+      bool result = tr::Mesh::Load(file_path, g_renderer, &g_vertex_buffer, &g_vertex_count);
+      assert(result == true);
+
+      // Base chess pieces
+      g_chess_pieces_base.SetVertexBuffers(g_vertex_buffer, g_vertex_count);
+      // Base wireframe chess pieces
+      g_chess_pieces_base_wireframe.SetVertexBuffers(g_vertex_buffer, g_vertex_count);
+      // Tessellated chess pieces
+      g_chess_pieces_tess.SetVertexBuffers(g_vertex_buffer, g_vertex_count);
+      // Tessellated wireframe chess pieces
+      g_chess_pieces_tess_wireframe.SetVertexBuffers(g_vertex_buffer, g_vertex_count);
     }
 
-    // Constant buffers
+    // Update descriptors
     {
-      uint32_t uniform_buffer_size = sizeof(ConstantBuffer0);
-      // Base
-      tr_create_uniform_buffer(m_renderer, uniform_buffer_size, true, &m_base_uniform_buffer);
-      m_base_desc_set->descriptors[0].uniform_buffers[0] = m_base_uniform_buffer;
-      tr_update_descriptor_set(m_renderer, m_base_desc_set);
-      // Tess phong
-      tr_create_uniform_buffer(m_renderer, uniform_buffer_size, true, &m_tess_phong_uniform_buffer);
-      m_tess_phong_desc_set->descriptors[0].uniform_buffers[0] = m_tess_phong_uniform_buffer;
-      tr_update_descriptor_set(m_renderer, m_tess_phong_desc_set);
+      g_chess_pieces_base.UpdateGpuDescriptorSets();
+      g_chess_pieces_base_wireframe.UpdateGpuDescriptorSets();
+      g_chess_pieces_tess.UpdateGpuDescriptorSets();
+      g_chess_pieces_tess_wireframe.UpdateGpuDescriptorSets();
     }
 }
 
 void destroy_tiny_renderer()
 {
-    tr_destroy_renderer(m_renderer);
+    tr_destroy_renderer(g_renderer);
 }
 
 void draw_frame()
 {
-    uint32_t frameIdx = s_frame_count % m_renderer->settings.swapchain.image_count;
+    uint32_t frameIdx = g_frame_count % g_renderer->settings.swapchain.image_count;
 
-    tr_fence* image_acquired_fence = m_renderer->image_acquired_fences[frameIdx];
-    tr_semaphore* image_acquired_semaphore = m_renderer->image_acquired_semaphores[frameIdx];
-    tr_semaphore* render_complete_semaphores = m_renderer->render_complete_semaphores[frameIdx];
+    tr_fence* image_acquired_fence = g_renderer->image_acquired_fences[frameIdx];
+    tr_semaphore* image_acquired_semaphore = g_renderer->image_acquired_semaphores[frameIdx];
+    tr_semaphore* render_complete_semaphores = g_renderer->render_complete_semaphores[frameIdx];
 
-    tr_acquire_next_image(m_renderer, image_acquired_semaphore, image_acquired_fence);
+    tr_acquire_next_image(g_renderer, image_acquired_semaphore, image_acquired_fence);
 
-    uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
-    tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
+    uint32_t swapchain_image_index = g_renderer->swapchain_image_index;
+    tr_render_target* render_target = g_renderer->swapchain_render_targets[swapchain_image_index];
 
-    // Projection
-    float4x4 proj  = glm::perspective(glm::radians(65.0f), (float)s_window_width / (float)s_window_height, 0.1f, 10000.0f);
-    // View
     float3 eye = float3(0, 8, 8);
     float3 look_at = float3(0, 1, 0);
-    float4x4 view  = glm::lookAt(eye, look_at, float3(0, 1, 0));                              
+    g_camera.LookAt(eye, look_at);
+    g_camera.Perspective(65.0f, (float)g_window_width / (float)g_window_height);
 
+    
     float t = (float)glfwGetTime();
-    float4x4 rot_y = glm::rotate(t / 3.0f, float3(0, 1, 0));
+    float ry = t / 3.0f;
 
+    // Update base transform and constant buffers
     {
-      ConstantBuffer0 cbuffer = {};
-      // View Dir
-      cbuffer.view_dir = float4(glm::normalize(look_at - eye), 0.0f);
+      // View
+      g_chess_pieces_base.SetView(g_camera);
+      g_chess_pieces_base_wireframe.SetView(g_camera);
+      // Transform
+      tr::Transform transform;
+      transform.Translate(0, 0, -3);
+      transform.Rotate(0, ry, 0);
+      g_chess_pieces_base.SetTransform(transform);
+      g_chess_pieces_base_wireframe.SetTransform(transform);
       // Color
-      cbuffer.color = float4(0.45f, 0.4f, 0.8f, 0.0f);
-
-      float4x4 move_to_center = glm::translate(float3(0, 0, 0));
-      // Base
-      {
-        // Model
-        float4x4 move_to_base_pos = glm::translate(float3(0, 0, -3));
-        float4x4 model = rot_y * move_to_base_pos * move_to_center;
-        // MVP
-        cbuffer.model_matrix = view * model;
-        cbuffer.proj_matrix = proj;
-        cbuffer.model_view_proj_matrix = proj * view * model;
-        // Normal matrix
-        float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(model)));
-        cbuffer.normal_matrix[0] = float4(normal_matrix[0], 0.0f);
-        cbuffer.normal_matrix[1] = float4(normal_matrix[1], 0.0f);
-        cbuffer.normal_matrix[2] = float4(normal_matrix[2], 0.0f);
-        // Update
-        memcpy(m_base_uniform_buffer->cpu_mapped_address, &cbuffer, sizeof(cbuffer));
-      }
-
-      // Tess phong
-      {
-        // Model
-        float4x4 move_to_base_pos = glm::translate(float3(0, 0, 3));
-        float4x4 model = rot_y * move_to_base_pos * move_to_center;
-        // MVP
-        cbuffer.model_matrix = view * model;
-        cbuffer.proj_matrix = proj;
-        cbuffer.model_view_proj_matrix = proj * view * model;
-        // Normal matrix
-        float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(model)));
-        cbuffer.normal_matrix[0] = float4(normal_matrix[0], 0.0f);
-        cbuffer.normal_matrix[1] = float4(normal_matrix[1], 0.0f);
-        cbuffer.normal_matrix[2] = float4(normal_matrix[2], 0.0f);
-        // Tessellation factor
-        cbuffer.tess_factor = float4(float3(3.0f), 0);
-        // Update
-        memcpy(m_tess_phong_uniform_buffer->cpu_mapped_address, &cbuffer, sizeof(cbuffer));
-      }
+      g_chess_pieces_base.SetColor(float3(0.45f, 0.4f, 0.8f));
+      // Constant buffers
+      g_chess_pieces_base.UpdateGpuBuffers();
+      g_chess_pieces_base_wireframe.UpdateGpuBuffers();
     }
 
-    tr_cmd* cmd = m_cmds[frameIdx];
+    // Update tess transform and constant buffers
+    {
+      // View
+      g_chess_pieces_tess.SetView(g_camera);
+      g_chess_pieces_tess_wireframe.SetView(g_camera);
+      // Transform
+      tr::Transform transform;
+      transform.Clear();
+      transform.Translate(0, 0, 3);
+      transform.Rotate(0, ry, 0);
+      g_chess_pieces_tess.SetTransform(transform);
+      g_chess_pieces_tess_wireframe.SetTransform(transform);
+      // Color
+      g_chess_pieces_tess.SetColor(float3(0.45f, 0.4f, 0.8f));
+      // Tess factor
+      g_chess_pieces_tess.GetTessParams().data.tess_factor = float4(float3(3.0f), 0);
+      g_chess_pieces_tess_wireframe.GetTessParams().data.tess_factor = float4(float3(3.0f), 0);
+      // Constant buffers
+      g_chess_pieces_tess.UpdateGpuBuffers();
+      g_chess_pieces_tess_wireframe.UpdateGpuBuffers();
+    }
+
+    tr_cmd* cmd = g_cmds[frameIdx];
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
-    tr_cmd_set_viewport(cmd, 0, 0, (float)s_window_width, (float)s_window_height, 0.0f, 1.0f);
-    tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
+    tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
+    tr_cmd_set_scissor(cmd, 0, 0, g_window_width, g_window_height);
     tr_cmd_begin_render(cmd, render_target);
-    tr_clear_value color_clear_value = { 0.1f, 0.1f, 0.1f, 0.1f };
-    tr_cmd_clear_color_attachment(cmd, 0, &color_clear_value);
-    tr_clear_value depth_stencil_clear_value = { 0 };
-    depth_stencil_clear_value.depth = 1.0f;
-    depth_stencil_clear_value.stencil = 255;
-    tr_cmd_clear_depth_stencil_attachment(cmd, &depth_stencil_clear_value);
-    // Draw base
+    tr_cmd_clear_color_attachment(cmd, 0, &g_color_clear_value);
+    tr_cmd_clear_depth_stencil_attachment(cmd, &g_depth_stencil_clear_value);
     {
-      tr_cmd_bind_pipeline(cmd, m_base_pipeline);
-      tr_cmd_bind_descriptor_sets(cmd, m_base_pipeline, m_base_desc_set);
-      tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_vertex_buffer);
-      tr_cmd_draw(cmd, m_chess_pieces_vertex_count, 0);
-    }
-    // Draw base wireframe
-    {
-      tr_cmd_bind_pipeline(cmd, m_base_wireframe_pipeline);
-      tr_cmd_bind_descriptor_sets(cmd, m_base_wireframe_pipeline, m_base_desc_set);
-      tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_vertex_buffer);
-      tr_cmd_draw(cmd, m_chess_pieces_vertex_count, 0);
-    }
-    // Draw tess phong
-    {
-      tr_cmd_bind_pipeline(cmd, m_tess_phong_pipeline);
-      tr_cmd_bind_descriptor_sets(cmd, m_tess_phong_pipeline, m_tess_phong_desc_set);
-      tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_vertex_buffer);
-      tr_cmd_draw(cmd, m_chess_pieces_vertex_count, 0);
-    }
-    // Draw tess phong wireframe
-    {
-      tr_cmd_bind_pipeline(cmd, m_tess_phong_wireframe_pipeline);
-      tr_cmd_bind_descriptor_sets(cmd, m_tess_phong_wireframe_pipeline, m_tess_phong_desc_set);
-      tr_cmd_bind_vertex_buffers(cmd, 1, &m_chess_pieces_vertex_buffer);
-      tr_cmd_draw(cmd, m_chess_pieces_vertex_count, 0);
+      // Draw base
+      g_chess_pieces_base.Draw(cmd);
+      // Draw base wireframe
+      g_chess_pieces_base_wireframe.Draw(cmd);
+      // Draw tess
+      g_chess_pieces_tess.Draw(cmd);
+      // Draw tess wireframe
+      g_chess_pieces_tess_wireframe.Draw(cmd);
     }
     tr_cmd_end_render(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
     tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_depth_stencil_attachment, tr_texture_usage_sampled_image);
     tr_end_cmd(cmd);
 
-    tr_queue_submit(m_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
-    tr_queue_present(m_renderer->present_queue, 1, &render_complete_semaphores);
+    tr_queue_submit(g_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
+    tr_queue_present(g_renderer->present_queue, 1, &render_complete_semaphores);
 
-    tr_queue_wait_idle(m_renderer->graphics_queue);
+    tr_queue_wait_idle(g_renderer->graphics_queue);
 }
 
 int main(int argc, char **argv)
