@@ -50,9 +50,6 @@ const tr::fs::path    k_asset_dir = "../../demos/assets/";
 #endif
 
 tr_renderer*          g_renderer = nullptr;
-tr_clear_value        g_color_clear_value = {};
-tr_clear_value        g_depth_stencil_clear_value = {};
-
 tr_cmd_pool*          g_cmd_pool = nullptr;
 tr_cmd**              g_cmds = nullptr;
 
@@ -149,31 +146,27 @@ void init_tiny_renderer(GLFWwindow* window)
     g_window_width = (uint32_t)width;
     g_window_height = (uint32_t)height;
 
-    g_color_clear_value                 = { 0.1f, 0.1f, 0.1f, 0.1f };
-    g_depth_stencil_clear_value.depth   = 1.0f;
-    g_depth_stencil_clear_value.stencil = 255;
-
     tr_renderer_settings settings = {0};
 #if defined(__linux__)
-    settings.handle.connection                    = XGetXCBConnection(glfwGetX11Display());
-    settings.handle.window                        = glfwGetX11Window(window);
+    settings.handle.connection              = XGetXCBConnection(glfwGetX11Display());
+    settings.handle.window                  = glfwGetX11Window(window);
 #elif defined(_WIN32)
-    settings.handle.hinstance                     = ::GetModuleHandle(NULL);
-    settings.handle.hwnd                          = glfwGetWin32Window(window);
+    settings.handle.hinstance               = ::GetModuleHandle(NULL);
+    settings.handle.hwnd                    = glfwGetWin32Window(window);
 #endif
-    settings.width                                = g_window_width;
-    settings.height                               = g_window_height;
-    settings.swapchain.image_count                = k_image_count;
-    settings.swapchain.sample_count               = tr_sample_count_8;
-    settings.swapchain.color_format               = tr_format_b8g8r8a8_unorm;
-    settings.swapchain.depth_stencil_format       = tr_format_d32_float;
-    settings.swapchain.color_clear_value          = g_color_clear_value;
-    settings.swapchain.depth_stencil_clear_value  = g_depth_stencil_clear_value;
-    settings.log_fn                               = renderer_log;
+    settings.width                          = g_window_width;
+    settings.height                         = g_window_height;
+    settings.swapchain.image_count          = k_image_count;
+    settings.swapchain.sample_count         = tr_sample_count_8;
+    settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
+    settings.swapchain.depth_stencil_format = tr_format_d32_float;
+    settings.swapchain.depth_stencil_clear_value.depth    = 1.0f;
+    settings.swapchain.depth_stencil_clear_value.stencil  = 255;
+    settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
-    settings.vk_debug_fn                          = vulkan_debug;
-    settings.instance_layers.count                = (uint32_t)instance_layers.size();
-    settings.instance_layers.names                = instance_layers.empty() ? nullptr : instance_layers.data();
+    settings.vk_debug_fn                    = vulkan_debug;
+    settings.instance_layers.count          = (uint32_t)instance_layers.size();
+    settings.instance_layers.names          = instance_layers.empty() ? nullptr : instance_layers.data();
 #endif
     tr_create_renderer(k_app_name, &settings, &g_renderer);
 
@@ -328,8 +321,12 @@ void draw_frame()
     tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, g_window_width, g_window_height);
     tr_cmd_begin_render(cmd, render_target);
-    tr_cmd_clear_color_attachment(cmd, 0, &g_color_clear_value);
-    tr_cmd_clear_depth_stencil_attachment(cmd, &g_depth_stencil_clear_value);
+    tr_clear_value color_clear_value = {0.1f, 0.1f, 0.1f, 0.1f};
+    tr_cmd_clear_color_attachment(cmd, 0, &color_clear_value);
+    tr_clear_value depth_stencil_clear_value = { 0 };
+    depth_stencil_clear_value.depth = 1.0f;
+    depth_stencil_clear_value.stencil = 255;
+    tr_cmd_clear_depth_stencil_attachment(cmd, &depth_stencil_clear_value);
     // Draw phong
     {
       g_chess_board_1_solid.Draw(cmd);
