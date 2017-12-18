@@ -59,6 +59,11 @@ cd build
 cmake ..
 make
 ```
+Ubuntu and variants will require the follow packages
+```
+libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+```
+
 
 #### Building on Windows
 ```
