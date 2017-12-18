@@ -321,8 +321,13 @@ typedef enum tr_cull_mode {
 
 typedef enum tr_front_face {
     tr_front_face_ccw = 0,
-    tr_fornt_face_cw
+    tr_front_face_cw
 } tr_front_face;
+
+typedef enum tr_tessellation_domain_origin {
+    tr_tessellation_domain_origin_upper_left = 0,
+    tr_tessellation_domain_origin_lower_left = 1,
+} tr_tessellation_domain_origin;
 
 typedef enum tr_pipeline_type {
   tr_pipeline_type_undefined = 0,
@@ -546,6 +551,7 @@ typedef struct tr_pipeline_settings {
     tr_cull_mode                        cull_mode;
     tr_front_face                       front_face;
     bool                                depth;
+    tr_tessellation_domain_origin       tessellation_domain_origin;
 } tr_pipeline_settings;
 
 typedef struct tr_pipeline {
@@ -4202,9 +4208,14 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         ia.topology                                 = topology;
         ia.primitiveRestartEnable                   = VK_FALSE;
 
+        VkPipelineTessellationDomainOriginStateCreateInfoKHR domain_origin = { VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_DOMAIN_ORIGIN_STATE_CREATE_INFO_KHR };
+        switch (p_pipeline_settings->tessellation_domain_origin) {
+          case tr_tessellation_domain_origin_upper_left: domain_origin.domainOrigin = VK_TESSELLATION_DOMAIN_ORIGIN_UPPER_LEFT_KHR; break;
+          case tr_tessellation_domain_origin_lower_left: domain_origin.domainOrigin = VK_TESSELLATION_DOMAIN_ORIGIN_LOWER_LEFT_KHR; break;
+        }
         TINY_RENDERER_DECLARE_ZERO(VkPipelineTessellationStateCreateInfo, ts);
         ts.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-        ts.pNext                                    = NULL;
+        ts.pNext                                    = &domain_origin;
         ts.flags                                    = 0;
         ts.patchControlPoints                       = 0;
         switch (p_pipeline_settings->primitive_topo) {
@@ -4229,7 +4240,7 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
             case tr_cull_mode_front : cull_mode = VK_CULL_MODE_FRONT_BIT; break;
             case tr_cull_mode_both  : cull_mode = VK_CULL_MODE_FRONT_AND_BACK; break;
         }
-        VkFrontFace front_face = (tr_fornt_face_cw == p_pipeline_settings->front_face) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        VkFrontFace front_face = (tr_front_face_cw == p_pipeline_settings->front_face) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
         TINY_RENDERER_DECLARE_ZERO(VkPipelineRasterizationStateCreateInfo, rs);
         rs.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         rs.pNext                                    = NULL;

@@ -324,8 +324,14 @@ typedef enum tr_cull_mode {
 
 typedef enum tr_front_face {
     tr_front_face_ccw = 0,
-    tr_fornt_face_cw
+    tr_front_face_cw
 } tr_front_face;
+
+// Has no effect in DX12, just here for consistency
+typedef enum tr_tessellation_domain_origin {
+    tr_tessellation_domain_origin_upper_left = 0,
+    tr_tessellation_domain_origin_lower_left = 1,
+} tr_tessellation_domain_origin;
 
 typedef enum tr_pipeline_type {
   tr_pipeline_type_undefined = 0,
@@ -543,7 +549,8 @@ typedef struct tr_pipeline_settings {
     tr_primitive_topo                   primitive_topo;
     tr_cull_mode                        cull_mode;
     tr_front_face                       front_face;
-    bool                                depth;
+    bool                                depth;    
+    tr_tessellation_domain_origin       tessellation_domain_origin; // Has no effect in DX, here for consistency
 } tr_pipeline_settings;
 
 typedef struct tr_pipeline {
