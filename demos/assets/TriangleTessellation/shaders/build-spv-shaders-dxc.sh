@@ -1,6 +1,7 @@
 #!/bin/sh
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+compile_flags=-O3
 
 if [ "$#" -lt 1 ]; then
   echo "Usage: build-spv-shaders.sh <dxc path>"
@@ -69,7 +70,7 @@ function compile_gs() {
   echo ""
   echo "Compiling $filepath"
 
-  cmd="$dxc_exe -spirv -T gs_6_0 -E $entry -Fo $output_filename $filepath"
+  cmd="$dxc_exe -spirv $compile_flags -T gs_6_0 -E $entry -Fo $output_filename $filepath"
   echo $cmd
   $cmd
 
@@ -99,7 +100,7 @@ function compile_cs() {
   echo ""
   echo "Compiling $filepath"
 
-  cmd="$dxc_exe -spirv -T cs_6_0 -E $entry -Fo $output_filename $filepath"
+  cmd="$dxc_exe -spirv $compile_flags -T cs_6_0 -E $entry -Fo $output_filename $filepath"
   echo $cmd
   $cmd
 
@@ -140,13 +141,13 @@ function compile_hs_ds() {
   echo "Compiling $filepath"
 
   if [ "$build_hs" = true ]; then
-    cmd="$dxc_exe -spirv -T hs_6_0 -E $vs_entry -Fo $output_hs_filename $filepath"
+    cmd="$dxc_exe -spirv $compile_flags -T hs_6_0 -E $vs_entry -Fo $output_hs_filename $filepath"
     echo $cmd
     $cmd
   fi
 
   if [ "$build_ds" = true ]; then
-    cmd="$dxc_exe -spirv -T ds_6_0 -E $ps_entry -Fo $output_ds_filename $filepath"
+    cmd="$dxc_exe -spirv $compile_flags -T ds_6_0 -E $ps_entry -Fo $output_ds_filename $filepath"
     echo $cmd
     $cmd
   fi
@@ -189,13 +190,13 @@ function compile_vs_ps() {
   echo "Compiling $filepath"
 
   if [ "$build_vs" = true ]; then
-    cmd="$dxc_exe -spirv -T vs_6_0 -E $vs_entry -Fo $output_vs_filename $filepath"
+    cmd="$dxc_exe -spirv $compile_flags -T vs_6_0 -E $vs_entry -Fo $output_vs_filename $filepath"
     echo $cmd
     $cmd
   fi
 
   if [ "$build_ps" = true ]; then
-    cmd="$dxc_exe -spirv -T ps_6_0 -E $ps_entry -Fo $output_ps_filename $filepath"
+    cmd="$dxc_exe -spirv $compile_flags -T ps_6_0 -E $ps_entry -Fo $output_ps_filename $filepath"
     echo $cmd
     $cmd
   fi
