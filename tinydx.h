@@ -324,8 +324,14 @@ typedef enum tr_cull_mode {
 
 typedef enum tr_front_face {
     tr_front_face_ccw = 0,
-    tr_fornt_face_cw
+    tr_front_face_cw
 } tr_front_face;
+
+// Has no effect in DX12, just here for consistency
+typedef enum tr_tessellation_domain_origin {
+    tr_tessellation_domain_origin_upper_left = 0,
+    tr_tessellation_domain_origin_lower_left = 1,
+} tr_tessellation_domain_origin;
 
 typedef enum tr_pipeline_type {
   tr_pipeline_type_undefined = 0,
@@ -543,7 +549,8 @@ typedef struct tr_pipeline_settings {
     tr_primitive_topo                   primitive_topo;
     tr_cull_mode                        cull_mode;
     tr_front_face                       front_face;
-    bool                                depth;
+    bool                                depth;    
+    tr_tessellation_domain_origin       tessellation_domain_origin; // Has no effect in DX, here for consistency
 } tr_pipeline_settings;
 
 typedef struct tr_pipeline {
@@ -3779,10 +3786,16 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
         blend_desc.RenderTarget[attrib_index].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     }
 
+    D3D12_CULL_MODE cull_mode = D3D12_CULL_MODE_NONE;
+    switch(p_pipeline_settings->cull_mode) {
+        case tr_cull_mode_back  : cull_mode = D3D12_CULL_MODE_BACK; break;
+        case tr_cull_mode_front : cull_mode = D3D12_CULL_MODE_FRONT; break;
+    }
+    BOOL front_face_ccw = (tr_front_face_ccw == p_pipeline_settings->front_face) ? TRUE : FALSE;
     TINY_RENDERER_DECLARE_ZERO(D3D12_RASTERIZER_DESC, rasterizer_desc);
     rasterizer_desc.FillMode                = D3D12_FILL_MODE_SOLID;
-    rasterizer_desc.CullMode                = D3D12_CULL_MODE_NONE;
-    rasterizer_desc.FrontCounterClockwise   = TRUE;
+    rasterizer_desc.CullMode                = cull_mode;
+    rasterizer_desc.FrontCounterClockwise   = front_face_ccw;
     rasterizer_desc.DepthBias               = D3D12_DEFAULT_DEPTH_BIAS;
     rasterizer_desc.DepthBiasClamp          = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
     rasterizer_desc.SlopeScaledDepthBias    = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;

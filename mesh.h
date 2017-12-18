@@ -2,22 +2,30 @@
   #error "C++ is required"
 #endif
 
-#ifndef MESH_H
-#define MESH_H
+#ifndef TINY_RENDERER_MESH_H
+#define TINY_RENDERER_MESH_H
 
 #define GLM_FORCE_RADIANS 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/transform.hpp>
 
-#include <string.h>
+#include <string.h> 
 #include <vector>
 
 #ifndef TINYOBJLOADER_IMPLEMENTATION
   #define TINYOBJLOADER_IMPLEMENTATION
   #include <tiny_obj_loader.h>
 #endif
+
+#if defined(TINY_RENDERER_DX)
+  #include "tinydx.h"
+#elif defined(TINY_RENDERER_VK)
+  #include "tinyvk.h"
+#endif
+
 
 namespace tr {
 
@@ -44,6 +52,32 @@ class Mesh {
 public:
   Mesh() {}
   ~Mesh() {}
+
+  static tr_vertex_layout DefaultVertexLayout() {
+    tr_vertex_layout vertex_layout = {};        
+    // Attribute count
+    vertex_layout.attrib_count = 3;
+    // Position
+    vertex_layout.attribs[0].semantic = tr_semantic_position;
+    vertex_layout.attribs[0].format   = tr_format_r32g32b32_float;
+    vertex_layout.attribs[0].binding  = 0;
+    vertex_layout.attribs[0].location = 0;
+    vertex_layout.attribs[0].offset   = 0;
+    // Normal
+    vertex_layout.attribs[1].semantic = tr_semantic_normal;
+    vertex_layout.attribs[1].format   = tr_format_r32g32b32_float;
+    vertex_layout.attribs[1].binding  = 0;
+    vertex_layout.attribs[1].location = 1;   
+    vertex_layout.attribs[1].offset   = vertex_layout.attribs[0].offset + tr_util_format_stride(vertex_layout.attribs[0].format);
+    // Tex Coord
+    vertex_layout.attribs[2].semantic = tr_semantic_texcoord0;
+    vertex_layout.attribs[2].format   = tr_format_r32g32_float;
+    vertex_layout.attribs[2].binding  = 0;
+    vertex_layout.attribs[2].location = 2;
+    vertex_layout.attribs[2].offset   = vertex_layout.attribs[1].offset + tr_util_format_stride(vertex_layout.attribs[1].format);
+    // Return
+    return vertex_layout;
+  }
 
   const std::vector<uint32_t>& GetIndices() const {
     return m_indices; 
@@ -118,8 +152,26 @@ public:
       // Next vertex
       ++p_vertex;
     }
-  
+ 
     return true;
+  }
+
+  static bool Load(const std::string& file_path, tr_renderer* p_renderer, tr_buffer** pp_buffer, uint32_t* p_vertex_count) {
+    tr::Mesh mesh;
+    bool mesh_load_res = tr::Mesh::Load(file_path, &mesh);
+    if (!mesh_load_res) {
+      return false;
+    }
+
+    tr_buffer* p_buffer = nullptr;
+    tr_create_vertex_buffer(p_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &p_buffer);
+    assert(p_buffer != nullptr);
+
+    memcpy(p_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
+
+    *pp_buffer = p_buffer;
+    *p_vertex_count = mesh.GetVertexCount();
+    return true;    
   }
 
 private:
@@ -129,4 +181,4 @@ private:
 
 } // namespace mesh
 
-#endif // MESH_H
+#endif // TINY_RENDERER_MESH_H

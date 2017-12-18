@@ -1,14 +1,22 @@
 // Tessellation based on https://github.com/spazzarama/Direct3D-Rendering-Cookbook
 
-cbuffer UniformBlock0 : register(b0)
+cbuffer ViewTransform : register(b0)
 {
-  float4x4 model_view_matrix;
-  float4x4 proj_matrix;
-  float4x4 model_view_proj_matrix;
-  float3x3 normal_matrix;
-  float3   color;
-  float3   view_dir;
-  float3   tess_factor;
+  float4x4  model_matrix;
+  float4x4  view_matrix;
+  float4x4  projection_matrix;
+  float4x4  model_view_matrix;
+  float4x4  view_projection_matrix;
+  float4x4  model_view_projection_matrix;
+  float3x3  normal_matrix_world_space;
+  float3x3  normal_matrix_view_space;
+  float3    view_direction;
+  float3    color;
+};
+
+cbuffer Tessellation : register(b2)
+{
+  float tess_factor;
 };
 
 // =============================================================================
@@ -29,8 +37,8 @@ VSOutput VSMain(VSInput input)
 {
   float4 Position4 = float4(input.PositionOS, 1);
   VSOutput result;
-  result.PositionWS  = mul(model_view_matrix, Position4).xyz;
-  result.NormalWS    = mul(normal_matrix, input.NormalOS);
+  result.PositionWS  = mul(model_matrix, Position4).xyz;
+  result.NormalWS    = mul(normal_matrix_world_space, input.NormalOS);
   return result;
 }
 
@@ -83,7 +91,7 @@ HSTrianglePatchConstant HSPatchConstant(InputPatch<HSInput, 3> patch)
 
 [domain("tri")]
 [partitioning("fractional_odd")]
-[outputtopology("triangle_cw")]
+[outputtopology("triangle_ccw")]
 [outputcontrolpoints(3)]
 [patchconstantfunc("HSPatchConstant")]
 HSOutput HSMain(
@@ -183,9 +191,9 @@ void GSMain(
   P0.z += 0.001;
   P1.z += 0.001;
   P2.z += 0.001;
-  float4 Q0 = mul(proj_matrix, float4(P0, 1.0));
-  float4 Q1 = mul(proj_matrix, float4(P1, 1.0));
-  float4 Q2 = mul(proj_matrix, float4(P2, 1.0));
+  float4 Q0 = mul(view_projection_matrix, float4(P0, 1.0));
+  float4 Q1 = mul(view_projection_matrix, float4(P1, 1.0));
+  float4 Q2 = mul(view_projection_matrix, float4(P2, 1.0));
 
   // Edge 0
   vertex.PositionCS = Q0;

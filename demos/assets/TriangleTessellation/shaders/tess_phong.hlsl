@@ -1,14 +1,31 @@
 // Tessellation based on https://github.com/spazzarama/Direct3D-Rendering-Cookbook
 
-cbuffer UniformBlock0 : register(b0)
+cbuffer ViewTransform : register(b0)
 {
-  float4x4 model_matrix;
-  float4x4 proj_matrix;
-  float4x4 model_view_proj_matrix;
-  float3x3 normal_matrix;
-  float3   color;
-  float3   view_dir;
-  float3   tess_factor;
+  float4x4  model_matrix;
+  float4x4  view_matrix;
+  float4x4  projection_matrix;
+  float4x4  model_view_matrix;
+  float4x4  view_projection_matrix;
+  float4x4  model_view_projection_matrix;
+  float3x3  normal_matrix_world_space;
+  float3x3  normal_matrix_view_space;
+  float3    view_direction;
+  float3    color;
+};
+
+cbuffer BlinnPhong : register(b1) {
+  float4  base_color;
+  float4  specular_color;
+  float4  specular_power;
+  float4  kA;
+  float4  kD;
+  float4  kS;
+}
+
+cbuffer Tessellation : register(b2)
+{
+  float tess_factor;
 };
 
 // =============================================================================
@@ -30,7 +47,7 @@ VSOutput VSMain(VSInput input)
   float4 Position4 = float4(input.PositionOS, 1);
   VSOutput result;
   result.PositionWS  = mul(model_matrix, Position4).xyz;
-  result.NormalWS    = mul(normal_matrix, input.NormalOS);
+  result.NormalWS    = mul(normal_matrix_world_space, input.NormalOS);
   return result;
 }
 
@@ -83,7 +100,7 @@ HSTrianglePatchConstant HSPatchConstant(InputPatch<HSInput, 3> patch)
 
 [domain("tri")]
 [partitioning("fractional_odd")]
-[outputtopology("triangle_cw")]
+[outputtopology("triangle_ccw")]
 [outputcontrolpoints(3)]
 [patchconstantfunc("HSPatchConstant")]
 HSOutput HSMain(
@@ -151,7 +168,7 @@ DSOutput DSMain(
                                       uvw);
 
     DSOutput result;
-    result.PositionCS = mul(proj_matrix, float4(position, 1));
+    result.PositionCS = mul(view_projection_matrix, float4(position, 1));
     result.PositionWS = position;
     result.NormalWS   = normal;
     return result;
@@ -187,7 +204,7 @@ float4 PSMain(PSInput input) : SV_TARGET
   float3 P = input.PositionWS;
   float3 N = input.NormalWS;
   float3 L = normalize(LP - P);
-  float3 V = view_dir;
+  float3 V = view_direction;
   float3 R = reflect(L, N);
 
   float  A = 0.3;

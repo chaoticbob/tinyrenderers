@@ -1,13 +1,25 @@
-cbuffer UniformBlock0 : register(b0)
+cbuffer ViewTransform : register(b0)
 {
-  float4x4 model_matrix;
-  float4x4 proj_matrix;
-  float4x4 model_view_proj_matrix;
-  float3x3 normal_matrix;
-  float3   color;
-  float3   view_dir;
+  float4x4  model_matrix;
+  float4x4  view_matrix;
+  float4x4  projection_matrix;
+  float4x4  model_view_matrix;
+  float4x4  view_projection_matrix;
+  float4x4  model_view_projection_matrix;
+  float3x3  normal_matrix_world_space;
+  float3x3  normal_matrix_view_space;
+  float3    view_direction;
+  float3    color;
 };
 
+cbuffer BlinnPhong : register(b1) {
+  float4  base_color;
+  float4  specular_color;
+  float4  specular_power;
+  float4  kA;
+  float4  kD;
+  float4  kS;
+}
 
 // =============================================================================
 // Vertex Shader
@@ -28,9 +40,9 @@ VSOutput VSMain(VSInput input)
 {
   float4 Position4 = float4(input.PositionOS, 1);
   VSOutput result;
-  result.PositionCS  = mul(model_view_proj_matrix, Position4);
+  result.PositionCS  = mul(model_view_projection_matrix, Position4);
   result.PositionWS  = mul(model_matrix, Position4).xyz;
-  result.NormalWS    = normalize(mul(normal_matrix, input.NormalOS));
+  result.NormalWS    = normalize(mul(normal_matrix_world_space, input.NormalOS));
   return result;
 }
 
@@ -64,7 +76,7 @@ float4 PSMain(PSInput input) : SV_TARGET
   float3 P = input.PositionWS;
   float3 N = input.NormalWS;
   float3 L = normalize(LP - P);
-  float3 V = view_dir;
+  float3 V = view_direction;
   float3 R = reflect(L, N);
 
   float  A = 0.3;

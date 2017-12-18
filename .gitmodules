@@ -10,3 +10,6 @@
 [submodule "third_party/stb"]
 	path = third_party/stb
 	url = https://github.com/nothings/stb.git
+[submodule "third_party/rastafont"]
+	path = third_party/rastafont
+	url = https://github.com/kayru/rastafont.git
