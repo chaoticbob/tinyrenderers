@@ -3779,10 +3779,16 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
         blend_desc.RenderTarget[attrib_index].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     }
 
+    D3D12_CULL_MODE cull_mode = D3D12_CULL_MODE_NONE;
+    switch(p_pipeline_settings->cull_mode) {
+        case tr_cull_mode_back  : cull_mode = D3D12_CULL_MODE_BACK; break;
+        case tr_cull_mode_front : cull_mode = D3D12_CULL_MODE_FRONT; break;
+    }
+    BOOL front_face_ccw = (tr_front_face_ccw == p_pipeline_settings->front_face) ? TRUE : FALSE;
     TINY_RENDERER_DECLARE_ZERO(D3D12_RASTERIZER_DESC, rasterizer_desc);
     rasterizer_desc.FillMode                = D3D12_FILL_MODE_SOLID;
-    rasterizer_desc.CullMode                = D3D12_CULL_MODE_NONE;
-    rasterizer_desc.FrontCounterClockwise   = TRUE;
+    rasterizer_desc.CullMode                = cull_mode;
+    rasterizer_desc.FrontCounterClockwise   = front_face_ccw;
     rasterizer_desc.DepthBias               = D3D12_DEFAULT_DEPTH_BIAS;
     rasterizer_desc.DepthBiasClamp          = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
     rasterizer_desc.SlopeScaledDepthBias    = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
