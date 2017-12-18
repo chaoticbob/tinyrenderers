@@ -99,8 +99,8 @@ HSTrianglePatchConstant HSPatchConstant(InputPatch<HSInput, 3> patch)
 }
 
 [domain("tri")]
-[partitioning("fractional_odd")]
-[outputtopology("triangle_ccw")]
+[partitioning("integer")]
+[outputtopology("triangle_cw")]
 [outputcontrolpoints(3)]
 [patchconstantfunc("HSPatchConstant")]
 HSOutput HSMain(

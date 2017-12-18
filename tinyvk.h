@@ -4208,7 +4208,7 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         ia.topology                                 = topology;
         ia.primitiveRestartEnable                   = VK_FALSE;
 
-        // Validation is reporting an error for this. Disabling for now.
+        // May generate validation error
         VkPipelineTessellationDomainOriginStateCreateInfoKHR domain_origin = { VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_DOMAIN_ORIGIN_STATE_CREATE_INFO_KHR };
         switch (p_pipeline_settings->tessellation_domain_origin) {
           case tr_tessellation_domain_origin_upper_left: domain_origin.domainOrigin = VK_TESSELLATION_DOMAIN_ORIGIN_UPPER_LEFT_KHR; break;
@@ -4216,7 +4216,7 @@ void tr_internal_vk_create_pipeline(tr_renderer* p_renderer, tr_shader_program* 
         }
         TINY_RENDERER_DECLARE_ZERO(VkPipelineTessellationStateCreateInfo, ts);
         ts.sType                                    = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
-        ts.pNext                                    = NULL; //&domain_origin;
+        ts.pNext                                    = &domain_origin;
         ts.flags                                    = 0;
         ts.patchControlPoints                       = 0;
         switch (p_pipeline_settings->primitive_topo) {
