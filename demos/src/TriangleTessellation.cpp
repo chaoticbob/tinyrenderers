@@ -253,7 +253,7 @@ void init_tiny_renderer(GLFWwindow* window)
       entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
       entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
       entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
-      entity_create_info.pipeline_settings.depth          = true;      
+      entity_create_info.pipeline_settings.depth          = true;
       entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
       g_chess_pieces_base.Create(g_renderer, entity_create_info);
 
@@ -271,7 +271,8 @@ void init_tiny_renderer(GLFWwindow* window)
       entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
       entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_3_point_patch;
       entity_create_info.pipeline_settings.depth          = true;      
-      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
+      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_front;
+      entity_create_info.pipeline_settings.tessellation_domain_origin = tr_tessellation_domain_origin_upper_left;
       g_chess_pieces_tess.Create(g_renderer, entity_create_info);
 
       // Tessellated wireframe chess pieces
