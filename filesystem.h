@@ -11,6 +11,12 @@
 #include <string>
 #include <vector>
 
+#if defined(__linux__)
+  #include <sys/types.h>
+  #include <sys/stat.h>
+  #include <unistd.h>
+#endif
+
 namespace tr {
 namespace fs {
 

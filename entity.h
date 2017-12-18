@@ -139,7 +139,7 @@ void EntityT<LightingParamsT, TessParamsT>::SetTranformDirty(bool value)
 template <typename LightingParamsT, typename TessParamsT>
 bool EntityT<LightingParamsT, TessParamsT>::Create(tr_renderer* p_renderer, const EntityCreateInfo& create_info) {
   // Copy renderer
-  g_renderer = p_renderer;
+  m_renderer = p_renderer;
 
   // Copy create info
   m_create_info = create_info;
@@ -221,13 +221,13 @@ bool EntityT<LightingParamsT, TessParamsT>::Create(tr_renderer* p_renderer, cons
 
   // Pipeline
   {
-    tr_create_pipeline(g_renderer,
-                        m_create_info.shader_program,
-                        &m_create_info.vertex_layout,
-                        m_descriptor_set,
-                        m_create_info.render_target,
-                        &m_create_info.pipeline_settings,
-                        &m_pipeline);
+    tr_create_pipeline(m_renderer,
+                       m_create_info.shader_program,
+                       &m_create_info.vertex_layout,
+                       m_descriptor_set,
+                       m_create_info.render_target,
+                       &m_create_info.pipeline_settings,
+                       &m_pipeline);
     assert(m_pipeline != nullptr);
   }
 
@@ -235,7 +235,7 @@ bool EntityT<LightingParamsT, TessParamsT>::Create(tr_renderer* p_renderer, cons
   {
     if (has_view_transform) {
       uint32_t buffer_size = m_cpu_view_transform.GetDataSize();
-      tr_create_uniform_buffer(g_renderer, 
+      tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
                                true, 
                                &m_gpu_view_transform);
@@ -244,7 +244,7 @@ bool EntityT<LightingParamsT, TessParamsT>::Create(tr_renderer* p_renderer, cons
 
     if (has_lighting) {
       uint32_t buffer_size = m_cpu_lighting_params.GetDataSize();
-      tr_create_uniform_buffer(g_renderer, 
+      tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
                                true, 
                                &m_gpu_lighting_params);
@@ -253,7 +253,7 @@ bool EntityT<LightingParamsT, TessParamsT>::Create(tr_renderer* p_renderer, cons
 
     if (has_tess) {
       uint32_t buffer_size = m_cpu_tess_params.GetDataSize();
-      tr_create_uniform_buffer(g_renderer, 
+      tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
                                true, 
                                &m_gpu_tess_params);
@@ -284,7 +284,7 @@ template <typename LightingParamsT, typename TessParamsT>
 bool EntityT<LightingParamsT, TessParamsT>::SetVertexBuffers(const tr::Mesh& mesh)
 {
   tr_buffer* p_buffer = nullptr;
-  tr_create_vertex_buffer(g_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &p_buffer);
+  tr_create_vertex_buffer(m_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &p_buffer);
   assert(p_buffer != nullptr);
 
   memcpy(p_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
@@ -419,7 +419,7 @@ void EntityT<LightingParamsT, TessParamsT>::UpdateGpuDescriptorSets()
       }
     }
   }
-  tr_update_descriptor_set(g_renderer, m_descriptor_set);
+  tr_update_descriptor_set(m_renderer, m_descriptor_set);
 }
 
 /*! @fn EntityT<CpuLightingBufferT>::UpdateGpuBuffers */
