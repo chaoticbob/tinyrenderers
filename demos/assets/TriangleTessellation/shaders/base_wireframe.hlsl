@@ -1,11 +1,15 @@
-cbuffer UniformBlock0 : register(b0)
+cbuffer ViewTransform : register(b0)
 {
-  float4x4 model_view_matrix;
-  float4x4 proj_matrix;
-  float4x4 model_view_proj_matrix;
-  float3x3 normal_matrix;
-  float3   color;
-  float3   view_dir;
+  float4x4  model_matrix;
+  float4x4  view_matrix;
+  float4x4  projection_matrix;
+  float4x4  model_view_matrix;
+  float4x4  view_projection_matrix;
+  float4x4  model_view_projection_matrix;
+  float3x3  normal_matrix_world_space;
+  float3x3  normal_matrix_view_space;
+  float3    view_direction;
+  float3    color;  
 };
 
 
@@ -27,7 +31,7 @@ VSOutput VSMain(VSInput input)
 {
   VSOutput result;
   result.PositionWS = mul(model_view_matrix, float4(input.PositionOS, 1.0)).xyz;
-  result.NormalWS   = normalize(mul(normal_matrix, input.NormalOS));
+  result.NormalWS   = normalize(mul(normal_matrix_world_space, input.NormalOS));
   return result;
 }
 
@@ -76,9 +80,9 @@ void GSMain(
   P0.z += 0.001;
   P1.z += 0.001;
   P2.z += 0.001;
-  float4 Q0 = mul(proj_matrix, float4(P0, 1.0));
-  float4 Q1 = mul(proj_matrix, float4(P1, 1.0));
-  float4 Q2 = mul(proj_matrix, float4(P2, 1.0));
+  float4 Q0 = mul(projection_matrix, float4(P0, 1.0));
+  float4 Q1 = mul(projection_matrix, float4(P1, 1.0));
+  float4 Q2 = mul(projection_matrix, float4(P2, 1.0));
 
   // Edge 0
   vertex.PositionCS = Q0;

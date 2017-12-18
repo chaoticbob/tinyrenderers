@@ -17,6 +17,7 @@ function(add_vk sample_name)
     add_executable(${target_name} ${CMAKE_CURRENT_SOURCE_DIR}/src/${sample_name}.cpp
                                   ${CMAKE_SOURCE_DIR}/camera.h
                                   ${CMAKE_SOURCE_DIR}/cbuffer.h
+                                  ${CMAKE_SOURCE_DIR}/entity.h
                                   ${CMAKE_SOURCE_DIR}/mesh.h
                                   ${CMAKE_SOURCE_DIR}/tinyvk.h
                                   ${CMAKE_SOURCE_DIR}/transform.h)
@@ -39,6 +40,7 @@ if(WIN32)
         add_executable(${target_name} ${CMAKE_CURRENT_SOURCE_DIR}/src/${sample_name}.cpp
                                       ${CMAKE_SOURCE_DIR}/camera.h
                                       ${CMAKE_SOURCE_DIR}/cbuffer.h
+									  ${CMAKE_SOURCE_DIR}/entity.h
                                       ${CMAKE_SOURCE_DIR}/mesh.h
                                       ${CMAKE_SOURCE_DIR}/tinydx.h
                                       ${CMAKE_SOURCE_DIR}/transform.h)
