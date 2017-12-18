@@ -2598,7 +2598,7 @@ void tr_util_update_texture_uint8(tr_queue* p_queue, uint32_t src_width, uint32_
 
     uint8_t* p_expanded_src_data = NULL;
     const uint32_t dst_channel_count = tr_util_format_channel_count(p_texture->format);
-    assert(src_channel_count < dst_channel_count);
+    assert(src_channel_count <= dst_channel_count);
 
     if (src_channel_count < dst_channel_count) {
         uint32_t expanded_row_stride = src_width * dst_channel_count;
