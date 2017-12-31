@@ -302,12 +302,12 @@ void draw_frame()
     g_chess_pieces_1_solid.SetColor(float3(0.85f, 0.3f, 0.3f));
     g_chess_pieces_2_solid.SetColor(float3(0.4f, 0.4f, 0.8f));
 
-    g_chess_board_1_solid.SetView(g_camera);
-    g_chess_board_2_solid.SetView(g_camera);
-    g_chess_pieces_1_solid.SetView(g_camera);
-    g_chess_pieces_2_solid.SetView(g_camera);
-    g_chess_pieces_1_wireframe.SetView(g_camera);
-    g_chess_pieces_2_wireframe.SetView(g_camera);
+    g_chess_board_1_solid.ApplyView(g_camera);
+    g_chess_board_2_solid.ApplyView(g_camera);
+    g_chess_pieces_1_solid.ApplyView(g_camera);
+    g_chess_pieces_2_solid.ApplyView(g_camera);
+    g_chess_pieces_1_wireframe.ApplyView(g_camera);
+    g_chess_pieces_2_wireframe.ApplyView(g_camera);
 
     tr::Transform transform;
     transform.Rotate(0, ry, 0);

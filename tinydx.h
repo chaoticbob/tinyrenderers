@@ -327,6 +327,19 @@ typedef enum tr_front_face {
     tr_front_face_cw
 } tr_front_face;
 
+typedef enum tr_texture_address_mode {
+  tr_texture_address_mode_clamp = 0,
+  tr_texture_address_mode_border,
+  tr_texture_address_mode_repeat,
+  tr_texture_address_mode_mirror,
+} tr_texture_address_mode;
+
+typedef enum tr_blend_mode {
+  tr_blend_mode_none = 0,
+  tr_blend_mode_alpha,
+  tr_blend_mode_additive,
+} tr_blend_mode;
+
 // Has no effect in DX12, just here for consistency
 typedef enum tr_tessellation_domain_origin {
     tr_tessellation_domain_origin_upper_left = 0,
@@ -514,8 +527,15 @@ typedef struct tr_texture {
     D3D12_UNORDERED_ACCESS_VIEW_DESC    dx_uav_view_desc;
 } tr_texture;
 
+typedef struct tr_sampler_settings {
+  tr_texture_address_mode               address_mode_u;
+  tr_texture_address_mode               address_mode_v;
+  tr_texture_address_mode               address_mode_w;
+} tr_sampler_settings;
+
 typedef struct tr_sampler {
     tr_renderer*                        renderer;
+    tr_sampler_settings                 settings;
     D3D12_SAMPLER_DESC	                dx_sampler_desc;
 } tr_sampler;
 
@@ -549,7 +569,8 @@ typedef struct tr_pipeline_settings {
     tr_primitive_topo                   primitive_topo;
     tr_cull_mode                        cull_mode;
     tr_front_face                       front_face;
-    bool                                depth;    
+    tr_blend_mode                       color_blend_modes[tr_max_render_target_attachments];
+    bool                                depth;
     tr_tessellation_domain_origin       tessellation_domain_origin; // Has no effect in DX, here for consistency
 } tr_pipeline_settings;
 
@@ -630,7 +651,7 @@ tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width,
 tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
-tr_api_export void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler);
+tr_api_export void tr_create_sampler(tr_renderer* p_renderer, const tr_sampler_settings* p_sampler_settings, tr_sampler** pp_sampler);
 tr_api_export void tr_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 
 tr_api_export void tr_create_shader_program_n(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program);
@@ -661,7 +682,7 @@ tr_api_export void tr_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pip
 tr_api_export void tr_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
 tr_api_export void tr_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 tr_api_export void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
-tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
+tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index, uint32_t first_vertex);
 tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
@@ -688,6 +709,8 @@ tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format);
 tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
+tr_api_export D3D12_TEXTURE_ADDRESS_MODE  tr_util_to_dx_texture_address_mode(tr_texture_address_mode address_mode);
+tr_api_export void        tr_util_configure_render_target_blend_state(tr_blend_mode blend_mode, D3D12_RENDER_TARGET_BLEND_DESC* blend_desc);
 tr_api_export void        tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void        tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void        tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_buffer);
@@ -777,7 +800,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 void tr_internal_dx_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_texture);
 void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture);
-void tr_internal_dx_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
+void tr_internal_dx_create_sampler(tr_renderer* p_renderer, const tr_sampler_settings* p_sampler_settings, tr_sampler* p_sampler);
 void tr_internal_dx_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
 void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_dx_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
@@ -804,7 +827,7 @@ void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
 void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
 void tr_internal_dx_cmd_bind_vertex_buffers(tr_cmd* p_cmd, uint32_t buffer_count, tr_buffer** pp_buffers);
 void tr_internal_dx_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex);
-void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index);
+void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index, uint32_t first_vertex);
 void tr_internal_dx_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_dx_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_texture, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
@@ -1563,7 +1586,7 @@ void tr_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
     TINY_RENDERER_SAFE_FREE(p_texture);
 }
 
-void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler)
+void tr_create_sampler(tr_renderer* p_renderer, const tr_sampler_settings* p_sampler_settings, tr_sampler** pp_sampler)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
 
@@ -1572,7 +1595,9 @@ void tr_create_sampler(tr_renderer* p_renderer, tr_sampler** pp_sampler)
 
     p_sampler->renderer = p_renderer;
 
-    tr_internal_dx_create_sampler(p_renderer, p_sampler);
+    memcpy(&(p_sampler->settings), p_sampler_settings, sizeof(*p_sampler_settings));
+
+    tr_internal_dx_create_sampler(p_renderer, p_sampler_settings, p_sampler);
 
     *pp_sampler = p_sampler;
 }
@@ -1925,11 +1950,11 @@ void tr_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t first_vertex)
 }
 
 
-void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index)
+void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index, uint32_t first_vertex)
 {
     assert(NULL != p_cmd);
 
-    tr_internal_dx_cmd_draw_indexed(p_cmd, index_count, first_index);
+    tr_internal_dx_cmd_draw_indexed(p_cmd, index_count, first_index, first_vertex);
 }
 
 void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
@@ -2271,6 +2296,56 @@ uint32_t tr_util_format_channel_count(tr_format format)
         case tr_format_d32_float_s8_uint   : result = 0; break;
     }
     return result;
+}
+
+D3D12_TEXTURE_ADDRESS_MODE  tr_util_to_dx_texture_address_mode(tr_texture_address_mode address_mode)
+{
+  D3D12_TEXTURE_ADDRESS_MODE dx_address_mode = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+  switch (address_mode) {
+    case tr_texture_address_mode_clamp  : dx_address_mode = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; break;
+    case tr_texture_address_mode_border : dx_address_mode = D3D12_TEXTURE_ADDRESS_MODE_BORDER; break;
+    case tr_texture_address_mode_repeat : dx_address_mode = D3D12_TEXTURE_ADDRESS_MODE_WRAP; break;
+    case tr_texture_address_mode_mirror : dx_address_mode = D3D12_TEXTURE_ADDRESS_MODE_MIRROR; break;
+  }
+  return dx_address_mode;
+}
+
+void tr_util_configure_render_target_blend_state(tr_blend_mode blend_mode, D3D12_RENDER_TARGET_BLEND_DESC* blend_desc)
+{
+  switch (blend_mode) {
+    case tr_blend_mode_alpha: {
+      blend_desc->BlendEnable           = TRUE;
+      blend_desc->LogicOpEnable         = FALSE;
+      blend_desc->SrcBlend              = D3D12_BLEND_SRC_ALPHA;
+      blend_desc->DestBlend             = D3D12_BLEND_INV_SRC_ALPHA;
+      blend_desc->BlendOp               = D3D12_BLEND_OP_ADD;
+      blend_desc->SrcBlendAlpha         = D3D12_BLEND_SRC_ALPHA;
+      blend_desc->DestBlendAlpha        = D3D12_BLEND_ZERO;
+      blend_desc->BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+      blend_desc->LogicOp               = D3D12_LOGIC_OP_NOOP;
+      blend_desc->RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    }
+    break;
+
+    case tr_blend_mode_additive: {
+      assert(false && "not implemented");
+    }
+    break;
+
+    default: {
+      blend_desc->BlendEnable           = FALSE;
+      blend_desc->LogicOpEnable         = FALSE;
+      blend_desc->SrcBlend              = D3D12_BLEND_ONE;
+      blend_desc->DestBlend             = D3D12_BLEND_ZERO;
+      blend_desc->BlendOp               = D3D12_BLEND_OP_ADD;
+      blend_desc->SrcBlendAlpha         = D3D12_BLEND_ONE;
+      blend_desc->DestBlendAlpha        = D3D12_BLEND_ZERO;
+      blend_desc->BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+      blend_desc->LogicOp               = D3D12_LOGIC_OP_NOOP;
+      blend_desc->RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    }
+    break;
+  }
 }
 
 void tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage)
@@ -3386,14 +3461,14 @@ void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_textu
     TINY_RENDERER_SAFE_RELEASE(p_texture->dx_resource);
 }
 
-void tr_internal_dx_create_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler)
+void tr_internal_dx_create_sampler(tr_renderer* p_renderer, const tr_sampler_settings* p_sampler_settings, tr_sampler* p_sampler)
 {
-    assert(NULL != p_renderer->dx_device);
+  assert(NULL != p_renderer->dx_device);
 
 	p_sampler->dx_sampler_desc.Filter         = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-	p_sampler->dx_sampler_desc.AddressU       = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-	p_sampler->dx_sampler_desc.AddressV       = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-	p_sampler->dx_sampler_desc.AddressW	      = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	p_sampler->dx_sampler_desc.AddressU       = tr_util_to_dx_texture_address_mode(p_sampler_settings->address_mode_u);
+	p_sampler->dx_sampler_desc.AddressV       = tr_util_to_dx_texture_address_mode(p_sampler_settings->address_mode_v);
+	p_sampler->dx_sampler_desc.AddressW	      = tr_util_to_dx_texture_address_mode(p_sampler_settings->address_mode_w);
 	p_sampler->dx_sampler_desc.MipLODBias     = 0;
 	p_sampler->dx_sampler_desc.MaxAnisotropy  = 0;
 	p_sampler->dx_sampler_desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
@@ -3773,17 +3848,9 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     TINY_RENDERER_DECLARE_ZERO(D3D12_BLEND_DESC, blend_desc);
     blend_desc.AlphaToCoverageEnable        = FALSE;
     blend_desc.IndependentBlendEnable       = FALSE;
-    for( UINT attrib_index = 0; attrib_index < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++attrib_index ) { 
-        blend_desc.RenderTarget[attrib_index].BlendEnable           = FALSE;
-        blend_desc.RenderTarget[attrib_index].LogicOpEnable         = FALSE;
-        blend_desc.RenderTarget[attrib_index].SrcBlend              = D3D12_BLEND_ONE;
-        blend_desc.RenderTarget[attrib_index].DestBlend             = D3D12_BLEND_ZERO;
-        blend_desc.RenderTarget[attrib_index].BlendOp               = D3D12_BLEND_OP_ADD;
-        blend_desc.RenderTarget[attrib_index].SrcBlendAlpha         = D3D12_BLEND_ONE;
-        blend_desc.RenderTarget[attrib_index].DestBlendAlpha        = D3D12_BLEND_ZERO;
-        blend_desc.RenderTarget[attrib_index].BlendOpAlpha          = D3D12_BLEND_OP_ADD;
-        blend_desc.RenderTarget[attrib_index].LogicOp               = D3D12_LOGIC_OP_NOOP;
-        blend_desc.RenderTarget[attrib_index].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    for( UINT rt_index = 0; rt_index < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++rt_index ) { 
+      tr_util_configure_render_target_blend_state(p_pipeline_settings->color_blend_modes[rt_index],
+                                                  &blend_desc.RenderTarget[rt_index]);
     }
 
     D3D12_CULL_MODE cull_mode = D3D12_CULL_MODE_NONE;
@@ -4474,7 +4541,7 @@ void tr_internal_dx_cmd_draw(tr_cmd* p_cmd, uint32_t vertex_count, uint32_t firs
     );
 }
 
-void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index)
+void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32_t first_index, uint32_t first_vertex)
 {
     assert(NULL != p_cmd->dx_cmd_list);
 
@@ -4482,7 +4549,7 @@ void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32
         (UINT)index_count,
         (UINT)1,
         (UINT)first_index,
-        (UINT)0,
+        (UINT)first_vertex,
         (UINT)0
     );
 }

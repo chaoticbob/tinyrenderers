@@ -16,18 +16,25 @@
 
 namespace tr {
 
-using float2   = glm::vec2;
-using float3   = glm::vec3;
-using float4   = glm::vec4;
-using float2x2 = glm::mat2x2;
-using float2x3 = glm::mat2x3;
-using float2x4 = glm::mat2x4;
-using float3x2 = glm::mat3x2;
-using float3x3 = glm::mat3x3;
-using float3x4 = glm::mat3x4;
-using float4x2 = glm::mat4x2;
-using float4x3 = glm::mat4x3;
-using float4x4 = glm::mat4x4;
+using int2      = glm::ivec2;
+using int3      = glm::ivec3;
+using int4      = glm::ivec4;
+using uint      = glm::uint;
+using uint2     = glm::uvec2;
+using uint3     = glm::uvec3;
+using uint4     = glm::uvec4;
+using float2    = glm::vec2;
+using float3    = glm::vec3;
+using float4    = glm::vec4;
+using float2x2  = glm::mat2x2;
+using float2x3  = glm::mat2x3;
+using float2x4  = glm::mat2x4;
+using float3x2  = glm::mat3x2;
+using float3x3  = glm::mat3x3;
+using float3x4  = glm::mat3x4;
+using float4x2  = glm::mat4x2;
+using float4x3  = glm::mat4x3;
+using float4x4  = glm::mat4x4;
 
 /*! @class Transform
 
@@ -79,7 +86,7 @@ public:
     float4x4 rot_z = glm::rotate(xyz.z, float3(0, 0, 1));
     float4x4 m = float4x4(1.0f);
     switch (rotation_order) {
-      case ROTATION_ORDER_ZYX: m = rot_z * rot_y * rot_x; break;
+      case ROTATION_ORDER_ZYX: m = rot_x * rot_y * rot_z; break;
       case ROTATION_ORDER_ZXY: m = rot_z * rot_x * rot_y; break;
       case ROTATION_ORDER_YZX: m = rot_y * rot_z * rot_x; break;
       case ROTATION_ORDER_YXZ: m = rot_y * rot_x * rot_z; break;

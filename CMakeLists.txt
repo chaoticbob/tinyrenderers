@@ -17,6 +17,7 @@ add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/glm)
 add_subdirectory(third_party/tinyobjloader)
 
-set(tinyrenders_include_dir "${CMAKE_SOURCE_DIR}")
+set(tinyrenders_dir         "${CMAKE_SOURCE_DIR}")
+set(tinyrenders_include_dir "${CMAKE_SOURCE_DIR}/include")
 add_subdirectory(samples)
 add_subdirectory(demos)

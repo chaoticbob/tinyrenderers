@@ -38,10 +38,10 @@ public:
   ~Camera() {}
 
   void LookAt(const float3& eye, const float3& look_at, const float3& up = float3(0, 1, 0)) {
-    m_eye = eye;
+    m_eye_position = eye;
     m_look_at = look_at;
     m_up = up;
-    m_view_direction = glm::normalize(look_at - m_eye);
+    m_view_direction = glm::normalize(look_at - m_eye_position);
     m_view_dirty = true;
     m_view_projection_dirty = true;
   }
@@ -55,13 +55,17 @@ public:
     m_view_projection_dirty = true;
   }
 
+  const float3& GetEyePosition() const {
+    return m_eye_position;
+  }
+
   const float3& GetViewDirection() const { 
     return m_view_direction; 
   }
 
   const float4x4& GetViewMatrix() const {
     if (m_view_dirty) {
-      m_view_matrix = glm::lookAt(m_eye, m_look_at, m_up);
+      m_view_matrix = glm::lookAt(m_eye_position, m_look_at, m_up);
       m_view_dirty = false;
     }
     return m_view_matrix;
@@ -87,7 +91,7 @@ public:
 
 private:
   bool              m_pixel_aligned         = false;
-  float3            m_eye                   = float3(0, 0, 1);
+  float3            m_eye_position          = float3(0, 0, 1);
   float3            m_look_at               = float3(0, 0, 0);
   float3            m_up                    = float3(0, 1, 0);
   float             m_fov_degrees           = 60.0f;

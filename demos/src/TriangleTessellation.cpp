@@ -42,7 +42,7 @@ struct TessData {
 };
 
 using TessParams            = tr::ConstantBuffer<TessData>;
-using TessBlinnPhongEntity  = tr::EntityT<tr::BlinnPhongBuffer, TessParams>;
+using TessBlinnPhongEntity  = tr::EntityT<tr::BasicMaterialParams, TessParams>;
 using TessBasicEntity       = tr::EntityT<NullBuffer,TessParams>;
 
 tr_renderer*          g_renderer = nullptr;
@@ -339,8 +339,8 @@ void draw_frame()
     // Update base transform and constant buffers
     {
       // View
-      g_chess_pieces_base.SetView(g_camera);
-      g_chess_pieces_base_wireframe.SetView(g_camera);
+      g_chess_pieces_base.ApplyView(g_camera);
+      g_chess_pieces_base_wireframe.ApplyView(g_camera);
       // Transform
       tr::Transform transform;
       transform.Translate(0, 0, -3);
@@ -357,8 +357,8 @@ void draw_frame()
     // Update tess transform and constant buffers
     {
       // View
-      g_chess_pieces_tess.SetView(g_camera);
-      g_chess_pieces_tess_wireframe.SetView(g_camera);
+      g_chess_pieces_tess.ApplyView(g_camera);
+      g_chess_pieces_tess_wireframe.ApplyView(g_camera);
       // Transform
       tr::Transform transform;
       transform.Clear();
