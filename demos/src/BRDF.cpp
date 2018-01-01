@@ -316,13 +316,15 @@ void draw_frame(GLFWwindow* p_window)
   float dt = curTime - prevTime;
   prevTime = curTime;
 
+  float content_scale = 1.5f;
   ImGuiIO& io = ImGui::GetIO();
   io.DisplaySize = ImVec2((float)window_width, (float)window_height);
   io.DisplayFramebufferScale = ImVec2((float)framebuffer_width / (float)window_width,
                                       (float)framebuffer_height / (float)window_height);
+  io.FontGlobalScale = content_scale;
+
   io.DeltaTime = (float)dt;
   ImGui::NewFrame();
-
 
   uint32_t frameIdx = g_frame_count % g_renderer->settings.swapchain.image_count;
 
@@ -338,7 +340,7 @@ void draw_frame(GLFWwindow* p_window)
   // Time
   float t = curTime;
 
-  ImGui::Begin("Params", nullptr, ImVec2(300, 400));
+  ImGui::Begin("Params", nullptr, ImVec2(300 * content_scale, 400 * content_scale));
   // Constant buffers
   {
     ImGui::SameLine();
@@ -385,7 +387,7 @@ void draw_frame(GLFWwindow* p_window)
     // Material
     if (ImGui::CollapsingHeader("BRDF", ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::PushID(&g_brdf_shader);
-      //ImGui::ColorPicker3("BaseColor", g_brdf_entity.GetMaterialParams().GetData().BaseColor.value_ptr());
+      ImGui::ColorEdit3("BaseColor", (float*)g_brdf_entity.GetMaterialParams().GetData().BaseColor.value_ptr());
       ImGui::SliderFloat("Metallic", g_brdf_entity.GetMaterialParams().GetData().Metallic.value_ptr(), 0.0, 1.0);
       ImGui::SliderFloat("Subsurface", g_brdf_entity.GetMaterialParams().GetData().Subsurface.value_ptr(), 0.0, 1.0);
       ImGui::SliderFloat("Specular", g_brdf_entity.GetMaterialParams().GetData().Specular.value_ptr(), 0.0, 1.0);
