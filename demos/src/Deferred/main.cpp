@@ -174,7 +174,7 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.height                         = g_window_height;
     settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_1;
-    settings.swapchain.rtv_format           = tr_format_b8g8r8a8_unorm;
+    settings.swapchain.rtv_format           = tr_format_r8g8b8a8_unorm;
     settings.swapchain.dsv_format           = tr_format_undefined;
     settings.swapchain.rtv_clear_value      = g_rtv_clear_value;
     settings.log_fn                         = renderer_log;
@@ -523,6 +523,11 @@ void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)
 
       case GLFW_KEY_4:{
         g_debug_gbuffer_index = (g_debug_gbuffer_index == 3) ? -1 : 3;        
+      }
+      break;
+
+      case GLFW_KEY_5:{
+        g_debug_gbuffer_index = (g_debug_gbuffer_index == 4) ? -1 : 4;
       }
       break;
 

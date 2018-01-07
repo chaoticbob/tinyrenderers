@@ -153,7 +153,7 @@ private:
   tr_format                           m_gbuffer_rtv_formats[tr_max_rtv_count] = {};
   tr_clear_value                      m_gbuffer_rtv_clears[tr_max_rtv_count] = {};
   std::vector<rtv_array>              m_gbuffer_rtvs;
-  tr_format                           m_gbuffer_dsv_format = {};
+  tr_format                           m_gbuffer_dsv_format = tr_format_undefined;
   tr_clear_value                      m_gbuffer_dsv_clear = {};
   std::vector<tr_texture*>            m_gbuffer_dsv;
   std::vector<tr_render_pass*>        m_gbuffer_render_pass;

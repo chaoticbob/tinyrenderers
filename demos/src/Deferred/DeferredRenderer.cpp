@@ -215,7 +215,7 @@ void DeferredRenderer::Initialize(tr_renderer* p_renderer, const tr::fs::path& a
     }
   }
   // DSV format
-  tr_format dsv_format = tr_format_d32_float_s8_uint;
+  tr_format dsv_format = tr_format_d32_float;
   // DSV clear value
   tr_clear_value dsv_clear = {};
   dsv_clear.depth = 1.0f;
@@ -633,13 +633,27 @@ void DeferredRenderer::DebugShowDebuffer(tr_cmd* p_cmd, uint32_t frame_num, uint
 {
   assert(p_cmd != nullptr);
   assert(frame_num < m_frame_count);
-  assert(gbuffer_index < m_gbuffer_rtv_count);
 
   uint32_t num_groups_x = p_swapchain_image->width  / COMPOSITE_NUM_THREADS_X;
   uint32_t num_groups_y = p_swapchain_image->height / COMPOSITE_NUM_THREADS_Y;
   uint32_t num_groups_z = COMPOSITE_NUM_THREADS_Z;
   
-  tr_texture* p_gbuffer_rtv = m_gbuffer_rtvs[frame_num][gbuffer_index];
+  tr_texture* p_gbuffer_rtv = nullptr;
+  switch (gbuffer_index) {
+    default: assert(false && "invalid gbuffer_index"); break;
+    case 0:
+    case 1:
+    case 2:
+    case 3: {
+      p_gbuffer_rtv = m_gbuffer_rtvs[frame_num][gbuffer_index];
+    }
+    break;
+
+    case 4: {
+      p_gbuffer_rtv = m_gbuffer_dsv[frame_num];
+    }
+    break;
+  }
   tr_texture* p_composite_rtv = m_composite_rtv[frame_num];
   tr_descriptor_set* p_descriptor_set = m_debug_descriptor_sets[frame_num];
 
