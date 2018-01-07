@@ -1,4 +1,5 @@
 #include "Scene.h"
+#include "imgui_glfw.h"
 
 #define ENABLE_TUBE_SET_1
 #define ENABLE_TUBE_SET_2
@@ -45,7 +46,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
   entity_create_info.pipeline_settings.depth          = true;
   entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
 
-  // Main structure
+  // Main Structure
   {
     tr_buffer* p_vertex_buffer = nullptr;
     uint32_t vertex_count = 0;
@@ -57,6 +58,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Main Structure");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.7f);
@@ -78,6 +80,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.6f, 0.6f, 0.6f);
@@ -99,6 +102,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Main Road");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.65f, 0.63f, 0.6f);
@@ -120,6 +124,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tube Connectors");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.9f, 0.9f, 0.9f);
@@ -148,6 +153,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tube Set 1");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
@@ -173,6 +179,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tube Set 2");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
@@ -199,6 +206,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tube Set 3");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
@@ -225,6 +233,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tube Set 4");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
@@ -251,6 +260,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tube Set 5");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
@@ -277,11 +287,13 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tall Stakes Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.7f);
+    entity->GetMaterialParams().GetData().Roughness = 0.2f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.5f;
     entity->GetMaterialParams().GetData().Specular  = 0.6f;
-    entity->GetMaterialParams().GetData().Roughness = 0.5f;
 
     m_entities.push_back(std::move(entity));
   }
@@ -298,11 +310,13 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tall Stakes Rails Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.8f, 0.8f, 0.8f);
-    entity->GetMaterialParams().GetData().Specular  = 0.95f;
-    entity->GetMaterialParams().GetData().Roughness = 0.14f;
+    entity->GetMaterialParams().GetData().Roughness = 0.7f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.8f;
+    entity->GetMaterialParams().GetData().Specular  = 1.5f;
 
     m_entities.push_back(std::move(entity));
   }
@@ -319,16 +333,18 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tall Stakes Air");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.7f);
+    entity->GetMaterialParams().GetData().Roughness = 0.2f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.5f;
     entity->GetMaterialParams().GetData().Specular  = 0.6f;
-    entity->GetMaterialParams().GetData().Roughness = 0.5f;
 
     m_entities.push_back(std::move(entity));
   }
 
-  // Tall Stakes Rails Ground
+  // Tall Stakes Rails Air
   {
     tr_buffer* p_vertex_buffer = nullptr;
     uint32_t vertex_count = 0;
@@ -340,11 +356,13 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Tall Stakes Rails Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.8f, 0.8f, 0.8f);
-    entity->GetMaterialParams().GetData().Specular  = 0.95f;
-    entity->GetMaterialParams().GetData().Roughness = 0.14f;
+    entity->GetMaterialParams().GetData().Roughness = 0.7f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.8f;
+    entity->GetMaterialParams().GetData().Specular  = 1.5f;
 
     m_entities.push_back(std::move(entity));
   }
@@ -361,6 +379,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Clamps Tall Stakes Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.8f);
@@ -382,11 +401,13 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Clamps Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.8f);
-    entity->GetMaterialParams().GetData().Specular  = 2.0f;
-    entity->GetMaterialParams().GetData().Roughness = 0.2f;
+    entity->GetMaterialParams().GetData().Roughness = 0.3f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.7f;
+    entity->GetMaterialParams().GetData().Specular  = 2.5f;
 
     m_entities.push_back(std::move(entity));
   }
@@ -403,6 +424,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
 
     auto entity = std::make_unique<DeferredEntity>();
     entity->Create(p_renderer, entity_create_info);
+    entity->SetName("Clamps Air");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
     entity->GetMaterialParams().GetData().Color     = float3(0.85f, 0.7f, 0.7f);
@@ -410,5 +432,26 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->GetMaterialParams().GetData().Roughness = 0.2f;
 
     m_entities.push_back(std::move(entity));
+  }
+}
+
+void DeferredTubeWorldScene::BuildUi()
+{
+  for (auto& entity : m_entities) {
+    if (ImGui::CollapsingHeader(entity->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::PushID(entity.get());
+      // Material
+      {
+        auto& params = entity->GetMaterialParams();
+        auto& data = params.GetData();
+        ImGui::ColorEdit3("Color", (float*)data.Color.value_ptr());
+        ImGui::SliderFloat("Roughness", data.Roughness.value_ptr(),   0.0, 1.0);
+        ImGui::SliderFloat("Metallic", data.Metallic.value_ptr(),     0.0, 1.0);
+        ImGui::SliderFloat("Specular", data.Specular.value_ptr(),     0.0, 5.0);
+        ImGui::SliderFloat("Subsurface", data.Subsurface.value_ptr(), 0.0, 1.0);
+        ImGui::SliderFloat("ClearCoat", data.ClearCoat.value_ptr(),   0.0, 1.0);
+      }
+      ImGui::PopID();
+    }
   }
 }

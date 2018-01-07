@@ -167,7 +167,8 @@ void csmain(uint3 tid : SV_DispatchThreadID)
       specular += LdotN * BRDF(L, V, N, X, Y, data) * intensity;
     }    
 
-    float3 Co = ((diffuse + ambient) * data.Albedo) + specular;
+    float f = 0.25 * pow(1.0 - max(0.0, dot(N, V)), 2.2);
+    float3 Co = ((diffuse + ambient + f) * data.Albedo) + specular;
     OutputTex[tid.xy] = float4(Co, 1);
   }
 }
@@ -247,9 +248,9 @@ float3 BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y, GBufferData materi
   float  specularTint   = 0;
   float  anisotropic    = 0;
   float  sheen          = 0;
-  float  sheenTint      = 0;
+  float  sheenTint      = 0.5;
   float  clearcoat      = materiaData.ClearCoat;
-  float  clearcoatGloss = 0;
+  float  clearcoatGloss = 1.0;
 
   float NdotL = dot(N,L);
   float NdotV = dot(N,V);

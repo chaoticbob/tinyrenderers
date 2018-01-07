@@ -75,6 +75,9 @@ public:
   bool Create(tr_renderer* p_renderer, const EntityCreateInfo& create_info);
   void Destroy();
 
+  const std::string&  GetName() const { return m_name; }
+  void SetName(const std::string& name) { m_name = name; }
+
   bool SetVertexBuffers(tr_buffer* p_buffer, uint32_t vertex_count);
   bool SetVertexBuffers(const tr::Mesh& mesh);
   bool LoadVertexBuffers(const tr::fs::path& file_path);
@@ -102,6 +105,7 @@ private:
   void SetTranformDirty(bool value);
 
 private:
+  std::string                 m_name;
   // Renderer
   tr_renderer*                m_renderer = nullptr;
   // Pipeline

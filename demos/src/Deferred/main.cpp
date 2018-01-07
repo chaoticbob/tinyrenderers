@@ -74,6 +74,11 @@ tr_clear_value      g_dsv_clear_value = {};
 DeferredRenderer        g_deferred_renderer;
 DeferredTubeWorldScene  g_tube_world;
 
+bool                g_mouse_captured = true;
+bool                g_mouse_move_camera = false;
+float2              g_prev_mouse_pos;
+bool                g_ui_active = false;
+
 int32_t             g_debug_gbuffer_index = -1;
 
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
@@ -215,6 +220,19 @@ void init_tiny_renderer(GLFWwindow* window)
     g_tube_world.Initialize(g_renderer, k_asset_dir / "Deferred", g_gpu_view_params, g_deferred_renderer.GetGBufferRenderPass(0));
     g_tube_world.UpdateDescriptorSets();
   }
+
+  // Initial lighting values
+  {
+    auto& params = g_deferred_renderer.GetLightingParams();
+    params.ApplyView(g_camera);
+
+    auto& data = params.GetData();    
+    data.AmbientLight.Intensity           = 0.2f;
+    data.DirectionalLights[0].Direction   = float3(-0.3f, -1, 0.2);
+    data.DirectionalLights[0].Intensity   = 0.8f;
+    data.DirectionalLights[1].Direction   = float3(0, 1, 0);
+    data.DirectionalLights[1].Intensity   = 0.1f;
+  }
 }
 
 void destroy_tiny_renderer()
@@ -236,22 +254,7 @@ void draw_frame(GLFWwindow* p_window)
   float dt = curTime - prevTime;
   prevTime = curTime;
   
-  /*
-  float content_scale_x = 1.0f;
-  float content_scale_y = 1.0f;
-  glfwGetWindowContentScale(p_window, &content_scale_x, &content_scale_y);
-  ImGuiIO& io = ImGui::GetIO();
-  io.DisplaySize = ImVec2((float)window_width, (float)window_height);
-  io.DisplayFramebufferScale = ImVec2((float)framebuffer_width / (float)window_width,
-                                      (float)framebuffer_height / (float)window_height);
-  io.FontGlobalScale = std::max(content_scale_x, content_scale_y);
-
-  io.DeltaTime = (float)dt;
-  ImGui::NewFrame();
-  */
-
   uint32_t frameIdx = g_frame_count % g_renderer->settings.swapchain.image_count;
-
   tr_fence* image_acquired_fence = g_renderer->image_acquired_fences[frameIdx];
   tr_semaphore* image_acquired_semaphore = g_renderer->image_acquired_semaphores[frameIdx];
   tr_semaphore* render_complete_semaphores = g_renderer->render_complete_semaphores[frameIdx];
@@ -260,6 +263,23 @@ void draw_frame(GLFWwindow* p_window)
 
   uint32_t swapchain_image_index = g_renderer->swapchain_image_index;
   tr_render_pass* render_pass = g_renderer->swapchain_render_passes[swapchain_image_index];
+   
+  // UI Start
+  {
+    float content_scale_x = 1.0f;
+    float content_scale_y = 1.0f;
+    glfwGetWindowContentScale(p_window, &content_scale_x, &content_scale_y);
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2((float)window_width, (float)window_height);
+    io.DisplayFramebufferScale = ImVec2((float)framebuffer_width / (float)window_width,
+                                        (float)framebuffer_height / (float)window_height);
+    io.FontGlobalScale = std::max(content_scale_x, content_scale_y);
+
+    io.DeltaTime = (float)dt;
+    ImGui::NewFrame();
+
+    ImGui::Begin("Params", &g_ui_active, ImVec2(300 * content_scale_x, 400 * content_scale_y));
+  }
 
   // Constant buffers
   {
@@ -281,17 +301,21 @@ void draw_frame(GLFWwindow* p_window)
       params.ApplyView(g_camera);
 
       auto& data = params.GetData();
-      data.AmbientLight.Intensity   = 0.2f;
-      //data.PointLights[0].Position  = float3(20, 100, 30);
-      //data.PointLights[0].Intensity = 0.8f;
-      //data.PointLights[1].Position  = float3(10, 10, 5);
-      //data.PointLights[1].Intensity = 0.5f;
-      //data.PointLights[2].Position  = float3(-10, 10, 5);
-      //data.PointLights[2].Intensity = 0.5f;
-      data.DirectionalLights[0].Direction   = float3(-0.3f, -1, 0.2);
-      data.DirectionalLights[0].Intensity   = 0.8f;
-      data.DirectionalLights[1].Direction   = float3(0, 1, 0);
-      data.DirectionalLights[2].Intensity   = 0.1f;
+      if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::PushID(&data.AmbientLight);
+        ImGui::SliderFloat("Intensity", data.AmbientLight.Intensity.value_ptr(), 0.0f, 1.0f);
+        ImGui::PopID();
+      }
+
+      for (uint32_t i = 0; i < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++i) {
+        char name[256] = {};
+        sprintf(name, "Directional %d", i);
+        if (ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::PushID(&data.DirectionalLights[i]);
+          ImGui::SliderFloat("Intensity", data.DirectionalLights[i].Intensity.value_ptr(), 0.0f, 1.0f);
+          ImGui::PopID();
+        }
+      }
     }
 
     // Update GPU buffers
@@ -328,13 +352,33 @@ void draw_frame(GLFWwindow* p_window)
     {
       tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_present, tr_texture_usage_transfer_dst);
       g_deferred_renderer.Composite(cmd, 0, render_pass->rtv[0]);
-      tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_transfer_dst, tr_texture_usage_present); 
+      tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_transfer_dst, tr_texture_usage_color_attachment); 
     }
   }
   else {
     tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_present, tr_texture_usage_transfer_dst);
     g_deferred_renderer.DebugShowDebuffer(cmd, 0, (uint32_t)g_debug_gbuffer_index, render_pass->rtv[0]);
-    tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_transfer_dst, tr_texture_usage_present); 
+    tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_transfer_dst, tr_texture_usage_color_attachment); 
+  }
+
+  // Ui Build
+  {
+    g_tube_world.BuildUi();
+  }
+
+  // UI End
+  {
+    ImGui::End();
+
+    tr_cmd_begin_render(cmd, render_pass);
+    {
+      tr::imgui_glfw_set_draw_cmd(cmd);
+      ImGui::Render();
+      tr::imgui_glfw_clear_draw_cmd();
+    }
+    tr_cmd_end_render(cmd);
+
+    tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_color_attachment, tr_texture_usage_present); 
   }
 
   tr_end_cmd(cmd);
@@ -482,7 +526,17 @@ void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)
       }
       break;
 
-      case GLFW_KEY_APOSTROPHE:{
+      case GLFW_KEY_TAB:{
+        g_mouse_captured = !g_mouse_captured;
+        if (g_mouse_captured) {
+          glfwSetInputMode(p_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+          g_mouse_move_camera = false;
+        }
+        else {
+          glfwSetInputMode(p_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+
+        g_ui_active = !g_mouse_captured;
       }
       break;
 
@@ -493,26 +547,38 @@ void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)
     }
   }
 
-  tr::imgui_glfw_keyboard(p_window, key, scancode, action, mods); 
+  if (!g_mouse_captured) {
+    tr::imgui_glfw_keyboard(p_window, key, scancode, action, mods); 
+  }
+}
+
+void mouse_button(GLFWwindow* p_window, int button, int action, int mods)
+{
+  if (g_mouse_captured) {    
+  }
+  else {
+    tr::imgui_glfw_mouse_button(p_window, button, action, mods);
+  }
 }
 
 void mouse_cursor(GLFWwindow* window, double x_pos, double y_pos)
 {
-  static bool s_can_update = false;
-  static float2 s_prev_mouse_pos;
-  if (s_can_update) {
-    float dx = (float)x_pos - s_prev_mouse_pos.x;
-    float dy = (float)y_pos - s_prev_mouse_pos.y;
-    g_camera.MouseMove(dx, dy);
+  if (g_mouse_captured) {
+    if (g_mouse_move_camera) {
+      float dx = (float)x_pos - g_prev_mouse_pos.x;
+      float dy = (float)y_pos - g_prev_mouse_pos.y;
+      g_camera.MouseMove(dx, dy);
 
-    s_prev_mouse_pos = float2(x_pos, y_pos);
+      g_prev_mouse_pos = float2(x_pos, y_pos);
+    }
+    else {
+      g_prev_mouse_pos = float2(x_pos, y_pos);
+      g_mouse_move_camera = true;
+    }
   }
   else {
-    s_prev_mouse_pos = float2(x_pos, y_pos);
-    s_can_update = true;
+    tr::imgui_glfw_mouse_cursor(window, x_pos, y_pos);
   }
-
-  tr::imgui_glfw_mouse_cursor(window, x_pos, y_pos);
 }
 
 int main(int argc, char **argv)
@@ -528,7 +594,7 @@ int main(int argc, char **argv)
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
   glfwSetKeyCallback(window, keyboard);
-  glfwSetMouseButtonCallback(window, tr::imgui_glfw_mouse_button);
+  glfwSetMouseButtonCallback(window, mouse_button);
   glfwSetCursorPosCallback(window, mouse_cursor);
   glfwSetScrollCallback(window, tr::imgui_glfw_scroll);
      
