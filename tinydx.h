@@ -105,7 +105,7 @@ enum {
     tr_max_gpus                      = 4,
     tr_max_descriptors               = 32,
     tr_max_descriptor_sets           = 8,
-    tr_max_render_target_attachments = 8,
+    tr_max_rtv_count                 = 8,
     tr_max_submit_cmds               = 8,
     tr_max_submit_wait_semaphores    = 8,
     tr_max_submit_signal_semaphores  = 8,
@@ -160,7 +160,7 @@ typedef enum tr_result {
     tr_result_queue             = 0x00080000,
     tr_result_surface           = 0x00100000,
     tr_result_swapchain         = 0x00200000,
-    tr_result_render_target     = 0x00400000,
+    tr_result_render_pass       = 0x00400000,
     tr_result_buffer            = 0x00800000,
     tr_result_texture           = 0x01000000,
     tr_result_cmd               = 0x02000000,
@@ -360,7 +360,7 @@ typedef enum tr_dx_shader_target {
 
 // Forward declarations
 typedef struct tr_renderer tr_renderer;
-typedef struct tr_render_target tr_render_target;
+typedef struct tr_render_pass tr_render_pass;
 typedef struct tr_buffer tr_buffer;
 typedef struct tr_texture tr_texture;
 typedef struct tr_sampler tr_sampler;
@@ -391,10 +391,10 @@ typedef struct tr_swapchain_settings {
     uint32_t                            image_count;
     tr_sample_count                     sample_count;
     uint32_t                            sample_quality;
-    tr_format                           color_format;
-    tr_clear_value                      color_clear_value;
-    tr_format                           depth_stencil_format;
-    tr_clear_value                      depth_stencil_clear_value;
+    tr_format                           rtv_format;
+    tr_clear_value                      rtv_clear_value;
+    tr_format                           dsv_format;
+    tr_clear_value                      dsv_clear_value;
 } tr_swapchain_settings;
 
 typedef struct tr_string_list {
@@ -431,7 +431,7 @@ typedef struct tr_queue {
 typedef struct tr_renderer {
     tr_api                              api;
     tr_renderer_settings                settings;
-    tr_render_target**                  swapchain_render_targets;
+    tr_render_pass**                    swapchain_render_passes;
     uint32_t                            swapchain_image_index;
     tr_queue*                           graphics_queue;
     tr_queue*                           present_queue;
@@ -511,6 +511,7 @@ typedef struct tr_texture {
     tr_renderer*                        renderer;
     tr_texture_type                     type;
     tr_texture_usage_flags              usage;
+    tr_texture_usage_flags              state;
     uint32_t                            width;
     uint32_t                            height;
     uint32_t                            depth;
@@ -569,7 +570,7 @@ typedef struct tr_pipeline_settings {
     tr_primitive_topo                   primitive_topo;
     tr_cull_mode                        cull_mode;
     tr_front_face                       front_face;
-    tr_blend_mode                       color_blend_modes[tr_max_render_target_attachments];
+    tr_blend_mode                       color_blend_modes[tr_max_rtv_count];
     bool                                depth;
     tr_tessellation_domain_origin       tessellation_domain_origin; // Has no effect in DX, here for consistency
 } tr_pipeline_settings;
@@ -582,21 +583,22 @@ typedef struct tr_pipeline {
     ID3D12PipelineState*                dx_pipeline_state;
 } tr_pipeline;
 
-typedef struct tr_render_target {
+typedef struct tr_render_pass {
     tr_renderer*                        renderer;
     uint32_t                            width;
     uint32_t                            height;
     tr_sample_count                     sample_count;
-    tr_format                           color_format;
-    uint32_t                            color_attachment_count;
-    tr_texture*                         color_attachments[tr_max_render_target_attachments];
-    tr_texture*                         color_attachments_multisample[tr_max_render_target_attachments];
-    tr_format                           depth_stencil_format;
-    tr_texture*                         depth_stencil_attachment;
-    tr_texture*                         depth_stencil_attachment_multisample;
+    uint32_t                            rtv_count;
+    tr_format                           rtv_format[tr_max_rtv_count];
+    tr_texture*                         rtv[tr_max_rtv_count];
+    tr_texture*                         rtv_multisample[tr_max_rtv_count];
+    tr_format                           dsv_format;
+    tr_texture*                         dsv;
+    tr_texture*                         dsv_multisample;
     ID3D12DescriptorHeap*               dx_rtv_heap;
     ID3D12DescriptorHeap*               dx_dsv_heap;
-} tr_render_target;
+    bool                                owns_textures;
+} tr_render_pass;
 
 typedef struct tr_mesh {
     tr_renderer*                        renderer;
@@ -645,10 +647,10 @@ tr_api_export void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t
 tr_api_export void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
-tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
-tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
+tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage usage, tr_texture_usage initial_state, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_1d(tr_renderer* p_renderer, uint32_t width, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture_usage initial_state, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_2d(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture_usage initial_state, tr_texture** pp_texture);
+tr_api_export void tr_create_texture_3d(tr_renderer* p_renderer, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, bool host_visible, tr_texture_usage_flags usage, tr_texture_usage initial_state, tr_texture** pp_texture);
 tr_api_export void tr_destroy_texture(tr_renderer* p_renderer, tr_texture*p_texture);
 
 tr_api_export void tr_create_sampler(tr_renderer* p_renderer, const tr_sampler_settings* p_sampler_settings, tr_sampler** pp_sampler);
@@ -659,18 +661,20 @@ tr_api_export void tr_create_shader_program(tr_renderer* p_renderer, uint32_t ve
 tr_api_export void tr_create_shader_program_compute(tr_renderer* p_renderer, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program** pp_shader_program);
 tr_api_export void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
 
-tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
+tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_pass* p_render_pass, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
-tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, tr_format depth_stencil_format, tr_render_target** pp_render_target);
-tr_api_export void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
+tr_api_export void tr_create_render_pass(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, uint32_t rtv_count, const tr_format* p_rtv_format, const tr_clear_value* p_rtv_clear_values, tr_format dsv_format, const tr_clear_value* p_dsv_clear_value, tr_render_pass** pp_render_pass);
+tr_api_export void tr_create_render_pass_uniform_rtv(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, uint32_t rtv_count, tr_format uniform_rtv_format, const tr_clear_value* p_uniform_rtv_clear_value, tr_format dsv_format, const tr_clear_value* p_dsv_clear_value, tr_render_pass** pp_render_pass);
+tr_api_export void tr_create_render_pass_existing(tr_renderer* p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, uint32_t rtv_count, tr_texture** pp_rtvs, tr_texture** pp_rtvs_multisample, tr_texture* p_dsv, tr_texture* p_dsv_mulitsample, tr_render_pass** pp_render_pass);
+tr_api_export void tr_destroy_render_pass(tr_renderer* p_renderer, tr_render_pass* p_render_pass);
 
 tr_api_export void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
 
 tr_api_export void tr_begin_cmd(tr_cmd* p_cmd);
 tr_api_export void tr_end_cmd(tr_cmd* p_cmd);
-tr_api_export void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_target);
+tr_api_export void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_pass* p_render_pass);
 tr_api_export void tr_cmd_end_render(tr_cmd* p_cmd);
 tr_api_export void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 tr_api_export void tr_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
@@ -686,18 +690,19 @@ tr_api_export void tr_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint
 tr_api_export void tr_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 tr_api_export void tr_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
-tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
-tr_api_export void tr_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void tr_cmd_render_pass_rtv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage);
+tr_api_export void tr_cmd_render_pass_dsv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 tr_api_export void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
+tr_api_export void tr_cmd_copy_texture2d_exact(tr_cmd* p_cmd, uint32_t mip_level, tr_texture* p_src_texture, tr_texture* p_dst_texture);
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
 tr_api_export void tr_queue_submit(tr_queue* p_queue, uint32_t cmd_count, tr_cmd** pp_cmds, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores, uint32_t signal_semaphore_count, tr_semaphore** pp_signal_semaphores);
 tr_api_export void tr_queue_present(tr_queue* p_queue, uint32_t wait_semaphore_count, tr_semaphore** pp_wait_semaphores);
 tr_api_export void tr_queue_wait_idle(tr_queue* p_queue);
 
-tr_api_export void tr_render_target_set_color_clear_value(tr_render_target* p_render_target, uint32_t attachment_index, float r, float g, float b, float a);
-tr_api_export void tr_render_target_set_depth_stencil_clear_value(tr_render_target* p_render_target, float depth, uint8_t stencil);
+tr_api_export void tr_set_rtv_clear_value(tr_render_pass* p_render_pass, uint32_t attachment_index, float r, float g, float b, float a);
+tr_api_export void tr_set_dsv_clear_value(tr_render_pass* p_render_pass, float depth, uint8_t stencil);
 
 tr_api_export bool      tr_vertex_layout_support_format(tr_format format);
 tr_api_export uint32_t  tr_vertex_layout_stride(const tr_vertex_layout* p_vertex_layout);
@@ -710,7 +715,7 @@ tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
 tr_api_export D3D12_TEXTURE_ADDRESS_MODE  tr_util_to_dx_texture_address_mode(tr_texture_address_mode address_mode);
-tr_api_export void        tr_util_configure_render_target_blend_state(tr_blend_mode blend_mode, D3D12_RENDER_TARGET_BLEND_DESC* blend_desc);
+tr_api_export void        tr_util_configure_rtv_blend_state(tr_blend_mode blend_mode, D3D12_RENDER_TARGET_BLEND_DESC* blend_desc);
 tr_api_export void        tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 tr_api_export void        tr_util_transition_image(tr_queue* p_queue, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void        tr_util_set_storage_buffer_count(tr_queue* p_queue, uint64_t count_offset, uint32_t count, tr_buffer* p_buffer);
@@ -802,13 +807,13 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
 void tr_internal_dx_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture);
 void tr_internal_dx_create_sampler(tr_renderer* p_renderer, const tr_sampler_settings* p_sampler_settings, tr_sampler* p_sampler);
 void tr_internal_dx_destroy_sampler(tr_renderer* p_renderer, tr_sampler* p_sampler);
-void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
+void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_pass* p_render_pass, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_dx_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline);
 void tr_internal_dx_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 void tr_internal_dx_create_shader_program(tr_renderer* p_renderer, uint32_t vert_size, const void* vert_code, const char* vert_enpt, uint32_t hull_size, const void* hull_code, const char* hull_enpt, uint32_t domn_size, const void* domn_code, const char* domn_enpt, uint32_t geom_size, const void* geom_code, const char* geom_enpt, uint32_t frag_size, const void* frag_code, const char* frag_enpt, uint32_t comp_size, const void* comp_code, const char* comp_enpt, tr_shader_program* p_shader_program);
 void tr_internal_dx_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_shader_program);
-void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
-void tr_internal_dx_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
+void tr_internal_dx_create_render_pass(tr_renderer* p_renderer, tr_render_pass* p_render_pass);
+void tr_internal_dx_destroy_render_pass(tr_renderer* p_renderer, tr_render_pass* p_render_pass);
 
 // Internal descriptor set functions
 void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
@@ -816,12 +821,12 @@ void tr_internal_dx_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor
 // Internal command buffer functions
 void tr_internal_dx_begin_cmd(tr_cmd* p_cmd);
 void tr_internal_dx_end_cmd(tr_cmd* p_cmd);
-void tr_internal_dx_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_target);
+void tr_internal_dx_cmd_begin_render(tr_cmd* p_cmd, tr_render_pass* p_render_pass);
 void tr_internal_dx_cmd_end_render(tr_cmd* p_cmd);
 void tr_internal_dx_cmd_set_viewport(tr_cmd* p_cmd, float x, float, float width, float height, float min_depth, float max_depth);
 void tr_internal_dx_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
-void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
-void tr_cmd_internal_dx_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
+void tr_cmd_internal_dx_cmd_clear_rtv_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value);
+void tr_cmd_internal_dx_cmd_clear_dsv_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value);
 void tr_internal_dx_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline);
 void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipeline, tr_descriptor_set* p_descriptor_set);
 void tr_internal_dx_cmd_bind_index_buffer(tr_cmd* p_cmd, tr_buffer* p_buffer);
@@ -831,10 +836,11 @@ void tr_internal_dx_cmd_draw_indexed(tr_cmd* p_cmd, uint32_t index_count, uint32
 void tr_internal_dx_cmd_draw_mesh(tr_cmd* p_cmd, const tr_mesh* p_mesh);
 void tr_internal_dx_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_texture, tr_buffer_usage old_usage, tr_buffer_usage new_usage);
 void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_usage old_usage, tr_texture_usage new_usage);
-void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
-void tr_internal_dx_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
+void tr_internal_dx_cmd_rtv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage);
+void tr_internal_dx_cmd_dsv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
+void tr_internal_dx_cmd_copy_texture2d_exact(tr_cmd* p_cmd, uint32_t mip_level, tr_texture* p_src_texture, tr_texture* p_dst_texture);
 
 // Internal queue/swapchain functions
 void tr_internal_dx_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -1074,8 +1080,8 @@ bool ptr_vector_destroy(ptr_vector* p_vector)
 
 // Internal singleton 
 typedef struct tr_internal_data {
-    tr_renderer*        renderer;
-    tr_render_target*   bound_render_target;
+    tr_renderer*      renderer;
+    tr_render_pass*   bound_render_pass;
 } tr_internal_data;
 
 static tr_internal_data* s_tr_internal = NULL;
@@ -1161,9 +1167,9 @@ void tr_destroy_renderer(tr_renderer* p_renderer)
     assert(NULL != s_tr_internal);
     
     // Destroy the swapchain render targets
-    if (NULL != p_renderer->swapchain_render_targets) {
+    if (NULL != p_renderer->swapchain_render_passes) {
         for (size_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
-            tr_destroy_render_target(p_renderer, p_renderer->swapchain_render_targets[i]);
+            tr_destroy_render_pass(p_renderer, p_renderer->swapchain_render_passes[i]);
         }
                     
     }
@@ -1192,7 +1198,7 @@ void tr_destroy_renderer(tr_renderer* p_renderer)
     //tr_internal_dx_destroy_instance(p_renderer);
 
     // Free all the renderer components!
-    TINY_RENDERER_SAFE_FREE(p_renderer->swapchain_render_targets);
+    TINY_RENDERER_SAFE_FREE(p_renderer->swapchain_render_passes);
     TINY_RENDERER_SAFE_FREE(s_tr_internal->renderer->image_acquired_fences);
     TINY_RENDERER_SAFE_FREE(s_tr_internal->renderer->image_acquired_semaphores);
     TINY_RENDERER_SAFE_FREE(s_tr_internal->renderer->render_complete_semaphores);
@@ -1484,7 +1490,8 @@ void tr_create_texture(
     uint32_t                 mip_levels,
     const tr_clear_value*    p_clear_value,  
     bool                     host_visible, 
-    tr_texture_usage_flags   usage, 
+    tr_texture_usage_flags   usage,
+    tr_texture_usage         initial_state,
     tr_texture**             pp_texture
 )
 {
@@ -1506,6 +1513,7 @@ void tr_create_texture(
     p_texture->host_visible       = false;
     p_texture->cpu_mapped_address = NULL;
     p_texture->owns_image         = false;
+    p_texture->state        = initial_state;
     if (NULL != p_clear_value) {
         if (tr_texture_usage_depth_stencil_attachment == (usage & tr_texture_usage_depth_stencil_attachment)) {
             p_texture->clear_value.depth = p_clear_value->depth;
@@ -1534,11 +1542,12 @@ void tr_create_texture_1d(
     tr_sample_count         sample_count, 
     tr_format               format, 
     bool                    host_visible, 
-    tr_texture_usage_flags  usage, 
+    tr_texture_usage_flags  usage,
+    tr_texture_usage        initial_state,
     tr_texture**            pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_1d, width, 1, 1, sample_count, format, 1, NULL, host_visible, usage, initial_state, pp_texture);
 }
 
 void tr_create_texture_2d(
@@ -1551,6 +1560,7 @@ void tr_create_texture_2d(
     const tr_clear_value*    p_clear_value,  
     bool                     host_visible,
     tr_texture_usage_flags   usage, 
+    tr_texture_usage         initial_state,
     tr_texture**             pp_texture
 )
 {
@@ -1558,7 +1568,7 @@ void tr_create_texture_2d(
         mip_levels = tr_util_calc_mip_levels(width, height);
     }
 
-    tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, p_clear_value, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_2d, width, height, 1, sample_count, format, mip_levels, p_clear_value, host_visible, usage, initial_state, pp_texture);
 }
 
 void tr_create_texture_3d(
@@ -1570,10 +1580,11 @@ void tr_create_texture_3d(
     tr_format               format, 
     bool                    host_visible, 
     tr_texture_usage_flags  usage, 
+    tr_texture_usage        initial_state,
     tr_texture**            pp_texture
 )
 {
-    tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, NULL, host_visible, usage, pp_texture);
+    tr_create_texture(p_renderer, tr_texture_type_3d, width, height, depth, sample_count, format, 1, NULL, host_visible, usage, initial_state, pp_texture);
 }
 
 void tr_destroy_texture(tr_renderer* p_renderer, tr_texture* p_texture)
@@ -1667,11 +1678,11 @@ void tr_destroy_shader_program(tr_renderer* p_renderer, tr_shader_program* p_sha
     tr_internal_dx_destroy_shader_program(p_renderer, p_shader_program);
 }
 
-void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline)
+void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_pass* p_render_pass, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(NULL != p_shader_program);
-    assert(NULL != p_render_target);
+    assert(NULL != p_render_pass);
     assert(NULL != p_pipeline_settings);
 
     tr_pipeline* p_pipeline = (tr_pipeline*)calloc(1, sizeof(*p_pipeline));
@@ -1679,7 +1690,7 @@ void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_pro
 
     memcpy(&(p_pipeline->settings), p_pipeline_settings, sizeof(*p_pipeline_settings));
 
-    tr_internal_dx_create_pipeline(p_renderer, p_shader_program, p_vertex_layout, p_descriptor_set, p_render_target, p_pipeline_settings, p_pipeline);
+    tr_internal_dx_create_pipeline(p_renderer, p_shader_program, p_vertex_layout, p_descriptor_set, p_render_pass, p_pipeline_settings, p_pipeline);
     p_pipeline->type = tr_pipeline_type_graphics;
 
     *pp_pipeline = p_pipeline;
@@ -1712,120 +1723,193 @@ void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline)
     TINY_RENDERER_SAFE_FREE(p_pipeline);
 }
 
-void tr_create_render_target(
+void tr_create_render_pass(
     tr_renderer*            p_renderer, 
     uint32_t                width, 
     uint32_t                height, 
     tr_sample_count         sample_count, 
-    tr_format               color_format, 
-    uint32_t                color_attachment_count,  
-    const tr_clear_value*   p_color_clear_values,
-    tr_format               depth_stencil_format,  
-    const tr_clear_value*   p_depth_stencil_clear_value,
-    tr_render_target**      pp_render_target
+    uint32_t                rtv_count,  
+    const tr_format*        p_rtv_formats, 
+    const tr_clear_value*   p_rtv_clear_values,
+    tr_format               dsv_format,  
+    const tr_clear_value*   p_dsv_clear_value,
+    tr_render_pass**        pp_render_pass
 )
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
 
-    tr_render_target* p_render_target = (tr_render_target*)calloc(1, sizeof(*p_render_target));
-    assert(NULL != p_render_target);
+    tr_render_pass* p_render_pass = (tr_render_pass*)calloc(1, sizeof(*p_render_pass));
+    assert(NULL != p_render_pass);
 
-    p_render_target->renderer               = p_renderer;
-    p_render_target->width                  = width;
-    p_render_target->height                 = height;
-    p_render_target->sample_count           = sample_count;
-    p_render_target->color_format           = color_format;
-    p_render_target->color_attachment_count = color_attachment_count;
-    p_render_target->depth_stencil_format   = depth_stencil_format;
+    p_render_pass->renderer     = p_renderer;
+    p_render_pass->width        = width;
+    p_render_pass->height       = height;
+    p_render_pass->sample_count = sample_count;
+    p_render_pass->rtv_count    = rtv_count;
+    p_render_pass->dsv_format   = dsv_format;
+    memcpy(p_render_pass->rtv_format, p_rtv_formats, rtv_count * sizeof(tr_format));
     
     // Create attachments
     {
         // Color
-        for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
-            const tr_clear_value* clear_value = (NULL != p_color_clear_values) ? &p_color_clear_values[i] : NULL;
+        for (uint32_t i = 0; i < p_render_pass->rtv_count; ++i) {
+            const tr_clear_value* clear_value = (NULL != p_rtv_clear_values) ? &p_rtv_clear_values[i] : NULL;
 
+            tr_format rtv_format = p_render_pass->rtv_format[i];
             tr_create_texture_2d(p_renderer, 
-                                 p_render_target->width, 
-                                 p_render_target->height, 
+                                 p_render_pass->width, 
+                                 p_render_pass->height, 
                                  tr_sample_count_1,
-                                 p_render_target->color_format,
+                                 rtv_format,
                                  1,
                                  clear_value,
                                  false,
-                                 (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image),
-                                 &(p_render_target->color_attachments[i]));
+                                 tr_texture_usage_color_attachment | tr_texture_usage_sampled_image,  // usage
+                                 tr_texture_usage_color_attachment,                                   // initial state
+                                 &(p_render_pass->rtv[i]));
 
-            if (p_render_target->sample_count > tr_sample_count_1) {
+            if (p_render_pass->sample_count > tr_sample_count_1) {
                 tr_create_texture_2d(p_renderer, 
-                                     p_render_target->width, 
-                                     p_render_target->height, 
-                                     p_render_target->sample_count,
-                                     p_render_target->color_format, 
+                                     p_render_pass->width, 
+                                     p_render_pass->height, 
+                                     p_render_pass->sample_count,
+                                     rtv_format,
                                      1,
                                      clear_value,
                                      false,
-                                     (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_sampled_image),
-                                     &(p_render_target->color_attachments_multisample[i]));
+                                     tr_texture_usage_color_attachment | tr_texture_usage_sampled_image,  // usage
+                                     tr_texture_usage_color_attachment,                                   // initial state
+                                     &(p_render_pass->rtv_multisample[i]));
             }
         }
 
         // Depth/stencil
-        if (tr_format_undefined != p_render_target->depth_stencil_format) {
+        if (tr_format_undefined != p_render_pass->dsv_format) {
             tr_create_texture_2d(p_renderer, 
-                                 p_render_target->width, 
-                                 p_render_target->height, 
-                                 p_render_target->sample_count,
-                                 p_render_target->color_format, 
+                                 p_render_pass->width, 
+                                 p_render_pass->height, 
+                                 p_render_pass->sample_count,
+                                 p_render_pass->dsv_format, 
                                  1,
-                                 p_depth_stencil_clear_value,
+                                 p_dsv_clear_value,
                                  false,
-                                 (tr_texture_usage)(tr_texture_usage_depth_stencil_attachment | tr_texture_usage_sampled_image),
-                                 &(p_render_target->depth_stencil_attachment));
+                                 tr_texture_usage_depth_stencil_attachment | tr_texture_usage_sampled_image,  // usage
+                                 tr_texture_usage_depth_stencil_attachment,                                   // initial state
+                                 &(p_render_pass->dsv));
         }
     }
 
-    // Create Vulkan specific objects for the render target
-    tr_internal_dx_create_render_target(p_renderer, p_render_target);
+    // Create D3D12 specific objects for the render target
+    tr_internal_dx_create_render_pass(p_renderer, p_render_pass);
 
-    *pp_render_target = p_render_target;
+    *pp_render_pass = p_render_pass;
 }
 
-void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target)
+void tr_create_render_pass_uniform_rtv(
+  tr_renderer*          p_renderer, 
+  uint32_t              width, 
+  uint32_t              height, 
+  tr_sample_count       sample_count, 
+  uint32_t              rtv_count, 
+  tr_format             uniform_rtv_format, 
+  const tr_clear_value* p_uniform_rtv_clear_value, 
+  tr_format             dsv_format, 
+  const tr_clear_value* p_dsv_clear_value, 
+  tr_render_pass**      pp_render_pass
+)
+{
+  tr_format rtv_formats[tr_max_rtv_count] = {};
+  tr_clear_value rtv_clear_values[tr_max_rtv_count] = {};
+  for (uint32_t i = 0; i < rtv_count; ++i) {
+    rtv_formats[i] = uniform_rtv_format;
+    memcpy(&rtv_formats[i], p_uniform_rtv_clear_value, sizeof(*p_uniform_rtv_clear_value));
+  }
+
+  tr_create_render_pass(p_renderer,
+                        width,
+                        height,
+                        sample_count,
+                        rtv_count,
+                        rtv_formats,
+                        rtv_clear_values,
+                        dsv_format,
+                        p_dsv_clear_value,
+                        pp_render_pass);
+}
+
+void tr_create_render_pass_existing(
+  tr_renderer*      p_renderer, 
+  uint32_t          width, 
+  uint32_t          height, 
+  tr_sample_count   sample_count, 
+  uint32_t          rtv_count, 
+  tr_texture**      pp_rtvs, 
+  tr_texture**      pp_rtvs_multisample, 
+  tr_texture*       p_dsv, 
+  tr_texture*       p_dsv_mulitsample, 
+  tr_render_pass**  pp_render_pass
+)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
-    assert(NULL != p_render_target);
 
-    if ((s_tr_internal->renderer == p_renderer) && (NULL != p_render_target)) {
+    tr_render_pass* p_render_pass = (tr_render_pass*)calloc(1, sizeof(*p_render_pass));
+    assert(p_render_pass != nullptr);
+
+    p_render_pass->renderer         = p_renderer;
+    p_render_pass->width            = width;
+    p_render_pass->height           = height;
+    p_render_pass->sample_count     = sample_count;
+    // Assign RTVS
+    p_render_pass->rtv_count = rtv_count;
+    for (uint32_t rtv_index = 0; rtv_index < rtv_count; ++rtv_index) {
+      tr_texture* p_rtv = pp_rtvs[rtv_index];
+      assert(p_rtv != nullptr);      
+      // Format and RTV
+      p_render_pass->rtv_format[rtv_index]  = p_rtv->format;
+      p_render_pass->rtv[rtv_index] = p_rtv;
+      // RTV multi-sample
+      if (sample_count > tr_sample_count_1) {
+        p_render_pass->rtv_multisample[rtv_index] = pp_rtvs_multisample[rtv_index];
+      }
+    }
+    // Format and DSV
+    p_render_pass->dsv_format       = (p_dsv != nullptr) ? p_dsv->format : tr_format_undefined;
+    p_render_pass->dsv              = p_dsv;
+    // DSV multi-sample
+    if (sample_count > tr_sample_count_1) {
+      p_render_pass->dsv_multisample  = p_dsv_mulitsample;
+    }
+    
+    // Create D3D12 specific objects for the render target
+    tr_internal_dx_create_render_pass(p_renderer, p_render_pass);
+
+    *pp_render_pass = p_render_pass;  
+}
+
+void tr_destroy_render_pass(tr_renderer* p_renderer, tr_render_pass* p_render_pass)
+{
+    TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
+    assert(NULL != p_render_pass);
+
+    if ((s_tr_internal->renderer == p_renderer) && (NULL != p_render_pass)) {
         // Destroy color attachments
-        for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
-            tr_destroy_texture(p_renderer, p_render_target->color_attachments[i]);
-            if (NULL != p_render_target->color_attachments_multisample[i]) {
-                tr_destroy_texture(p_renderer, p_render_target->color_attachments_multisample[i]);
+        for (uint32_t i = 0; i < p_render_pass->rtv_count; ++i) {
+            tr_destroy_texture(p_renderer, p_render_pass->rtv[i]);
+            if (NULL != p_render_pass->rtv_multisample[i]) {
+                tr_destroy_texture(p_renderer, p_render_pass->rtv_multisample[i]);
             }
         }
     
         // Destroy depth attachment
-        if (NULL != p_render_target->depth_stencil_attachment_multisample) {
-          tr_destroy_texture(p_renderer, p_render_target->depth_stencil_attachment_multisample);
+        if (NULL != p_render_pass->dsv_multisample) {
+          tr_destroy_texture(p_renderer, p_render_pass->dsv_multisample);
         }
-        if (NULL != p_render_target->depth_stencil_attachment) {
-            tr_destroy_texture(p_renderer, p_render_target->depth_stencil_attachment);
+        if (NULL != p_render_pass->dsv) {
+            tr_destroy_texture(p_renderer, p_render_pass->dsv);
         }
-
-        /*
-        // Destroy VkRenderPass object
-        if (VK_NULL_HANDLE != p_render_target->vk_render_pass) {
-            vkDestroyRenderPass(p_renderer->vk_device, p_render_target->vk_render_pass, NULL);
-        }
-
-        // Destroy VkFramebuffer object
-        if (VK_NULL_HANDLE != p_render_target->vk_framebuffer) {
-            vkDestroyFramebuffer(p_renderer->vk_device, p_render_target->vk_framebuffer, NULL);
-        }
-        */
     }
 
-    TINY_RENDERER_SAFE_FREE(p_render_target);
+    TINY_RENDERER_SAFE_FREE(p_render_pass);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -1856,14 +1940,14 @@ void tr_end_cmd(tr_cmd* p_cmd)
     tr_internal_dx_end_cmd(p_cmd);
 }
 
-void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_target)
+void tr_cmd_begin_render(tr_cmd* p_cmd, tr_render_pass* p_render_pass)
 {
     assert(NULL != p_cmd);
-    assert(NULL != p_render_target);
+    assert(NULL != p_render_pass);
 
-    s_tr_internal->bound_render_target = p_render_target;
+    s_tr_internal->bound_render_pass = p_render_pass;
 
-    tr_internal_dx_cmd_begin_render(p_cmd, p_render_target);
+    tr_internal_dx_cmd_begin_render(p_cmd, p_render_pass);
 }
 
 void tr_cmd_end_render(tr_cmd* p_cmd)
@@ -1872,7 +1956,7 @@ void tr_cmd_end_render(tr_cmd* p_cmd)
 
     tr_internal_dx_cmd_end_render(p_cmd);
 
-    s_tr_internal->bound_render_target = NULL;
+    s_tr_internal->bound_render_pass = NULL;
 }
 
 void tr_cmd_set_viewport(tr_cmd* p_cmd, float x, float y, float width, float height, float min_depth, float max_depth)
@@ -1898,14 +1982,14 @@ void tr_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, con
 {
     assert(NULL != p_cmd);
 
-    tr_cmd_internal_dx_cmd_clear_color_attachment(p_cmd, attachment_index, clear_value);
+    tr_cmd_internal_dx_cmd_clear_rtv_attachment(p_cmd, attachment_index, clear_value);
 }
 
 void tr_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value)
 {
   assert(NULL != p_cmd);
 
-  tr_cmd_internal_dx_cmd_clear_depth_stencil_attachment(p_cmd, clear_value);
+  tr_cmd_internal_dx_cmd_clear_dsv_attachment(p_cmd, clear_value);
 }
 
 void tr_cmd_bind_pipeline(tr_cmd* p_cmd, tr_pipeline* p_pipeline)
@@ -1973,20 +2057,20 @@ void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, tr_texture_us
     tr_internal_dx_cmd_image_transition(p_cmd, p_texture, old_usage, new_usage);
 }
 
-void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+void tr_cmd_render_pass_rtv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_cmd);
-    assert(NULL != p_render_target);
+    assert(NULL != p_render_pass);
 
-    tr_internal_dx_cmd_render_target_transition(p_cmd, p_render_target, old_usage, new_usage);
+    tr_internal_dx_cmd_rtv_transition(p_cmd, p_render_pass, old_usage, new_usage);
 }
 
-void tr_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+void tr_cmd_render_pass_dsv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
   assert(NULL != p_cmd);
-  assert(NULL != p_render_target);
+  assert(NULL != p_render_pass);
 
-  tr_internal_dx_cmd_depth_stencil_transition(p_cmd, p_render_target, old_usage, new_usage);
+  tr_internal_dx_cmd_dsv_transition(p_cmd, p_render_pass, old_usage, new_usage);
 }
 
 void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -2002,6 +2086,19 @@ void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t hei
     assert(p_texture != NULL);
 
     tr_internal_dx_cmd_copy_buffer_to_texture2d(p_cmd, width, height, row_pitch, buffer_offset, mip_level, p_buffer, p_texture);
+}
+
+void tr_cmd_copy_texture2d_exact(tr_cmd* p_cmd, uint32_t mip_level, tr_texture* p_src_texture, tr_texture* p_dst_texture)
+{
+    assert(p_cmd != NULL);
+    assert(p_src_texture != NULL);
+    assert(p_dst_texture != NULL);
+    assert(p_src_texture->width == p_dst_texture->width);
+    assert(p_src_texture->height == p_dst_texture->height);
+    assert(p_src_texture->format == p_dst_texture->format);
+    assert(p_src_texture->mip_levels == p_dst_texture->mip_levels);
+
+    tr_internal_dx_cmd_copy_texture2d_exact(p_cmd, mip_level, p_src_texture, p_dst_texture);
 }
 
 void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence)
@@ -2057,23 +2154,23 @@ void tr_queue_wait_idle(tr_queue* p_queue)
     tr_internal_dx_queue_wait_idle(p_queue);
 }
 
-void tr_render_target_set_color_clear_value(tr_render_target* p_render_target, uint32_t attachment_index, float r, float g, float b, float a)
+void tr_set_rtv_clear_value(tr_render_pass* p_render_pass, uint32_t attachment_index, float r, float g, float b, float a)
 {
-    assert(NULL != p_render_target);
-    assert(attachment_index < p_render_target->color_attachment_count);
+    assert(NULL != p_render_pass);
+    assert(attachment_index < p_render_pass->rtv_count);
 
-    p_render_target->color_attachments[attachment_index]->clear_value.r = r;
-    p_render_target->color_attachments[attachment_index]->clear_value.g = g;
-    p_render_target->color_attachments[attachment_index]->clear_value.b = b;
-    p_render_target->color_attachments[attachment_index]->clear_value.a = a;
+    p_render_pass->rtv[attachment_index]->clear_value.r = r;
+    p_render_pass->rtv[attachment_index]->clear_value.g = g;
+    p_render_pass->rtv[attachment_index]->clear_value.b = b;
+    p_render_pass->rtv[attachment_index]->clear_value.a = a;
 }
 
-void tr_render_target_set_depth_stencil_clear_value(tr_render_target* p_render_target, float depth, uint8_t stencil)
+void tr_set_dsv_clear_value(tr_render_pass* p_render_pass, float depth, uint8_t stencil)
 {
-    assert(NULL != p_render_target);
+    assert(NULL != p_render_pass);
 
-    p_render_target->depth_stencil_attachment->clear_value.depth = depth;
-    p_render_target->depth_stencil_attachment->clear_value.stencil = stencil;
+    p_render_pass->dsv->clear_value.depth = depth;
+    p_render_pass->dsv->clear_value.stencil = stencil;
 }
 
 bool tr_vertex_layout_support_format(tr_format format)
@@ -2310,7 +2407,7 @@ D3D12_TEXTURE_ADDRESS_MODE  tr_util_to_dx_texture_address_mode(tr_texture_addres
   return dx_address_mode;
 }
 
-void tr_util_configure_render_target_blend_state(tr_blend_mode blend_mode, D3D12_RENDER_TARGET_BLEND_DESC* blend_desc)
+void tr_util_configure_rtv_blend_state(tr_blend_mode blend_mode, D3D12_RENDER_TARGET_BLEND_DESC* blend_desc)
 {
   switch (blend_mode) {
     case tr_blend_mode_alpha: {
@@ -2843,7 +2940,7 @@ void tr_internal_dx_create_swapchain(tr_renderer* p_renderer)
     TINY_RENDERER_DECLARE_ZERO(DXGI_SWAP_CHAIN_DESC1, desc);
     desc.Width              = p_renderer->settings.width;
     desc.Height             = p_renderer->settings.height;
-    desc.Format             = tr_util_to_dx_format(p_renderer->settings.swapchain.color_format);
+    desc.Format             = tr_util_to_dx_format(p_renderer->settings.swapchain.rtv_format);
     desc.Stereo             = false;
     desc.SampleDesc.Count   = 1; // If multisampling is needed, we'll resolve it later
     desc.SampleDesc.Quality = p_renderer->settings.swapchain.sample_quality;
@@ -2885,92 +2982,92 @@ void tr_internal_create_swapchain_renderpass(tr_renderer* p_renderer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
 
-    p_renderer->swapchain_render_targets = (tr_render_target**)calloc(p_renderer->settings.swapchain.image_count, sizeof(*p_renderer->swapchain_render_targets));
-    assert(NULL != p_renderer->swapchain_render_targets);
+    p_renderer->swapchain_render_passes = (tr_render_pass**)calloc(p_renderer->settings.swapchain.image_count, sizeof(*p_renderer->swapchain_render_passes));
+    assert(NULL != p_renderer->swapchain_render_passes);
 
     for (size_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
-        p_renderer->swapchain_render_targets[i] = (tr_render_target*)calloc(1, sizeof(*(p_renderer->swapchain_render_targets[i])));
-        tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-        render_target->renderer               = p_renderer;
-        render_target->width                  = p_renderer->settings.width;
-        render_target->height                 = p_renderer->settings.height;
-        render_target->sample_count           = (tr_sample_count)p_renderer->settings.swapchain.sample_count;
-        render_target->color_format           = p_renderer->settings.swapchain.color_format;
-        render_target->color_attachment_count = 1;
-        render_target->depth_stencil_format   = p_renderer->settings.swapchain.depth_stencil_format;
+        p_renderer->swapchain_render_passes[i] = (tr_render_pass*)calloc(1, sizeof(*(p_renderer->swapchain_render_passes[i])));
+        tr_render_pass* p_render_pass = p_renderer->swapchain_render_passes[i];
+        p_render_pass->renderer       = p_renderer;
+        p_render_pass->width          = p_renderer->settings.width;
+        p_render_pass->height         = p_renderer->settings.height;
+        p_render_pass->sample_count   = (tr_sample_count)p_renderer->settings.swapchain.sample_count;
+        p_render_pass->rtv_count      = 1;
+        p_render_pass->rtv_format[0]  = p_renderer->settings.swapchain.rtv_format;
+        p_render_pass->dsv_format     = p_renderer->settings.swapchain.dsv_format;
 
-        render_target->color_attachments[0] = (tr_texture*)calloc(1, sizeof(*render_target->color_attachments[0]));
-        assert(NULL != render_target->color_attachments[0]);
+        p_render_pass->rtv[0] = (tr_texture*)calloc(1, sizeof(*p_render_pass->rtv[0]));
+        assert(NULL != p_render_pass->rtv[0]);
 
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-            render_target->color_attachments_multisample[0] = (tr_texture*)calloc(1, sizeof(*render_target->color_attachments_multisample[0]));
-            assert(NULL != render_target->color_attachments_multisample[0]);
+            p_render_pass->rtv_multisample[0] = (tr_texture*)calloc(1, sizeof(*p_render_pass->rtv_multisample[0]));
+            assert(NULL != p_render_pass->rtv_multisample[0]);
         }
 
-        if (tr_format_undefined != p_renderer->settings.swapchain.depth_stencil_format) {
-            render_target->depth_stencil_attachment = (tr_texture*)calloc(1, sizeof(*render_target->depth_stencil_attachment));
-            assert(NULL != render_target->depth_stencil_attachment);
+        if (tr_format_undefined != p_renderer->settings.swapchain.dsv_format) {
+            p_render_pass->dsv = (tr_texture*)calloc(1, sizeof(*p_render_pass->dsv));
+            assert(NULL != p_render_pass->dsv);
 
             if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-              render_target->depth_stencil_attachment_multisample = (tr_texture*)calloc(1, sizeof(*render_target->depth_stencil_attachment_multisample));
-              assert(NULL != render_target->depth_stencil_attachment_multisample);
+              p_render_pass->dsv_multisample = (tr_texture*)calloc(1, sizeof(*p_render_pass->dsv_multisample));
+              assert(NULL != p_render_pass->dsv_multisample);
             }
         }
     }
 
     for (size_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
-        tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-        render_target->color_attachments[0]->type          = tr_texture_type_2d;
-        render_target->color_attachments[0]->usage         = (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_present);
-        render_target->color_attachments[0]->width         = p_renderer->settings.width;
-        render_target->color_attachments[0]->height        = p_renderer->settings.height;
-        render_target->color_attachments[0]->depth         = 1;
-        render_target->color_attachments[0]->format        = p_renderer->settings.swapchain.color_format;
-        render_target->color_attachments[0]->mip_levels    = 1;
-        render_target->color_attachments[0]->clear_value.r = p_renderer->settings.swapchain.color_clear_value.r;
-        render_target->color_attachments[0]->clear_value.g = p_renderer->settings.swapchain.color_clear_value.g;
-        render_target->color_attachments[0]->clear_value.b = p_renderer->settings.swapchain.color_clear_value.b;
-        render_target->color_attachments[0]->clear_value.a = p_renderer->settings.swapchain.color_clear_value.a;
-        render_target->color_attachments[0]->sample_count  = tr_sample_count_1;
+        tr_render_pass* p_render_pass = p_renderer->swapchain_render_passes[i];
+        p_render_pass->rtv[0]->type          = tr_texture_type_2d;
+        p_render_pass->rtv[0]->usage         = (tr_texture_usage)(tr_texture_usage_color_attachment | tr_texture_usage_present);
+        p_render_pass->rtv[0]->width         = p_renderer->settings.width;
+        p_render_pass->rtv[0]->height        = p_renderer->settings.height;
+        p_render_pass->rtv[0]->depth         = 1;
+        p_render_pass->rtv[0]->format        = p_renderer->settings.swapchain.rtv_format;
+        p_render_pass->rtv[0]->mip_levels    = 1;
+        p_render_pass->rtv[0]->clear_value.r = p_renderer->settings.swapchain.rtv_clear_value.r;
+        p_render_pass->rtv[0]->clear_value.g = p_renderer->settings.swapchain.rtv_clear_value.g;
+        p_render_pass->rtv[0]->clear_value.b = p_renderer->settings.swapchain.rtv_clear_value.b;
+        p_render_pass->rtv[0]->clear_value.a = p_renderer->settings.swapchain.rtv_clear_value.a;
+        p_render_pass->rtv[0]->sample_count  = tr_sample_count_1;
 
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-            render_target->color_attachments_multisample[0]->type          = tr_texture_type_2d;
-            render_target->color_attachments_multisample[0]->usage         = tr_texture_usage_color_attachment;
-            render_target->color_attachments_multisample[0]->width         = p_renderer->settings.width;
-            render_target->color_attachments_multisample[0]->height        = p_renderer->settings.height;
-            render_target->color_attachments_multisample[0]->depth         = 1;
-            render_target->color_attachments_multisample[0]->format        = p_renderer->settings.swapchain.color_format;
-            render_target->color_attachments_multisample[0]->mip_levels    = 1;
-            render_target->color_attachments_multisample[0]->clear_value.r = p_renderer->settings.swapchain.color_clear_value.r;
-            render_target->color_attachments_multisample[0]->clear_value.g = p_renderer->settings.swapchain.color_clear_value.g;
-            render_target->color_attachments_multisample[0]->clear_value.b = p_renderer->settings.swapchain.color_clear_value.b;
-            render_target->color_attachments_multisample[0]->clear_value.a = p_renderer->settings.swapchain.color_clear_value.a;
-            render_target->color_attachments_multisample[0]->sample_count  = render_target->sample_count;
+            p_render_pass->rtv_multisample[0]->type          = tr_texture_type_2d;
+            p_render_pass->rtv_multisample[0]->usage         = tr_texture_usage_color_attachment;
+            p_render_pass->rtv_multisample[0]->width         = p_renderer->settings.width;
+            p_render_pass->rtv_multisample[0]->height        = p_renderer->settings.height;
+            p_render_pass->rtv_multisample[0]->depth         = 1;
+            p_render_pass->rtv_multisample[0]->format        = p_renderer->settings.swapchain.rtv_format;
+            p_render_pass->rtv_multisample[0]->mip_levels    = 1;
+            p_render_pass->rtv_multisample[0]->clear_value.r = p_renderer->settings.swapchain.rtv_clear_value.r;
+            p_render_pass->rtv_multisample[0]->clear_value.g = p_renderer->settings.swapchain.rtv_clear_value.g;
+            p_render_pass->rtv_multisample[0]->clear_value.b = p_renderer->settings.swapchain.rtv_clear_value.b;
+            p_render_pass->rtv_multisample[0]->clear_value.a = p_renderer->settings.swapchain.rtv_clear_value.a;
+            p_render_pass->rtv_multisample[0]->sample_count  = p_render_pass->sample_count;
         }
 
-        if (tr_format_undefined != p_renderer->settings.swapchain.depth_stencil_format) {
-            render_target->depth_stencil_attachment->type                = tr_texture_type_2d;
-            render_target->depth_stencil_attachment->usage               = tr_texture_usage_depth_stencil_attachment;
-            render_target->depth_stencil_attachment->width               = p_renderer->settings.width;
-            render_target->depth_stencil_attachment->height              = p_renderer->settings.height;
-            render_target->depth_stencil_attachment->depth               = 1;
-            render_target->depth_stencil_attachment->format              = p_renderer->settings.swapchain.depth_stencil_format;
-            render_target->depth_stencil_attachment->mip_levels          = 1;
-            render_target->depth_stencil_attachment->clear_value.depth   = p_renderer->settings.swapchain.depth_stencil_clear_value.depth;
-            render_target->depth_stencil_attachment->clear_value.stencil = p_renderer->settings.swapchain.depth_stencil_clear_value.stencil;
-            render_target->depth_stencil_attachment->sample_count        = tr_sample_count_1;
+        if (tr_format_undefined != p_renderer->settings.swapchain.dsv_format) {
+            p_render_pass->dsv->type                = tr_texture_type_2d;
+            p_render_pass->dsv->usage               = tr_texture_usage_depth_stencil_attachment;
+            p_render_pass->dsv->width               = p_renderer->settings.width;
+            p_render_pass->dsv->height              = p_renderer->settings.height;
+            p_render_pass->dsv->depth               = 1;
+            p_render_pass->dsv->format              = p_renderer->settings.swapchain.dsv_format;
+            p_render_pass->dsv->mip_levels          = 1;
+            p_render_pass->dsv->clear_value.depth   = p_renderer->settings.swapchain.dsv_clear_value.depth;
+            p_render_pass->dsv->clear_value.stencil = p_renderer->settings.swapchain.dsv_clear_value.stencil;
+            p_render_pass->dsv->sample_count        = tr_sample_count_1;
 
             if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-              render_target->depth_stencil_attachment_multisample->type                = tr_texture_type_2d;
-              render_target->depth_stencil_attachment_multisample->usage               = tr_texture_usage_depth_stencil_attachment;
-              render_target->depth_stencil_attachment_multisample->width               = p_renderer->settings.width;
-              render_target->depth_stencil_attachment_multisample->height              = p_renderer->settings.height;
-              render_target->depth_stencil_attachment_multisample->depth               = 1;
-              render_target->depth_stencil_attachment_multisample->format              = p_renderer->settings.swapchain.depth_stencil_format;
-              render_target->depth_stencil_attachment_multisample->mip_levels          = 1;
-              render_target->depth_stencil_attachment_multisample->clear_value.depth   = p_renderer->settings.swapchain.depth_stencil_clear_value.depth;
-              render_target->depth_stencil_attachment_multisample->clear_value.stencil = p_renderer->settings.swapchain.depth_stencil_clear_value.stencil;
-              render_target->depth_stencil_attachment_multisample->sample_count        = render_target->sample_count;
+              p_render_pass->dsv_multisample->type                = tr_texture_type_2d;
+              p_render_pass->dsv_multisample->usage               = tr_texture_usage_depth_stencil_attachment;
+              p_render_pass->dsv_multisample->width               = p_renderer->settings.width;
+              p_render_pass->dsv_multisample->height              = p_renderer->settings.height;
+              p_render_pass->dsv_multisample->depth               = 1;
+              p_render_pass->dsv_multisample->format              = p_renderer->settings.swapchain.dsv_format;
+              p_render_pass->dsv_multisample->mip_levels          = 1;
+              p_render_pass->dsv_multisample->clear_value.depth   = p_renderer->settings.swapchain.dsv_clear_value.depth;
+              p_render_pass->dsv_multisample->clear_value.stencil = p_renderer->settings.swapchain.dsv_clear_value.stencil;
+              p_render_pass->dsv_multisample->sample_count        = p_render_pass->sample_count;
             }
         }
     }
@@ -2988,29 +3085,29 @@ void tr_internal_dx_create_swapchain_renderpass(tr_renderer* p_renderer)
         assert(SUCCEEDED(hres));
     }
 
-    // Populate the vk_image field and create the Vulkan texture objects
+    // Create attachment textures
     for (size_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
-        tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-        render_target->color_attachments[0]->dx_resource = swapchain_images[i];
-        tr_internal_dx_create_texture(p_renderer, render_target->color_attachments[0]);
+        tr_render_pass* p_render_pass = p_renderer->swapchain_render_passes[i];
+        p_render_pass->rtv[0]->dx_resource = swapchain_images[i];
+        tr_internal_dx_create_texture(p_renderer, p_render_pass->rtv[0]);
 
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-            tr_internal_dx_create_texture(p_renderer, render_target->color_attachments_multisample[0]);
+            tr_internal_dx_create_texture(p_renderer, p_render_pass->rtv_multisample[0]);
         }
 
-        if (NULL != render_target->depth_stencil_attachment) {
-            tr_internal_dx_create_texture(p_renderer, render_target->depth_stencil_attachment);
+        if (NULL != p_render_pass->dsv) {
+            tr_internal_dx_create_texture(p_renderer, p_render_pass->dsv);
 
             if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
-              tr_internal_dx_create_texture(p_renderer, render_target->depth_stencil_attachment_multisample);
+              tr_internal_dx_create_texture(p_renderer, p_render_pass->dsv_multisample);
             }
         }
     }
 
-    // Initialize Vulkan render target objects
+    // Initialize render target objects
     for (uint32_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
-        tr_render_target* render_target = p_renderer->swapchain_render_targets[i];
-        tr_internal_dx_create_render_target(p_renderer, render_target);
+        tr_render_pass* p_render_pass = p_renderer->swapchain_render_passes[i];
+        tr_internal_dx_create_render_pass(p_renderer, p_render_pass);
     }
 
     TINY_RENDERER_SAFE_FREE(swapchain_images);
@@ -3401,10 +3498,19 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         }
 
-        D3D12_RESOURCE_STATES res_states = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-        if (p_texture->usage & tr_texture_usage_color_attachment) {
+        // Initial state
+        D3D12_RESOURCE_STATES res_states = D3D12_RESOURCE_STATE_COMMON;
+        if (p_texture->state == tr_texture_usage_sampled_image) {
+          res_states = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        }
+        else if (p_texture->state == tr_texture_usage_color_attachment) {
           res_states = D3D12_RESOURCE_STATE_RENDER_TARGET;
         }
+
+        //D3D12_RESOURCE_STATES res_states = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        //if (p_texture->usage & tr_texture_usage_color_attachment) {
+        //  res_states = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        //}
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_CLEAR_VALUE, clear_value);
         clear_value.Format = tr_util_to_dx_format(p_texture->format);
@@ -3641,7 +3747,7 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
         for (uint32_t i = 0; i < descriptor_count; ++i) {
             uint32_t count = p_descriptor_set->descriptors[i].count;
             switch (p_descriptor_set->descriptors[i].type) {
-                case tr_descriptor_type_sampler                 : sampler_count   += count; break;
+                case tr_descriptor_type_sampler                  : sampler_count   += count; break;
                 case tr_descriptor_type_uniform_buffer_cbv       : cbvsrvuav_count += count; break;
                 case tr_descriptor_type_storage_buffer_srv       : cbvsrvuav_count += count; break;
                 case tr_descriptor_type_storage_buffer_uav       : cbvsrvuav_count += count; break;
@@ -3810,7 +3916,7 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
     TINY_RENDERER_SAFE_FREE(parameters_10);
 }
 
-void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
+void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_render_pass* p_render_pass, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
 {
     TINY_RENDERER_DECLARE_ZERO(D3D12_SHADER_BYTECODE, VS);
     TINY_RENDERER_DECLARE_ZERO(D3D12_SHADER_BYTECODE, PS);
@@ -3849,7 +3955,7 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     blend_desc.AlphaToCoverageEnable        = FALSE;
     blend_desc.IndependentBlendEnable       = FALSE;
     for( UINT rt_index = 0; rt_index < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++rt_index ) { 
-      tr_util_configure_render_target_blend_state(p_pipeline_settings->color_blend_modes[rt_index],
+      tr_util_configure_rtv_blend_state(p_pipeline_settings->color_blend_modes[rt_index],
                                                   &blend_desc.RenderTarget[rt_index]);
     }
 
@@ -3955,11 +4061,11 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     input_layout_desc.pInputElementDescs                    = input_elements;
     input_layout_desc.NumElements                           = input_element_count;
 
-    uint32_t render_target_count = tr_min(p_render_target->color_attachment_count, tr_max_render_target_attachments);
-    render_target_count = tr_min(render_target_count, D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
+    uint32_t rtv_count = tr_min(p_render_pass->rtv_count, tr_max_rtv_count);
+    rtv_count = tr_min(rtv_count, D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
 
     TINY_RENDERER_DECLARE_ZERO(DXGI_SAMPLE_DESC, sample_desc);
-    sample_desc.Count                                       = (UINT)p_render_target->sample_count;
+    sample_desc.Count                                       = (UINT)p_render_pass->sample_count;
     sample_desc.Quality                                     = 0;
 
     TINY_RENDERER_DECLARE_ZERO(D3D12_CACHED_PIPELINE_STATE, cached_pso_desc);
@@ -3996,15 +4102,15 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     pipeline_state_desc.InputLayout                         = input_layout_desc;
     pipeline_state_desc.IBStripCutValue                     = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
     pipeline_state_desc.PrimitiveTopologyType               = topology;
-    pipeline_state_desc.NumRenderTargets                    = render_target_count;
-    pipeline_state_desc.DSVFormat                           = (p_render_target->depth_stencil_attachment != NULL) ? tr_util_to_dx_format(p_render_target->depth_stencil_attachment->format) : DXGI_FORMAT_UNKNOWN;
+    pipeline_state_desc.NumRenderTargets                    = rtv_count;
+    pipeline_state_desc.DSVFormat                           = (p_render_pass->dsv != NULL) ? tr_util_to_dx_format(p_render_pass->dsv->format) : DXGI_FORMAT_UNKNOWN;
     pipeline_state_desc.SampleDesc                          = sample_desc;
     pipeline_state_desc.NodeMask                            = 0;
     pipeline_state_desc.CachedPSO                           = cached_pso_desc;
     pipeline_state_desc.Flags                               = D3D12_PIPELINE_STATE_FLAG_NONE;
 
-    for (uint32_t attrib_index = 0; attrib_index < render_target_count; ++attrib_index) {
-        pipeline_state_desc.RTVFormats[attrib_index] = tr_util_to_dx_format(p_render_target->color_attachments[attrib_index]->format);
+    for (uint32_t attrib_index = 0; attrib_index < rtv_count; ++attrib_index) {
+        pipeline_state_desc.RTVFormats[attrib_index] = tr_util_to_dx_format(p_render_pass->rtv[attrib_index]->format);
     }
 
     HRESULT hres = p_renderer->dx_device->CreateGraphicsPipelineState(
@@ -4013,14 +4119,14 @@ void tr_internal_dx_create_pipeline_state(tr_renderer* p_renderer, tr_shader_pro
     assert(SUCCEEDED(hres));
 }
 
-void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_target* p_render_target, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
+void tr_internal_dx_create_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_vertex_layout* p_vertex_layout, tr_descriptor_set* p_descriptor_set, tr_render_pass* p_render_pass, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
 {
     assert(NULL != p_renderer->dx_device);
     assert((NULL != p_shader_program->dx_vert) || (NULL != p_shader_program->dx_hull) || (NULL != p_shader_program->dx_domn) || (NULL != p_shader_program->dx_geom) || (NULL != p_shader_program->dx_frag));
-    assert((NULL != p_render_target->dx_rtv_heap) || (NULL != p_render_target->dx_dsv_heap));
+    assert((NULL != p_render_pass->dx_rtv_heap) || (NULL != p_render_pass->dx_dsv_heap));
 
     tr_internal_dx_create_root_signature(p_renderer, p_descriptor_set, p_pipeline);
-    tr_internal_dx_create_pipeline_state(p_renderer, p_shader_program, p_vertex_layout, p_render_target, p_pipeline_settings, p_pipeline);
+    tr_internal_dx_create_pipeline_state(p_renderer, p_shader_program, p_vertex_layout, p_render_pass, p_pipeline_settings, p_pipeline);
 }
 
 void tr_internal_dx_create_compute_pipeline_state(tr_renderer* p_renderer, tr_shader_program* p_shader_program, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline* p_pipeline)
@@ -4063,49 +4169,49 @@ void tr_internal_dx_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pip
     TINY_RENDERER_SAFE_RELEASE(p_pipeline->dx_pipeline_state);
 }
 
-void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target)
+void tr_internal_dx_create_render_pass(tr_renderer* p_renderer, tr_render_pass* p_render_pass)
 {
     assert(NULL != p_renderer->dx_device);
 
-    if (p_render_target->color_attachment_count > 0) {
-        if (p_render_target->sample_count > tr_sample_count_1) {
-            assert(NULL != p_render_target->color_attachments_multisample);
+    if (p_render_pass->rtv_count > 0) {
+        if (p_render_pass->sample_count > tr_sample_count_1) {
+            assert(NULL != p_render_pass->rtv_multisample);
         }
         else {
-            assert(NULL != p_render_target->color_attachments);
+            assert(NULL != p_render_pass->rtv);
         }
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_DESCRIPTOR_HEAP_DESC, desc);
         desc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        desc.NumDescriptors = (UINT)p_render_target->color_attachment_count;
+        desc.NumDescriptors = (UINT)p_render_pass->rtv_count;
         desc.NodeMask       = 0;
         desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         HRESULT hres = p_renderer->dx_device->CreateDescriptorHeap(&desc,
-            __uuidof(p_render_target->dx_rtv_heap), (void**)&(p_render_target->dx_rtv_heap));
+            __uuidof(p_render_pass->dx_rtv_heap), (void**)&(p_render_pass->dx_rtv_heap));
         assert(SUCCEEDED(hres));
 
-        D3D12_CPU_DESCRIPTOR_HANDLE handle = p_render_target->dx_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_CPU_DESCRIPTOR_HANDLE handle = p_render_pass->dx_rtv_heap->GetCPUDescriptorHandleForHeapStart();
         const UINT inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-        for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
-            if (p_render_target->sample_count > tr_sample_count_1) {
-                assert(NULL != p_render_target->color_attachments_multisample[i]);
-                assert(NULL != p_render_target->color_attachments_multisample[i]->dx_resource);
+        for (uint32_t i = 0; i < p_render_pass->rtv_count; ++i) {
+            if (p_render_pass->sample_count > tr_sample_count_1) {
+                assert(NULL != p_render_pass->rtv_multisample[i]);
+                assert(NULL != p_render_pass->rtv_multisample[i]->dx_resource);
 
                 p_renderer->dx_device->CreateRenderTargetView(
-                    p_render_target->color_attachments_multisample[i]->dx_resource, NULL, handle);
+                    p_render_pass->rtv_multisample[i]->dx_resource, NULL, handle);
             }
             else {
-                assert(NULL != p_render_target->color_attachments[i]);
-                assert(NULL != p_render_target->color_attachments[i]->dx_resource);
+                assert(NULL != p_render_pass->rtv[i]);
+                assert(NULL != p_render_pass->rtv[i]->dx_resource);
 
                 p_renderer->dx_device->CreateRenderTargetView(
-                    p_render_target->color_attachments[i]->dx_resource, NULL, handle);
+                    p_render_pass->rtv[i]->dx_resource, NULL, handle);
             }
             handle.ptr += inc_size;
         }
     }
 
-    if (tr_format_undefined != p_render_target->depth_stencil_format) {
+    if (tr_format_undefined != p_render_pass->dsv_format) {
 
         TINY_RENDERER_DECLARE_ZERO(D3D12_DESCRIPTOR_HEAP_DESC, desc);
         desc.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -4113,33 +4219,33 @@ void tr_internal_dx_create_render_target(tr_renderer* p_renderer, tr_render_targ
         desc.NodeMask       = 0;
         desc.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         HRESULT hres = p_renderer->dx_device->CreateDescriptorHeap(&desc,
-            __uuidof(p_render_target->dx_dsv_heap), (void**)&(p_render_target->dx_dsv_heap));
+            __uuidof(p_render_pass->dx_dsv_heap), (void**)&(p_render_pass->dx_dsv_heap));
         assert(SUCCEEDED(hres));
 
-        D3D12_CPU_DESCRIPTOR_HANDLE handle = p_render_target->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_CPU_DESCRIPTOR_HANDLE handle = p_render_pass->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
         const UINT inc_size = p_renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-        if (p_render_target->sample_count > tr_sample_count_1) {
-          assert(NULL != p_render_target->depth_stencil_attachment_multisample);
-          assert(NULL != p_render_target->depth_stencil_attachment_multisample->dx_resource);
+        if (p_render_pass->sample_count > tr_sample_count_1) {
+          assert(NULL != p_render_pass->dsv_multisample);
+          assert(NULL != p_render_pass->dsv_multisample->dx_resource);
 
           p_renderer->dx_device->CreateDepthStencilView(
-            p_render_target->depth_stencil_attachment_multisample->dx_resource, NULL, handle);
+            p_render_pass->dsv_multisample->dx_resource, NULL, handle);
         }
         else {
-          assert(NULL != p_render_target->depth_stencil_attachment);
-          assert(NULL != p_render_target->depth_stencil_attachment->dx_resource);
+          assert(NULL != p_render_pass->dsv);
+          assert(NULL != p_render_pass->dsv->dx_resource);
 
           p_renderer->dx_device->CreateDepthStencilView(
-            p_render_target->depth_stencil_attachment->dx_resource, NULL, handle);
+            p_render_pass->dsv->dx_resource, NULL, handle);
         }
     }
 }
 
-void tr_internal_dx_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target)
+void tr_internal_dx_destroy_render_pass(tr_renderer* p_renderer, tr_render_pass* p_render_pass)
 {
-    TINY_RENDERER_SAFE_RELEASE(p_render_target->dx_rtv_heap);
-    TINY_RENDERER_SAFE_RELEASE(p_render_target->dx_dsv_heap);
+    TINY_RENDERER_SAFE_RELEASE(p_render_pass->dx_rtv_heap);
+    TINY_RENDERER_SAFE_RELEASE(p_render_pass->dx_dsv_heap);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -4306,27 +4412,27 @@ void tr_internal_dx_end_cmd(tr_cmd* p_cmd)
     assert(SUCCEEDED(hres));
 }
 
-void tr_internal_dx_cmd_begin_render(tr_cmd* p_cmd, tr_render_target* p_render_target)
+void tr_internal_dx_cmd_begin_render(tr_cmd* p_cmd, tr_render_pass* p_render_pass)
 {
     assert(NULL != p_cmd->dx_cmd_list);
-    assert(s_tr_internal->bound_render_target == p_render_target);
+    assert(s_tr_internal->bound_render_pass == p_render_pass);
 
     TINY_RENDERER_DECLARE_ZERO(D3D12_CPU_DESCRIPTOR_HANDLE, rtv_handle);
     TINY_RENDERER_DECLARE_ZERO(D3D12_CPU_DESCRIPTOR_HANDLE, dsv_handle);
     D3D12_CPU_DESCRIPTOR_HANDLE* p_rtv_handle = NULL;
     D3D12_CPU_DESCRIPTOR_HANDLE* p_dsv_handle = NULL;
 
-    if (p_render_target->color_attachment_count > 0) {
-        rtv_handle = p_render_target->dx_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+    if (p_render_pass->rtv_count > 0) {
+        rtv_handle = p_render_pass->dx_rtv_heap->GetCPUDescriptorHandleForHeapStart();
         p_rtv_handle = &rtv_handle;
     }
 
-    if (tr_format_undefined != p_render_target->depth_stencil_format) {
-        dsv_handle = p_render_target->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
+    if (tr_format_undefined != p_render_pass->dsv_format) {
+        dsv_handle = p_render_pass->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
         p_dsv_handle = &dsv_handle;
     }
 
-    p_cmd->dx_cmd_list->OMSetRenderTargets(p_render_target->color_attachment_count, p_rtv_handle, TRUE, p_dsv_handle);
+    p_cmd->dx_cmd_list->OMSetRenderTargets(p_render_pass->rtv_count, p_rtv_handle, TRUE, p_dsv_handle);
 }
 
 void tr_internal_dx_cmd_end_render(tr_cmd* p_cmd)
@@ -4334,15 +4440,15 @@ void tr_internal_dx_cmd_end_render(tr_cmd* p_cmd)
     assert(NULL != p_cmd->dx_cmd_list);
 
     
-    if ((NULL != s_tr_internal->bound_render_target) && (s_tr_internal->bound_render_target->sample_count > tr_sample_count_1)) {
-        tr_render_target* render_target = s_tr_internal->bound_render_target;
-        tr_texture** ss_attachments = render_target->color_attachments;
-        tr_texture** ms_attachments = render_target->color_attachments_multisample;
-        uint32_t color_attachment_count = render_target->color_attachment_count;
+    if ((NULL != s_tr_internal->bound_render_pass) && (s_tr_internal->bound_render_pass->sample_count > tr_sample_count_1)) {
+        tr_render_pass* p_render_pass = s_tr_internal->bound_render_pass;
+        tr_texture** ss_attachments = p_render_pass->rtv;
+        tr_texture** ms_attachments = p_render_pass->rtv_multisample;
+        uint32_t rtv_count          = p_render_pass->rtv_count;
         bool is_present = (tr_texture_usage_present == (ss_attachments[0]->usage & tr_texture_usage_present));
 
         // This means we're dealing with a multisample swapchain
-        if ((1 == color_attachment_count) && is_present) {
+        if ((1 == rtv_count) && is_present) {
             tr_texture* ss_attachment = ss_attachments[0];
             tr_texture* ms_attachment = ms_attachments[0];
             if (tr_texture_usage_present == (ss_attachment->usage & tr_texture_usage_present)) {
@@ -4352,7 +4458,7 @@ void tr_internal_dx_cmd_end_render(tr_cmd* p_cmd)
                 // Resolve from multisample to single sample
                 p_cmd->dx_cmd_list->ResolveSubresource(ss_attachment->dx_resource, 0,
                                                        ms_attachment->dx_resource, 0,
-                                                       tr_util_to_dx_format(render_target->color_format));
+                                                       tr_util_to_dx_format(p_render_pass->rtv_format[0]));
                 // Put it back the way we found it
                 tr_internal_dx_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_resolve_dst, tr_texture_usage_color_attachment);
                 tr_internal_dx_cmd_image_transition(p_cmd, ms_attachment, tr_texture_usage_resolve_src, tr_texture_usage_color_attachment);
@@ -4390,12 +4496,12 @@ void tr_internal_dx_cmd_set_scissor(tr_cmd* p_cmd, uint32_t x, uint32_t y, uint3
     p_cmd->dx_cmd_list->RSSetScissorRects(1, &scissor);
 }
 
-void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value)
+void tr_cmd_internal_dx_cmd_clear_rtv_attachment(tr_cmd* p_cmd, uint32_t attachment_index, const tr_clear_value* clear_value)
 {
     assert(NULL != p_cmd->dx_cmd_list);
-    assert(NULL != s_tr_internal->bound_render_target);
+    assert(NULL != s_tr_internal->bound_render_pass);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE handle = s_tr_internal->bound_render_target->dx_rtv_heap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = s_tr_internal->bound_render_pass->dx_rtv_heap->GetCPUDescriptorHandleForHeapStart();
     UINT inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     handle.ptr += attachment_index * inc_size;
 
@@ -4408,12 +4514,12 @@ void tr_cmd_internal_dx_cmd_clear_color_attachment(tr_cmd* p_cmd, uint32_t attac
     p_cmd->dx_cmd_list->ClearRenderTargetView(handle, color_rgba, 0, NULL);
 }
 
-void tr_cmd_internal_dx_cmd_clear_depth_stencil_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value)
+void tr_cmd_internal_dx_cmd_clear_dsv_attachment(tr_cmd* p_cmd, const tr_clear_value* clear_value)
 {
   assert(NULL != p_cmd->dx_cmd_list);
-  assert(NULL != s_tr_internal->bound_render_target);
+  assert(NULL != s_tr_internal->bound_render_pass);
 
-  D3D12_CPU_DESCRIPTOR_HANDLE handle = s_tr_internal->bound_render_target->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
+  D3D12_CPU_DESCRIPTOR_HANDLE handle = s_tr_internal->bound_render_pass->dx_dsv_heap->GetCPUDescriptorHandleForHeapStart();
 
   p_cmd->dx_cmd_list->ClearDepthStencilView(handle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, clear_value->depth, (uint8_t)clear_value->stencil, 0, nullptr);
 }
@@ -4480,7 +4586,12 @@ void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_sampler_heap->GetGPUDescriptorHandleForHeapStart();
                 UINT handle_inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
                 handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
-                p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                if (p_pipeline->type == tr_pipeline_type_graphics) {
+                  p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                }
+                else {
+                  p_cmd->dx_cmd_list->SetComputeRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                }
             }
             break;
 
@@ -4586,16 +4697,27 @@ void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
     p_cmd->dx_cmd_list->ResourceBarrier(1, &barrier);
 }
 
-void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+void tr_internal_dx_cmd_rtv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_cmd->dx_cmd_list);
     
-    if (p_render_target->sample_count > tr_sample_count_1) {
-        if (1 == p_render_target->color_attachment_count) {
-            tr_texture* ss_attachment = p_render_target->color_attachments[0];
-            tr_texture* ms_attachment = p_render_target->color_attachments_multisample[0];
+    for (uint32_t rtv_index = 0; rtv_index < p_render_pass->rtv_count; ++rtv_index) {
+      tr_texture* p_attachment = nullptr;
+      if (p_render_pass->sample_count > tr_sample_count_1) {
+        p_attachment = p_render_pass->rtv[rtv_index];
+      }
+      else {
+        p_attachment = p_render_pass->rtv[rtv_index];
+      }
+      tr_internal_dx_cmd_image_transition(p_cmd, p_attachment, old_usage, new_usage);
+    }
 
-            // This means we're dealing with a multisample swapchain
+    /*
+    if (p_render_pass->sample_count > tr_sample_count_1) {
+        for (uint32_t rtv_index = 0; rtv_index < p_render_pass->rtv_count; ++rtv_index) {
+            tr_texture* ss_attachment = p_render_pass->rtv[rtv_index];
+            tr_texture* ms_attachment = p_render_pass->rtv_multisample[rtv_index];
+
             if (tr_texture_usage_present == (ss_attachment->usage & tr_texture_usage_present)) {
                 if ((tr_texture_usage_present == old_usage) && (tr_texture_usage_color_attachment == new_usage)) {
                     tr_internal_dx_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_present, tr_texture_usage_color_attachment);
@@ -4605,12 +4727,15 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
                     tr_internal_dx_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_color_attachment, tr_texture_usage_present);
                 }
             }
+            else {
+
+            }
         }
     }
     else {
-        if (1 == p_render_target->color_attachment_count) {
-            tr_texture* attachment = p_render_target->color_attachments[0];
-            // This means we're dealing with a single sample swapchain
+        for (uint32_t rtv_index = 0; rtv_index < p_render_pass->rtv_count; ++rtv_index) {
+            tr_texture* attachment = p_render_pass->rtv[rtv_index];
+
             if (tr_texture_usage_present == (attachment->usage & tr_texture_usage_present)) {
                 if ((tr_texture_usage_present == old_usage) && (tr_texture_usage_color_attachment == new_usage)) {
                     tr_internal_dx_cmd_image_transition(p_cmd, attachment, tr_texture_usage_present, tr_texture_usage_color_attachment);
@@ -4620,19 +4745,23 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
                     tr_internal_dx_cmd_image_transition(p_cmd, attachment, tr_texture_usage_color_attachment, tr_texture_usage_present);
                 }
             }
+            else {
+              tr_internal_dx_cmd_image_transition(p_cmd, attachment, old_usage, new_usage);
+            }
         }
     }
+    */
 }
 
-void tr_internal_dx_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
+void tr_internal_dx_cmd_dsv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
   assert(NULL != p_cmd->dx_cmd_list);
 
-  if (p_render_target->sample_count > tr_sample_count_1) {
-    tr_internal_dx_cmd_image_transition(p_cmd, p_render_target->depth_stencil_attachment_multisample, old_usage, new_usage);
+  if (p_render_pass->sample_count > tr_sample_count_1) {
+    tr_internal_dx_cmd_image_transition(p_cmd, p_render_pass->dsv_multisample, old_usage, new_usage);
   }
   else {
-    tr_internal_dx_cmd_image_transition(p_cmd, p_render_target->depth_stencil_attachment, old_usage, new_usage);
+    tr_internal_dx_cmd_image_transition(p_cmd, p_render_pass->dsv, old_usage, new_usage);
   }
 }
 
@@ -4662,10 +4791,28 @@ void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, 
     D3D12_TEXTURE_COPY_LOCATION dst = {};
     dst.pResource        = p_texture->dx_resource;
     dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-     dst.SubresourceIndex = mip_level;
+    dst.SubresourceIndex = mip_level;
 
     p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
 }
+
+void tr_internal_dx_cmd_copy_texture2d_exact(tr_cmd* p_cmd, uint32_t mip_level, tr_texture* p_src_texture, tr_texture* p_dst_texture)
+{
+    assert(p_cmd->dx_cmd_list != NULL);
+
+    D3D12_TEXTURE_COPY_LOCATION src = {};
+    src.pResource         = p_src_texture->dx_resource;
+    src.Type              = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    src.SubresourceIndex  = mip_level;
+
+    D3D12_TEXTURE_COPY_LOCATION dst = {};
+    dst.pResource         = p_dst_texture->dx_resource;
+    dst.Type              = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dst.SubresourceIndex  = mip_level;
+
+    p_cmd->dx_cmd_list->CopyTextureRegion(&dst, 0, 0, 0, &src, NULL);
+}
+
 
 // -------------------------------------------------------------------------------------------------
 // Internal queue functions

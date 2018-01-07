@@ -34,6 +34,8 @@ struct ShaderCreateInfo {
 
 */
 enum EntityDescriptorBinding {
+  ENTITY_DESCRIPTOR_BINDING_DISABLED          = -1,
+
   ENTITY_DESCRIPTOR_BINDING_VIEW_PARAMS       = 0,
   ENTITY_DESCRIPTOR_BINDING_TRANSFORM_PARAMS  = 1,
   ENTITY_DESCRIPTOR_BINDING_MATERIAL_PARAMS   = 2,
@@ -51,10 +53,14 @@ struct EntityCreateInfo {
   tr_buffer*            gpu_view_params;
   tr_buffer*            gpu_lighting_params;
   bool                  enable_tess_params;
-  // Bindings should start at ENTITY_DESCRIPTOR_BINDING_COUNT. 
+  int32_t               view_params_binding;      // -1 to disable
+  int32_t               transform_params_binding; // -1 to disable
+  int32_t               material_params_binding;  // -1 to disable
+  int32_t               lighting_params_binding;  // -1 to disable
+  int32_t               tess_params_binding;      // -1 to disable
   std::vector<uint32_t> texture_bindings;
   std::vector<uint32_t> buffer_bindings;
-  tr_render_target*     render_target;
+  tr_render_pass*       render_pass;
   tr_pipeline_settings  pipeline_settings;
 };
 
@@ -93,7 +99,6 @@ public:
   void DrawIndexed(tr_cmd* p_cmd, uint32_t index_count = UINT32_MAX);
 
 private:
-  void SetViewDirty(bool value);
   void SetTranformDirty(bool value);
 
 private:
@@ -135,13 +140,6 @@ inline EntityT<MaterialParamsT>::EntityT()
   m_transform.SetModelChangedCallback(fn);
 }
 
-/*! @fn EntityT<MaterialParamsT>::SetViewDirty */
-template <typename MaterialParamsT>
-inline void EntityT<MaterialParamsT>::SetViewDirty(bool value) 
-{
-  m_view_dirty = value;
-}
-
 /*! @fn EntityT<MaterialParamsT>::SetTranformDirty */
 template <typename MaterialParamsT>
 inline void EntityT<MaterialParamsT>::SetTranformDirty(bool value) 
@@ -159,12 +157,11 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
   // Copy create info
   m_create_info = create_info;
 
-  // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
-  bool has_transform = m_cpu_transform_params.GetDataSize() >= 4;
-  bool has_material  = m_cpu_material_params.GetDataSize() >= 4;
-  bool has_tess      = m_create_info.enable_tess_params;
-  bool has_view      = m_create_info.gpu_view_params != nullptr;
-  bool has_lighting  = m_create_info.gpu_lighting_params != nullptr;
+  bool has_view       = (m_create_info.view_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
+  bool has_transform  = (m_create_info.transform_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
+  bool has_material   = (m_create_info.material_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
+  bool has_lighting   = (m_create_info.lighting_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
+  bool has_tess       = (m_create_info.tess_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
 
   // Descriptor set
   {
@@ -188,7 +185,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
       if (has_view) {
         descriptors[index].type           = tr_descriptor_type_uniform_buffer_cbv;
         descriptors[index].count          = 1;
-        descriptors[index].binding        = ENTITY_DESCRIPTOR_BINDING_VIEW_PARAMS;
+        descriptors[index].binding        = m_create_info.view_params_binding;
         descriptors[index].shader_stages  = tr_shader_stage_all_graphics;
         ++index;
       }
@@ -196,7 +193,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
       if (has_transform) {
         descriptors[index].type           = tr_descriptor_type_uniform_buffer_cbv;
         descriptors[index].count          = 1;
-        descriptors[index].binding        = ENTITY_DESCRIPTOR_BINDING_TRANSFORM_PARAMS;
+        descriptors[index].binding        = m_create_info.transform_params_binding;
         descriptors[index].shader_stages  = tr_shader_stage_all_graphics;
         ++index;
       }
@@ -204,7 +201,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
       if (has_material) {
         descriptors[index].type           = tr_descriptor_type_uniform_buffer_cbv;
         descriptors[index].count          = 1;
-        descriptors[index].binding        = ENTITY_DESCRIPTOR_BINDING_MATERIAL_PARAMS;
+        descriptors[index].binding        = m_create_info.material_params_binding;
         descriptors[index].shader_stages  = tr_shader_stage_all_graphics;
         ++index;
       }
@@ -212,7 +209,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
       if (has_lighting) {
         descriptors[index].type           = tr_descriptor_type_uniform_buffer_cbv;
         descriptors[index].count          = 1;
-        descriptors[index].binding        = ENTITY_DESCRIPTOR_BINDING_LIGHTING_PARAMS;
+        descriptors[index].binding        = m_create_info.lighting_params_binding;
         descriptors[index].shader_stages  = tr_shader_stage_all_graphics;
         ++index;
       }
@@ -220,7 +217,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
       if (has_tess) {
         descriptors[index].type           = tr_descriptor_type_uniform_buffer_cbv;
         descriptors[index].count          = 1;
-        descriptors[index].binding        = ENTITY_DESCRIPTOR_BINDING_TESS_PARAMS;
+        descriptors[index].binding        =  m_create_info.tess_params_binding;
         descriptors[index].shader_stages  = tr_shader_stage_all_graphics;
         ++index;
       }
@@ -259,7 +256,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
                        m_create_info.shader_program,
                        &m_create_info.vertex_layout,
                        m_descriptor_set,
-                       m_create_info.render_target,
+                       m_create_info.render_pass,
                        &m_create_info.pipeline_settings,
                        &m_pipeline);
     assert(m_pipeline != nullptr);
@@ -269,6 +266,8 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
   {
     if (has_transform) {
       uint32_t buffer_size = m_cpu_transform_params.GetDataSize();
+      assert(buffer_size >= 4); // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
+
       tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
                                true, 
@@ -281,6 +280,8 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
 
     if (has_material) {
       uint32_t buffer_size = m_cpu_material_params.GetDataSize();
+      assert(buffer_size >= 4); // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
+
       tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
                                true, 
@@ -293,6 +294,8 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
 
     if (has_tess) {
       uint32_t buffer_size = m_cpu_tess_params.GetDataSize();
+      assert(buffer_size >= 4); // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
+
       tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
                                true, 
@@ -553,7 +556,7 @@ struct SimpleEntityCreateInfo {
   // Bindings should start at ENTITY_DESCRIPTOR_BINDING_COUNT. 
   std::vector<uint32_t> texture_bindings;
   std::vector<uint32_t> buffer_bindings;
-  tr_render_target*     render_target;
+  tr_render_pass*     render_target;
   tr_pipeline_settings  pipeline_settings;
   SimpleMaterialProfile material_profile;
 };
@@ -589,7 +592,6 @@ public:
   void DrawIndexed(tr_cmd* p_cmd, uint32_t index_count = UINT32_MAX);
 
 private:
-  void SetViewDirty(bool value);
   void SetTranformDirty(bool value);
 
 private:
@@ -612,8 +614,7 @@ private:
   uint32_t                    m_vertex_count = UINT32_MAX;
   // Shader Params
   tr::Transform               m_transform;
-  bool                        m_view_dirty = false;
-  bool                        m_transform_dirty = false;
+  bool                        m_transform_dirty = true;
   SimpleShaderParams          m_cpu_shader_params = {};
   tr_buffer*                  m_gpu_shader_params = nullptr;
 };
@@ -623,12 +624,6 @@ inline SimpleEntity::SimpleEntity()
 {
   auto fn = std::bind(&SimpleEntity::SetTranformDirty, this, std::placeholders::_1);
   m_transform.SetModelChangedCallback(fn);
-}
-
-/*! @fn SimpleEntity::SetViewDirty */
-inline void SimpleEntity::SetViewDirty(bool value) 
-{
-  m_view_dirty = value;
 }
 
 /*! @fn SimpleEntity::SetTranformDirty */
@@ -685,9 +680,9 @@ inline bool SimpleEntity::Create(tr_renderer* p_renderer, const SimpleEntityCrea
     }
 
     tr_create_descriptor_set(p_renderer,
-                              (uint32_t)descriptors.size(),
-                              descriptors.data(),
-                              &m_descriptor_set);
+                             (uint32_t)descriptors.size(),
+                             descriptors.data(),
+                             &m_descriptor_set);
     assert(m_descriptor_set != nullptr);
   }
 
@@ -707,9 +702,9 @@ inline bool SimpleEntity::Create(tr_renderer* p_renderer, const SimpleEntityCrea
   {
     uint32_t buffer_size = m_cpu_shader_params.GetDataSize();
     tr_create_uniform_buffer(m_renderer, 
-                              buffer_size, 
-                              true, 
-                              &m_gpu_shader_params);
+                             buffer_size, 
+                             true, 
+                             &m_gpu_shader_params);
     assert(m_gpu_shader_params != nullptr);
   }
 
@@ -798,13 +793,6 @@ inline const SimpleShaderParams& SimpleEntity::GetShaderParams() const
   return m_cpu_shader_params;
 }
 
-/*! @fn SimpleEntity::SetView */
-inline void SimpleEntity::ApplyView(const tr::Camera& camera)
-{
-  m_cpu_shader_params.SetView(camera);
-  SetViewDirty(true);
-}
-
 /*! @fn SimpleEntity::SetTransform */
 inline void SimpleEntity::SetTransform(const tr::Transform& transform)
 {
@@ -845,11 +833,6 @@ inline void SimpleEntity::UpdateGpuDescriptorSets()
 /*! @fn SimpleEntity::UpdateGpuBuffers */
 inline void SimpleEntity::UpdateGpuBuffers()
 {
-  if (m_view_dirty) {
-    // Nothing for now
-    m_view_dirty = false;
-  }
-
   if (m_transform_dirty) {
     m_cpu_shader_params.SetTransform(m_transform);
     m_transform_dirty = false;
@@ -875,183 +858,6 @@ inline void SimpleEntity::Draw(tr_cmd* p_cmd, uint32_t vertex_count)
 
 /*! @fn SimpleEntity::DrawIndexed */
 inline void SimpleEntity::DrawIndexed(tr_cmd* p_cmd, uint32_t index_count) {
-}
-
-// =================================================================================================
-// LoadShaderModule
-// =================================================================================================
-
-/*! @fn LoadShaderModule
-
-*/
-inline std::vector<uint8_t> LoadShaderModule(const fs::path& file_path)
-{
-  std::vector<uint8_t> byte_code;
-  if (fs::exists(file_path)) {
-    std::ifstream is;
-    is.open(file_path.c_str(), std::ios::in | std::ios::binary);
-    assert(is.is_open());
-
-    is.seekg(0, std::ios::end);
-    byte_code.resize(is.tellg());
-    assert(0 != byte_code.size());
-
-    is.seekg(0, std::ios::beg);
-    is.read((char*)byte_code.data(), byte_code.size());
-  }
-  return byte_code;
-}
-
-// =================================================================================================
-// CreateShaderProgram
-// =================================================================================================
-
-/*! @fn CreateShaderProgram - VS/PS
-
-*/
-inline tr_shader_program* CreateShaderProgram(
-  tr_renderer*        p_renderer,
-  const fs::path&     vs_file_path,
-  const std::string&  vs_entry_point,
-  const fs::path&     ps_file_path,
-  const std::string&  ps_entry_point
-)
-{
-  tr_shader_program* p_shader_program = nullptr;
-
-  auto vs = LoadShaderModule(vs_file_path);
-  auto ps = LoadShaderModule(ps_file_path);
-
-  bool has_byte_code    = !(vs.empty() && ps.empty());
-  bool has_entry_point  = !(vs_entry_point.empty() && ps_entry_point.empty());
-  if (has_byte_code && has_entry_point) {
-    tr_create_shader_program(p_renderer, 
-                             (uint32_t)vs.size(), (uint32_t*)vs.data(), vs_entry_point.c_str(),
-                             (uint32_t)ps.size(), (uint32_t*)ps.data(), ps_entry_point.c_str(),
-                             &p_shader_program);
-  }
-
-  return p_shader_program;
-}
-
-/*! @fn CreateShaderProgram - VS/GS/PS
-
-*/
-inline tr_shader_program* CreateShaderProgram(
-  tr_renderer*        p_renderer,
-  const fs::path&     vs_file_path,
-  const std::string&  vs_entry_point,
-  const fs::path&     gs_file_path,
-  const std::string&  gs_entry_point,
-  const fs::path&     ps_file_path,
-  const std::string&  ps_entry_point
-)
-{
-  tr_shader_program* p_shader_program = nullptr;
-
-  auto vs = LoadShaderModule(vs_file_path);
-  auto gs = LoadShaderModule(gs_file_path);
-  auto ps = LoadShaderModule(ps_file_path);
-
-  bool has_byte_code    = !(vs.empty() && gs.empty() && ps.empty());
-  bool has_entry_point  = !(vs_entry_point.empty() &&
-                            gs_entry_point.empty() &&
-                            ps_entry_point.empty());
-  if (has_byte_code && has_entry_point) {
-    tr_create_shader_program_n(p_renderer, 
-                               (uint32_t)vs.size(), (uint32_t*)vs.data(), vs_entry_point.c_str(),
-                                                 0,              nullptr,                nullptr,
-                                                 0,              nullptr,                nullptr,
-                               (uint32_t)gs.size(), (uint32_t*)gs.data(), gs_entry_point.c_str(),
-                               (uint32_t)ps.size(), (uint32_t*)ps.data(), ps_entry_point.c_str(),
-                                                 0,              nullptr,                nullptr,
-                               &p_shader_program);
-  }
-  return p_shader_program;
-}
-
-/*! @fn CreateShaderProgram - VS/HS/DS/PS
-
-*/
-inline tr_shader_program* CreateShaderProgram(
-  tr_renderer*        p_renderer,
-  const fs::path&     vs_file_path,
-  const std::string&  vs_entry_point,
-  const fs::path&     hs_file_path,
-  const std::string&  hs_entry_point,
-  const fs::path&     ds_file_path,
-  const std::string&  ds_entry_point,
-  const fs::path&     ps_file_path,
-  const std::string&  ps_entry_point
-)
-{
-  tr_shader_program* p_shader_program = nullptr;
-
-  auto vs = LoadShaderModule(vs_file_path);
-  auto hs = LoadShaderModule(hs_file_path);
-  auto ds = LoadShaderModule(ds_file_path);
-  auto ps = LoadShaderModule(ps_file_path);
-
-  bool has_byte_code    = !(vs.empty() && hs.empty() && ds.empty() && ps.empty());
-  bool has_entry_point  = !(vs_entry_point.empty() &&
-                            hs_entry_point.empty() &&
-                            ds_entry_point.empty() &&
-                            ps_entry_point.empty());
-  if (has_byte_code && has_entry_point) {
-    tr_create_shader_program_n(p_renderer, 
-                               (uint32_t)vs.size(), (uint32_t*)vs.data(), vs_entry_point.c_str(),
-                               (uint32_t)hs.size(), (uint32_t*)hs.data(), hs_entry_point.c_str(),
-                               (uint32_t)ds.size(), (uint32_t*)ds.data(), ds_entry_point.c_str(),
-                                                 0,              nullptr,                nullptr,
-                               (uint32_t)ps.size(), (uint32_t*)ps.data(), ps_entry_point.c_str(),
-                                                 0,              nullptr,                nullptr,
-                               &p_shader_program);
-  }
-  return p_shader_program;
-}
-
-/*! @fn CreateShaderProgram - VS/HS/DS/GS/PS
-
-*/
-inline tr_shader_program* CreateShaderProgram(
-  tr_renderer*        p_renderer,
-  const fs::path&     vs_file_path,
-  const std::string&  vs_entry_point,
-  const fs::path&     hs_file_path,
-  const std::string&  hs_entry_point,
-  const fs::path&     ds_file_path,
-  const std::string&  ds_entry_point,
-  const fs::path&     gs_file_path,
-  const std::string&  gs_entry_point,
-  const fs::path&     ps_file_path,
-  const std::string&  ps_entry_point
-)
-{
-  tr_shader_program* p_shader_program = nullptr;
-
-  auto vs = LoadShaderModule(vs_file_path);
-  auto hs = LoadShaderModule(hs_file_path);
-  auto ds = LoadShaderModule(ds_file_path);
-  auto gs = LoadShaderModule(gs_file_path);
-  auto ps = LoadShaderModule(ps_file_path);
-
-  bool has_byte_code    = !(vs.empty() && hs.empty() && ds.empty() && gs.empty() && ps.empty());
-  bool has_entry_point  = !(vs_entry_point.empty() &&
-                            hs_entry_point.empty() &&
-                            ds_entry_point.empty() &&
-                            gs_entry_point.empty() &&
-                            ps_entry_point.empty());
-  if (has_byte_code && has_entry_point) {
-    tr_create_shader_program_n(p_renderer, 
-                               (uint32_t)vs.size(), (uint32_t*)vs.data(), vs_entry_point.c_str(),
-                               (uint32_t)hs.size(), (uint32_t*)hs.data(), hs_entry_point.c_str(),
-                               (uint32_t)ds.size(), (uint32_t*)ds.data(), ds_entry_point.c_str(),
-                               (uint32_t)gs.size(), (uint32_t*)gs.data(), gs_entry_point.c_str(),
-                               (uint32_t)ps.size(), (uint32_t*)ps.data(), ps_entry_point.c_str(),
-                                                 0,              nullptr,                nullptr,
-                               &p_shader_program);
-  }
-  return p_shader_program;
 }
 
 } // namespace tr

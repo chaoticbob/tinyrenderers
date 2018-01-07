@@ -15,10 +15,7 @@
 #include <string.h> 
 #include <vector>
 
-#ifndef TINYOBJLOADER_IMPLEMENTATION
-  #define TINYOBJLOADER_IMPLEMENTATION
-  #include <tiny_obj_loader.h>
-#endif
+#include <tiny_obj_loader.h>
 
 #if defined(TINY_RENDERER_DX)
   #include "tinydx.h"

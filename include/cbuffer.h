@@ -854,10 +854,9 @@ struct SpotLightData {
 };
 
 struct DirectionalLightData {
-  hlsl_float3<4>  Position;
-  hlsl_float3<4>  Color;
+  hlsl_float3<4>  Direction;
+  hlsl_float3<3>  Color;
   hlsl_float<1>   Intensity;
-  hlsl_float3<3>  Direction;
 };
 
 // =================================================================================================
@@ -869,13 +868,11 @@ struct DirectionalLightData {
 */
 template <size_t MAX_POINT_LIGHTS, size_t MAX_SPOT_LIGHTS, size_t MAX_DIRECTIONAL_LIGHTS>
 struct LightingData {
-  AmbientLightData  AmbientLight;
-  PointLightData    PointLights[MAX_POINT_LIGHTS];
-  uint              PointLightCount;
-  SpotLightData     SpotLights[MAX_SPOT_LIGHTS];
-  uint              SpotLightCount;
-  PointLightData    DirectionalLights[MAX_DIRECTIONAL_LIGHTS];
-  uint              DirectionalLightCount;
+  hlsl_float3<4>        EyePosition;
+  AmbientLightData      AmbientLight;
+  PointLightData        PointLights[MAX_POINT_LIGHTS];
+  SpotLightData         SpotLights[MAX_SPOT_LIGHTS];
+  DirectionalLightData  DirectionalLights[MAX_DIRECTIONAL_LIGHTS];
 };
 
 /*! @class LightingParams
@@ -884,6 +881,8 @@ struct LightingData {
 template <size_t MAX_POINT_LIGHTS, size_t MAX_SPOT_LIGHTS, size_t MAX_DIRECTIONAL_LIGHTS> 
 class LightingParams : public ConstantBuffer<LightingData<MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS, MAX_DIRECTIONAL_LIGHTS>> {
 public:
+  using DataT = LightingData<MAX_POINT_LIGHTS, MAX_SPOT_LIGHTS, MAX_DIRECTIONAL_LIGHTS>;
+
   LightingParams() {
     assert(MAX_POINT_LIGHTS       > 0);
     assert(MAX_SPOT_LIGHTS        > 0);
@@ -891,6 +890,11 @@ public:
   }
 
   virtual ~LightingParams() {}
+
+  void ApplyView(const Camera& camera) {
+    DataT& data = GetData();
+    data.EyePosition = camera.GetEyePosition();
+  }
 };
 
 // =================================================================================================

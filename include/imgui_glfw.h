@@ -203,7 +203,7 @@ void imgui_glfw_init(GLFWwindow* p_window, tr_renderer* p_renderer)
                        g_app.shader_program, 
                        &vertex_layout,
                        g_app.descriptor_set, 
-                       g_app.renderer->swapchain_render_targets[0], 
+                       g_app.renderer->swapchain_render_passes[0], 
                        &pipeline_settings, 
                        &g_app.pipeline);
   }
@@ -233,7 +233,8 @@ void imgui_glfw_init(GLFWwindow* p_window, tr_renderer* p_renderer)
                          1, 
                          nullptr, 
                          false, 
-                         tr_texture_usage_sampled_image, 
+                         tr_texture_usage_sampled_image,  // usage
+                         tr_texture_usage_sampled_image,  // initial state
                          &g_app.font_texture);
     
     tr_util_update_texture_uint8(g_app.renderer->graphics_queue, 

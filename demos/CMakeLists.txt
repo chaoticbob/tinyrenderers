@@ -67,3 +67,58 @@ if(WIN32)
   add_dx(Shaders)
   add_dx(BRDF)
 endif()
+
+####################################################################################################
+# Deferred
+####################################################################################################
+set(sample_name "Deferred")
+
+# Deferred VK
+set(target_name "${sample_name}_VK")
+add_executable(${target_name} ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/main.cpp
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/DeferredRenderer.h
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/DeferredRenderer.cpp
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.h
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.cpp
+                              ${tinyrenders_dir}/tinyvk.h
+                              ${tinyrenders_include_dir}/camera.h
+                              ${tinyrenders_include_dir}/cbuffer.h
+                              ${tinyrenders_include_dir}/entity.h
+                              ${tinyrenders_include_dir}/mesh.h
+                              ${tinyrenders_include_dir}/transform.h
+                              ${tinyrenders_include_dir}/util.h
+                              ${IMGUI_DIR}/imgui.h
+                              ${IMGUI_DIR}/imgui.cpp
+                              ${IMGUI_DIR}/imgui_draw.cpp)
+if(UNIX)
+  target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_VK)
+  target_compile_options(${target_name} PRIVATE -std=c++14)
+  target_link_libraries(${target_name} PRIVATE X11-xcb)
+elseif(WIN32)
+  target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_VK -D_CRT_SECURE_NO_WARNINGS)
+  set_target_properties(${target_name} PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:Windows /INCREMENTAL:NO")
+  set_target_properties(${target_name} PROPERTIES FOLDER "demos/vk")        
+endif()
+
+# Deferred DX
+if(WIN32)
+   set(target_name "${sample_name}_DX")
+   add_executable(${target_name} ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/main.cpp
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/DeferredRenderer.h
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/DeferredRenderer.cpp
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.h
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.cpp
+                                 ${tinyrenders_dir}/tinydx.h
+                                 ${tinyrenders_include_dir}/camera.h
+                                 ${tinyrenders_include_dir}/cbuffer.h
+                                 ${tinyrenders_include_dir}/entity.h
+                                 ${tinyrenders_include_dir}/mesh.h
+                                 ${tinyrenders_include_dir}/transform.h
+                                 ${tinyrenders_include_dir}/util.h
+                                 ${IMGUI_DIR}/imgui.h
+                                 ${IMGUI_DIR}/imgui.cpp
+                                 ${IMGUI_DIR}/imgui_draw.cpp)
+   target_compile_definitions(${target_name} PRIVATE -DTINY_RENDERER_DX -D_CRT_SECURE_NO_WARNINGS)
+   set_target_properties(${target_name} PROPERTIES LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:Windows /INCREMENTAL:NO")
+   set_target_properties(${target_name} PROPERTIES FOLDER "demos/dx")
+endif()

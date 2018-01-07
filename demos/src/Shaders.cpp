@@ -183,10 +183,10 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.height                         = g_window_height;
     settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
-    settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
-    settings.swapchain.depth_stencil_format = tr_format_d32_float;
-    settings.swapchain.color_clear_value          = g_color_clear_value;
-    settings.swapchain.depth_stencil_clear_value  = g_depth_stencil_clear_value;
+    settings.swapchain.rtv_format         = tr_format_b8g8r8a8_unorm;
+    settings.swapchain.dsv_format = tr_format_d32_float;
+    settings.swapchain.rtv_clear_value          = g_color_clear_value;
+    settings.swapchain.dsv_clear_value  = g_depth_stencil_clear_value;
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
@@ -276,7 +276,7 @@ void init_tiny_renderer(GLFWwindow* window)
   {
     tr::SimpleEntityCreateInfo entity_create_info = {};
     entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
-    entity_create_info.render_target                    = g_renderer->swapchain_render_targets[0];
+    entity_create_info.render_target                    = g_renderer->swapchain_render_passes[0];
     entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
     entity_create_info.pipeline_settings.depth          = true;
     entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
@@ -401,7 +401,7 @@ void draw_frame(GLFWwindow* p_window)
   tr_acquire_next_image(g_renderer, image_acquired_semaphore, image_acquired_fence);
 
   uint32_t swapchain_image_index = g_renderer->swapchain_image_index;
-  tr_render_target* render_target = g_renderer->swapchain_render_targets[swapchain_image_index];
+  tr_render_pass* render_target = g_renderer->swapchain_render_passes[swapchain_image_index];
 
   // Time
   float t = curTime;
@@ -570,8 +570,8 @@ void draw_frame(GLFWwindow* p_window)
 
   tr_cmd* cmd = g_cmds[frameIdx];
   tr_begin_cmd(cmd);
-  tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-  tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
+  tr_cmd_render_pass_rtv_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
+  tr_cmd_render_pass_dsv_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
   tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
   tr_cmd_set_scissor(cmd, 0, 0, g_window_width, g_window_height);
   tr_cmd_begin_render(cmd, render_target);
@@ -591,8 +591,8 @@ void draw_frame(GLFWwindow* p_window)
     tr::imgui_glfw_clear_draw_cmd();
   }
   tr_cmd_end_render(cmd);
-  tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
-  tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_depth_stencil_attachment, tr_texture_usage_sampled_image);
+  tr_cmd_render_pass_rtv_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
+  tr_cmd_render_pass_dsv_transition(cmd, render_target, tr_texture_usage_depth_stencil_attachment, tr_texture_usage_sampled_image);
   tr_end_cmd(cmd);
 
   tr_queue_submit(g_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);

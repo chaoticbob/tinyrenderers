@@ -148,7 +148,10 @@ float SchlickFresnel(float u)
 
 float GTR1(float NdotH, float a)
 {
-  if (a >= 1) return 1/PI;
+  if (a >= 1) {
+    return 1/PI;
+  }
+
   float a2 = a*a;
   float t = 1 + (a2-1)*NdotH*NdotH;
   return (a2-1) / (PI*log(a2)*t);

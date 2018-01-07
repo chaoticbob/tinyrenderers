@@ -142,8 +142,8 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.height                         = s_window_height;
     settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
-    settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
-    settings.swapchain.depth_stencil_format = tr_format_undefined;
+    settings.swapchain.rtv_format         = tr_format_b8g8r8a8_unorm;
+    settings.swapchain.dsv_format = tr_format_undefined;
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
@@ -177,7 +177,7 @@ void init_tiny_renderer(GLFWwindow* window)
     vertex_layout.attribs[0].location = 0;
     vertex_layout.attribs[0].offset   = 0;
     tr_pipeline_settings pipeline_settings = {tr_primitive_topo_tri_list};
-    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_targets[0], &pipeline_settings, &m_pipeline);
+    tr_create_pipeline(m_renderer, m_shader, &vertex_layout, nullptr, m_renderer->swapchain_render_passes[0], &pipeline_settings, &m_pipeline);
 
     // tri
     {
@@ -243,12 +243,12 @@ void draw_frame()
     tr_acquire_next_image(m_renderer, image_acquired_semaphore, image_acquired_fence);
 
     uint32_t swapchain_image_index = m_renderer->swapchain_image_index;
-    tr_render_target* render_target = m_renderer->swapchain_render_targets[swapchain_image_index];
+    tr_render_pass* render_target = m_renderer->swapchain_render_passes[swapchain_image_index];
 
     tr_cmd* cmd = m_cmds[frameIdx];
 
     tr_begin_cmd(cmd);
-    tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
+    tr_cmd_render_pass_rtv_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_set_viewport(cmd, 0, 0, (float)s_window_width, (float)s_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, s_window_width, s_window_height);
     tr_cmd_begin_render(cmd, render_target);
@@ -261,7 +261,7 @@ void draw_frame()
     tr_cmd_bind_vertex_buffers(cmd, 1, &m_rect_vertex_buffer);
     tr_cmd_draw_indexed(cmd, 6, 0);
     tr_cmd_end_render(cmd);
-    tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
+    tr_cmd_render_pass_rtv_transition(cmd, render_target, tr_texture_usage_color_attachment, tr_texture_usage_present); 
     tr_end_cmd(cmd);
 
     tr_queue_submit(m_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
