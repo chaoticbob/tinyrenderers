@@ -18,6 +18,7 @@
 #include "transform.h"
 
 #include <algorithm>
+#include <set>
 
 namespace tr {
 
@@ -52,12 +53,11 @@ struct EntityCreateInfo {
   tr_vertex_layout      vertex_layout;
   tr_buffer*            gpu_view_params;
   tr_buffer*            gpu_lighting_params;
-  bool                  enable_tess_params;
-  int32_t               view_params_binding;      // -1 to disable
-  int32_t               transform_params_binding; // -1 to disable
-  int32_t               material_params_binding;  // -1 to disable
-  int32_t               lighting_params_binding;  // -1 to disable
-  int32_t               tess_params_binding;      // -1 to disable
+  int32_t               view_params_binding       = ENTITY_DESCRIPTOR_BINDING_DISABLED;
+  int32_t               transform_params_binding  = ENTITY_DESCRIPTOR_BINDING_DISABLED;
+  int32_t               material_params_binding   = ENTITY_DESCRIPTOR_BINDING_DISABLED;
+  int32_t               lighting_params_binding   = ENTITY_DESCRIPTOR_BINDING_DISABLED;
+  int32_t               tess_params_binding       = ENTITY_DESCRIPTOR_BINDING_DISABLED;
   std::vector<uint32_t> texture_bindings;
   std::vector<uint32_t> buffer_bindings;
   tr_render_pass*       render_pass;
@@ -96,7 +96,7 @@ public:
   const TessParams&       GetTessParams() const;
 
   void UpdateGpuDescriptorSets();
-  void UpdateGpuBuffers();
+  void UpdateGpuBuffers(tr_cmd* p_cmd);
 
   void Draw(tr_cmd* p_cmd, uint32_t vertex_count = UINT32_MAX);
   void DrawIndexed(tr_cmd* p_cmd, uint32_t index_count = UINT32_MAX);
@@ -128,12 +128,15 @@ private:
   bool                        m_transform_dirty = false;
   TransformParams             m_cpu_transform_params;
   tr_buffer*                  m_gpu_transform_params = nullptr;
+  tr_buffer*                  m_gpu_transform_params_staging = nullptr;
   // Materials
   MaterialParamsT             m_cpu_material_params;
   tr_buffer*                  m_gpu_material_params = nullptr;
+  tr_buffer*                  m_gpu_material_params_staging = nullptr;
   // Tessellation
   TessParams                  m_cpu_tess_params;
   tr_buffer*                  m_gpu_tess_params = nullptr;
+  tr_buffer*                  m_gpu_tess_params_staging = nullptr;
 };
 
 /*! @fn EntityT<MaterialParamsT>::EntityT */
@@ -167,6 +170,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
   bool has_lighting   = (m_create_info.lighting_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
   bool has_tess       = (m_create_info.tess_params_binding != ENTITY_DESCRIPTOR_BINDING_DISABLED);
 
+  uint32_t total_descriptor_count = 0;
   // Descriptor set
   {
     uint32_t const_buffer_count = 0;
@@ -179,7 +183,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
     uint32_t texture_count = (uint32_t)m_create_info.texture_bindings.size();
     uint32_t buffer_count = (uint32_t)m_create_info.buffer_bindings.size();
 
-    uint32_t total_descriptor_count = const_buffer_count + texture_count + buffer_count;
+    total_descriptor_count = const_buffer_count + texture_count + buffer_count;
     std::vector<tr_descriptor> descriptors(total_descriptor_count);
 
     uint32_t index = 0;
@@ -239,7 +243,7 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
     // Buffers descriptors
     for (uint32_t i = 0; i < buffer_count; ++i) {
       uint32_t index = i + ENTITY_DESCRIPTOR_BINDING_COUNT;
-      uint32_t binding = m_create_info.texture_bindings[i];
+      uint32_t binding = m_create_info.buffer_bindings[i];
       descriptors[index].type           = tr_descriptor_type_storage_buffer_srv;
       descriptors[index].count          = 1;
       descriptors[index].binding        = binding;
@@ -256,6 +260,46 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
 
   // Pipeline
   {
+    // Check to make sure all descriptor bindings are unique
+    {
+      std::set<uint32_t> unique_bindings;
+      // Constant buffer bindings
+      if (has_view) {
+       unique_bindings.insert(m_create_info.view_params_binding);
+      }
+      if (has_transform) {
+       unique_bindings.insert(m_create_info.transform_params_binding);
+      }
+      if (has_material) {
+       unique_bindings.insert(m_create_info.material_params_binding);
+      }
+      if (has_lighting) {
+       unique_bindings.insert(m_create_info.lighting_params_binding);
+      }
+      if (has_tess) {
+       unique_bindings.insert(m_create_info.tess_params_binding);
+      }
+      // Textures descriptors
+      for (uint32_t i = 0; i < (uint32_t)m_create_info.texture_bindings.size(); ++i) {
+        uint32_t binding = m_create_info.texture_bindings[i];
+        if (binding != ENTITY_DESCRIPTOR_BINDING_DISABLED) {
+          unique_bindings.insert(binding);
+        }
+      }
+      // Buffers descriptors
+      for (uint32_t i = 0; i < (uint32_t)m_create_info.buffer_bindings.size(); ++i) {
+        uint32_t binding = m_create_info.buffer_bindings[i];
+        if (binding != ENTITY_DESCRIPTOR_BINDING_DISABLED) {
+          unique_bindings.insert(binding);
+        }
+      }
+
+      // If this assert gets hit...there's a duplicate binding number. Vulkan doesn't allow for this
+      // so it has to be enforced on both renderers.
+      uint32_t unique_descriptor_count = (uint32_t)unique_bindings.size();
+      assert(total_descriptor_count == unique_descriptor_count);
+    }
+
     tr_create_pipeline(m_renderer,
                        m_create_info.shader_program,
                        &m_create_info.vertex_layout,
@@ -272,42 +316,66 @@ inline bool EntityT<MaterialParamsT>::Create(tr_renderer* p_renderer, const Enti
       uint32_t buffer_size = m_cpu_transform_params.GetDataSize();
       assert(buffer_size >= 4); // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
 
+      // GPU device local buffer
       tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
-                               true, 
+                               false, 
                                &m_gpu_transform_params);
       assert(m_gpu_transform_params != nullptr);
 
-      // Make writes go directly to the GPU buffer
-      m_cpu_transform_params.SetTarget(m_gpu_transform_params->cpu_mapped_address);
+      // GPU staging buffer
+      tr_create_uniform_buffer(m_renderer, 
+                               buffer_size, 
+                               true, 
+                               &m_gpu_transform_params_staging);
+      assert(m_gpu_transform_params_staging != nullptr);
+
+      //// Make writes go directly to the GPU buffer
+      //m_cpu_transform_params.SetTarget(m_gpu_transform_params->cpu_mapped_address);
     }
 
     if (has_material) {
       uint32_t buffer_size = m_cpu_material_params.GetDataSize();
       assert(buffer_size >= 4); // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
 
+      // GPU device local buffer
       tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
-                               true, 
+                               false, 
                                &m_gpu_material_params);
       assert(m_gpu_material_params != nullptr);
 
-      // Make writes go directly to the GPU buffer
-      m_cpu_material_params.SetTarget(m_gpu_material_params->cpu_mapped_address);
+      // GPU staging buffer
+      tr_create_uniform_buffer(m_renderer, 
+                               buffer_size, 
+                               true, 
+                               &m_gpu_material_params_staging);
+      assert(m_gpu_material_params_staging != nullptr);
+
+      //// Make writes go directly to the GPU buffer
+      //m_cpu_material_params.SetTarget(m_gpu_material_params->cpu_mapped_address);
     }
 
     if (has_tess) {
       uint32_t buffer_size = m_cpu_tess_params.GetDataSize();
       assert(buffer_size >= 4); // Minimum size must be 4 bytes. Just note that empty C++ structs are always 1 byte in size.
 
+      // GPU device local buffer
       tr_create_uniform_buffer(m_renderer, 
                                buffer_size, 
-                               true, 
+                               false, 
                                &m_gpu_tess_params);
       assert(m_gpu_tess_params != nullptr);
 
-      // Make writes go directly to the GPU buffer
-      m_cpu_tess_params.SetTarget(m_gpu_tess_params->cpu_mapped_address);
+      // GPU staging buffer
+      tr_create_uniform_buffer(m_renderer, 
+                               buffer_size, 
+                               true, 
+                               &m_gpu_tess_params_staging);
+      assert(m_gpu_tess_params_staging != nullptr);
+
+      //// Make writes go directly to the GPU buffer
+      //m_cpu_tess_params.SetTarget(m_gpu_tess_params->cpu_mapped_address);
     }
   }
 
@@ -490,7 +558,7 @@ inline void EntityT<MaterialParamsT>::UpdateGpuDescriptorSets()
 
 /*! @fn EntityT<MaterialParamsT>::UpdateGpuBuffers */
 template <typename MaterialParamsT>
-inline void EntityT<MaterialParamsT>::UpdateGpuBuffers()
+inline void EntityT<MaterialParamsT>::UpdateGpuBuffers(tr_cmd* p_cmd)
 {
   if (m_transform_dirty) {
     m_cpu_transform_params.SetTransform(m_transform);
@@ -499,17 +567,23 @@ inline void EntityT<MaterialParamsT>::UpdateGpuBuffers()
 
   // View/transform constant buffer
   if (m_gpu_transform_params != nullptr) {
-    m_cpu_transform_params.Write(m_gpu_transform_params->cpu_mapped_address);
+    m_cpu_transform_params.Write(m_gpu_transform_params_staging->cpu_mapped_address);
+    // Copy staging to device local
+    tr_cmd_copy_buffer_exact(p_cmd, m_gpu_transform_params_staging, m_gpu_transform_params);
   }
 
   // Lighting constant buffer
   if (m_gpu_material_params != nullptr) {
-    m_cpu_material_params.Write(m_gpu_material_params->cpu_mapped_address);
+    m_cpu_material_params.Write(m_gpu_material_params_staging->cpu_mapped_address);
+    // Copy staging to device local
+    tr_cmd_copy_buffer_exact(p_cmd, m_gpu_material_params_staging, m_gpu_material_params);
   }
 
   // Tess constant buffer
   if (m_gpu_tess_params != nullptr) {
-    m_cpu_tess_params.Write(m_gpu_tess_params->cpu_mapped_address);
+    m_cpu_tess_params.Write(m_gpu_tess_params_staging->cpu_mapped_address);
+    // Copy staging to device local
+    tr_cmd_copy_buffer_exact(p_cmd, m_gpu_tess_params_staging, m_gpu_tess_params);
   }
 }
 

@@ -31,9 +31,9 @@ public:
     }
   }
 
-  void UpdateGpuBuffers() {
+  void UpdateGpuBuffers(tr_cmd* p_cmd) {
     for (auto& entity : m_entities) {
-      entity->UpdateGpuBuffers();
+      entity->UpdateGpuBuffers(p_cmd);
     }
   }
 

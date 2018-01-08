@@ -18,10 +18,13 @@
 #elif defined(TINY_RENDERER_VK)
     #include "tinyvk.h"
 #endif
+
+#define TINYOBJLOADER_IMPLEMENTATION
 #include "camera.h"
 #include "cbuffer.h"
 #include "entity.h"
 #include "mesh.h"
+#include "util.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -42,6 +45,11 @@ using float3x3 = glm::mat3;
 using float4x4 = glm::mat4;
 using float3x4 = glm::mat3x4;
 using float4x3 = glm::mat4x3;
+
+#define DESCRIPTOR_BINDING_BRDF_VIEW_PARAMS         0
+#define DESCRIPTOR_BINDING_BRDF_TRANSFORM_PARAMS    1
+#define DESCRIPTOR_BINDING_BRDF_MATERIAL_PARAMS     2
+#define DESCRIPTOR_BINDING_BRDF_LIGHTING_PARAMS     3
 
 const char*           k_app_name = "ChessSet";
 const uint32_t        k_image_count = 1;
@@ -178,10 +186,10 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.height                         = g_window_height;
     settings.swapchain.image_count          = k_image_count;
     settings.swapchain.sample_count         = tr_sample_count_8;
-    settings.swapchain.rtv_format         = tr_format_b8g8r8a8_unorm;
-    settings.swapchain.dsv_format = tr_format_d32_float;
-    settings.swapchain.rtv_clear_value          = g_color_clear_value;
-    settings.swapchain.dsv_clear_value  = g_depth_stencil_clear_value;
+    settings.swapchain.rtv_format           = tr_format_b8g8r8a8_unorm;
+    settings.swapchain.dsv_format           = tr_format_d32_float;
+    settings.swapchain.rtv_clear_value      = g_color_clear_value;
+    settings.swapchain.dsv_clear_value      = g_depth_stencil_clear_value;
     settings.log_fn                         = renderer_log;
 #if defined(TINY_RENDERER_VK)
     settings.vk_debug_fn                    = vulkan_debug;
@@ -251,6 +259,10 @@ void init_tiny_renderer(GLFWwindow* window)
     entity_create_info.shader_program                   = g_brdf_shader;
     entity_create_info.gpu_view_params                  = g_gpu_view_params;
     entity_create_info.gpu_lighting_params              = g_gpu_lighting_params;
+    entity_create_info.view_params_binding              = DESCRIPTOR_BINDING_BRDF_VIEW_PARAMS;
+    entity_create_info.transform_params_binding         = DESCRIPTOR_BINDING_BRDF_TRANSFORM_PARAMS;
+    entity_create_info.material_params_binding          = DESCRIPTOR_BINDING_BRDF_MATERIAL_PARAMS;
+    entity_create_info.lighting_params_binding          = DESCRIPTOR_BINDING_BRDF_LIGHTING_PARAMS;
     entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
     entity_create_info.render_pass                      = g_renderer->swapchain_render_passes[0];
     entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;

@@ -48,6 +48,8 @@ using float4x3 = glm::mat4x3;
 #include "DeferredRenderer.h"
 #include "Scene.h"
 
+#define ENABLE_UI
+
 const char*           k_app_name = "Deferred Rendering";
 const uint32_t        k_image_count = 1;
 #if defined(__linux__)
@@ -264,6 +266,7 @@ void draw_frame(GLFWwindow* p_window)
   uint32_t swapchain_image_index = g_renderer->swapchain_image_index;
   tr_render_pass* render_pass = g_renderer->swapchain_render_passes[swapchain_image_index];
    
+#if defined(ENABLE_UI)
   // UI Start
   {
     float content_scale_x = 1.0f;
@@ -280,7 +283,10 @@ void draw_frame(GLFWwindow* p_window)
 
     ImGui::Begin("Params", &g_ui_active, ImVec2(300 * content_scale_x, 400 * content_scale_y));
   }
-
+#endif // defined(ENABLE_UI)
+  
+  tr_cmd* cmd = g_cmds[frameIdx];
+  tr_begin_cmd(cmd);
   // Constant buffers
   {
     // Camera
@@ -300,6 +306,7 @@ void draw_frame(GLFWwindow* p_window)
       auto& params = g_deferred_renderer.GetLightingParams();
       params.ApplyView(g_camera);
 
+#if defined(ENABLE_UI)
       auto& data = params.GetData();
       if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushID(&data.AmbientLight);
@@ -316,18 +323,17 @@ void draw_frame(GLFWwindow* p_window)
           ImGui::PopID();
         }
       }
+#endif // defined(ENABLE_UI)
     }
 
     // Update GPU buffers
     {
       //g_deferred_entity.UpdateGpuBuffers();
-      g_deferred_renderer.UpdateGpuBuffers(0);
-      g_tube_world.UpdateGpuBuffers();
+      g_deferred_renderer.UpdateGpuBuffers(0, cmd);
+      g_tube_world.UpdateGpuBuffers(cmd);
     }
   }
-  
-  tr_cmd* cmd = g_cmds[frameIdx];
-  tr_begin_cmd(cmd);  
+
   // GBuffer
   {
     g_deferred_renderer.BeginGBufferPass(cmd, 0);
@@ -361,6 +367,7 @@ void draw_frame(GLFWwindow* p_window)
     tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_transfer_dst, tr_texture_usage_color_attachment); 
   }
 
+#if defined(ENABLE_UI)
   // Ui Build
   {
     g_tube_world.BuildUi();
@@ -380,6 +387,7 @@ void draw_frame(GLFWwindow* p_window)
 
     tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_color_attachment, tr_texture_usage_present); 
   }
+#endif // defined(ENABLE_UI)
 
   tr_end_cmd(cmd);
 

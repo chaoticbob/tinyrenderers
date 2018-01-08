@@ -70,9 +70,10 @@ RWTexture2D<float4>           OutputTex       : register(DESCRIPTOR_BINDING_DEFE
 // =================================================================================================
 // Support Functions
 // =================================================================================================
-float4 Sample(float2 coord, Texture2D tex, SamplerState sam)
+float4 LoadGbufferElement(uint2 coord, Texture2D tex, SamplerState sam)
 {
-  float4 value = tex.SampleLevel(sam, coord, 0);
+  //float4 value = tex.SampleLevel(sam, coord, 0);
+  float4 value = tex.Load(int3(coord, 0));
   return value;
 }
 
@@ -90,12 +91,12 @@ struct GBufferData {
   float   ClearCoat;
 };
 
-GBufferData UnpackGBuffer(float2 coord, Texture2D tex0, Texture2D tex1, Texture2D tex2, Texture2D tex3, SamplerState sam)
+GBufferData UnpackGBuffer(uint2 coord, Texture2D tex0, Texture2D tex1, Texture2D tex2, Texture2D tex3, SamplerState sam)
 {
-  float4 gbuffer0 = Sample(coord, tex0, sam);
-  float4 gbuffer1 = Sample(coord, tex1, sam);
-  float4 gbuffer2 = Sample(coord, tex2, sam);
-  float4 gbuffer3 = Sample(coord, tex3, sam);
+  float4 gbuffer0 = LoadGbufferElement(coord, tex0, sam);
+  float4 gbuffer1 = LoadGbufferElement(coord, tex1, sam);
+  float4 gbuffer2 = LoadGbufferElement(coord, tex2, sam);
+  float4 gbuffer3 = LoadGbufferElement(coord, tex3, sam);
 
   GBufferData data = (GBufferData)0;
   // Gbuffer0
@@ -110,7 +111,7 @@ GBufferData UnpackGBuffer(float2 coord, Texture2D tex0, Texture2D tex1, Texture2
   data.Specular   = gbuffer3.y;
   data.Subsurface = gbuffer3.z;
   data.ClearCoat  = gbuffer3.w;
-  return data; 
+  return data;
 }
 
 // =================================================================================================
@@ -126,51 +127,54 @@ float3  BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y, GBufferData mater
 [numthreads(NUM_THREADS_X, NUM_THREADS_Y, NUM_THREADS_Z)]
 void csmain(uint3 tid : SV_DispatchThreadID)
 {
-  // Get output diemsions
-  uint2 output_tex_size;
-  OutputTex.GetDimensions(output_tex_size.x, output_tex_size.y);
+  //// Get output diemsions
+  //uint2 output_tex_size;
+  //OutputTex.GetDimensions(output_tex_size.x, output_tex_size.y);
 
-  // Process if within bounds
-  if ((tid.x < output_tex_size.x) && (tid.y < output_tex_size.y)) {
-    float2 coord = (float2)tid.xy / (float2)output_tex_size;
-    GBufferData data = UnpackGBuffer(coord, InputTex0, InputTex1, InputTex2, InputTex3, Sampler);
+  // No need to bounds check since group count and thread count
+  // should cleanly multiply out to match texture width and height.
+  uint2 coord = tid.xy;
+  GBufferData data = UnpackGBuffer(coord, InputTex0, InputTex1, InputTex2, InputTex3, Sampler);
 
-    float3 P = data.Position;
-    float3 N = data.Normal;
-    float3 V = normalize(LightingParams.EyePosition - data.Position);
+  float3 P = data.Position;
+  float3 N = data.Normal;
+  float3 V = normalize(LightingParams.EyePosition - data.Position);
 
-    float3 X;
-    float3 Y;
-    ComputeTangentVectors(N, X, Y);
+  float3 X;
+  float3 Y;
+  ComputeTangentVectors(N, X, Y);
 
-    float  ambient  = LightingParams.AmbientLight.Intensity;
-    float  diffuse  = 0;
-    float3 specular = (float3)0;
+  float  ambient  = LightingParams.AmbientLight.Intensity;
+  float  diffuse  = 0;
+  float3 specular = (float3)0;
 
-    // Point lights
-    int light_index;
-    for (light_index = 0; light_index < DEFERRED_MAX_POINT_LIGHTS; ++light_index) {
+  // Point lights
+  int light_index;
+  for (light_index = 0; light_index < DEFERRED_MAX_POINT_LIGHTS; ++light_index) {
+    float  intensity = LightingParams.PointLights[light_index].Intensity;
+    if (intensity > 0) {
       float3 LP = LightingParams.PointLights[light_index].Position;
-      float  intensity = LightingParams.PointLights[light_index].Intensity;
       float3 L = normalize(LP - P);
       float  LdotN = max(0.0, dot(L, N));
       diffuse += LdotN * intensity;
       specular += LdotN * BRDF(L, V, N, X, Y, data) * intensity;
     }
+  }
 
-    // Directional lights
-    for (light_index = 0; light_index < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++light_index) {
+  // Directional lights
+  for (light_index = 0; light_index < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++light_index) {
+    float  intensity = LightingParams.DirectionalLights[light_index].Intensity;
+    if (intensity > 0) {
       float3 L = -normalize(LightingParams.DirectionalLights[light_index].Direction);
-      float  intensity = LightingParams.DirectionalLights[light_index].Intensity;
       float  LdotN = max(0.0, dot(L, N));
       diffuse += LdotN * intensity;
       specular += LdotN * BRDF(L, V, N, X, Y, data) * intensity;
-    }    
-
-    float f = 0.25 * pow(1.0 - max(0.0, dot(N, V)), 2.2);
-    float3 Co = ((diffuse + ambient + f) * data.Albedo) + specular;
-    OutputTex[tid.xy] = float4(Co, 1);
+    }
   }
+
+  float f = 0.25 * pow(1.0 - max(0.0, dot(N, V)), 2.2);
+  float3 Co = ((diffuse + ambient + f) * data.Albedo) + specular;
+  OutputTex[tid.xy] = float4(Co, 1);
 }
 
 // =================================================================================================

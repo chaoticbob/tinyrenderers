@@ -273,14 +273,25 @@ void DeferredRenderer::CreateConstantBuffers(tr_renderer* p_renderer)
   for (uint32_t frame_num = 0; frame_num < m_frame_count; ++frame_num) {
     // Lighting
     {
+      // GPU device local buffer
       tr_buffer* p_buffer = nullptr;
+      tr_create_buffer(p_renderer, 
+                       tr_buffer_usage_uniform_cbv,
+                       m_lighting_cpu_lighting_params.GetDataSize(),
+                       false,
+                       &p_buffer);
+      assert(p_buffer != nullptr);
+      m_lighting_gpu_lighting_params.push_back(p_buffer);
+
+      // GPU staging buffer
+      p_buffer = nullptr;
       tr_create_buffer(p_renderer, 
                        tr_buffer_usage_uniform_cbv,
                        m_lighting_cpu_lighting_params.GetDataSize(),
                        true,
                        &p_buffer);
       assert(p_buffer != nullptr);
-      m_lighting_gpu_lighting_params.push_back(p_buffer);
+      m_lighting_gpu_lighting_params_staging.push_back(p_buffer);
     }
   }
 }
@@ -577,14 +588,19 @@ void DeferredRenderer::EndGBufferPass(tr_cmd* p_cmd, uint32_t frame_num)
   tr_cmd_render_pass_dsv_transition(p_cmd, p_render_pass, tr_texture_usage_depth_stencil_attachment, tr_texture_usage_sampled_image);
 }
 
-void DeferredRenderer::UpdateGpuBuffers(uint32_t frame_num)
+void DeferredRenderer::UpdateGpuBuffers(uint32_t frame_num, tr_cmd* p_cmd)
 {
   assert(frame_num < m_frame_count);
 
   // Lighting
   {
-    tr_buffer* p_buffer = m_lighting_gpu_lighting_params[frame_num];
-    m_lighting_cpu_lighting_params.Write(p_buffer->cpu_mapped_address);
+    // GPU staging buffer
+    tr_buffer* p_src_buffer = m_lighting_gpu_lighting_params_staging[frame_num];
+    m_lighting_cpu_lighting_params.Write(p_src_buffer->cpu_mapped_address);
+    // GPU device local buffer
+    tr_buffer* p_dst_buffer = m_lighting_gpu_lighting_params[frame_num];
+    // Copy staging to device local
+    tr_cmd_copy_buffer_exact(p_cmd, p_src_buffer, p_dst_buffer);
   }
 }
 

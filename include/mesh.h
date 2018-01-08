@@ -153,18 +153,27 @@ public:
     return true;
   }
 
-  static bool Load(const std::string& file_path, tr_renderer* p_renderer, tr_buffer** pp_buffer, uint32_t* p_vertex_count) {
+  static bool Load(const std::string& file_path, tr_renderer* p_renderer, tr_buffer** pp_buffer, uint32_t* p_vertex_count, bool host_visible = false) {
     tr::Mesh mesh;
     bool mesh_load_res = tr::Mesh::Load(file_path, &mesh);
     if (!mesh_load_res) {
       return false;
     }
 
+    uint64_t vertex_data_size = mesh.GetVertexDataSize();
+    uint32_t vertex_stride = mesh.GetVertexStride();
+    void* vertex_data = (void*)mesh.GetVertexData();
+
     tr_buffer* p_buffer = nullptr;
-    tr_create_vertex_buffer(p_renderer, mesh.GetVertexDataSize(), true, mesh.GetVertexStride(), &p_buffer);
+    tr_create_vertex_buffer(p_renderer, vertex_data_size, host_visible, vertex_stride, &p_buffer);
     assert(p_buffer != nullptr);
 
-    memcpy(p_buffer->cpu_mapped_address, mesh.GetVertexData(), mesh.GetVertexDataSize());
+    if (host_visible) {
+      memcpy(p_buffer->cpu_mapped_address, vertex_data, vertex_stride);
+    }
+    else {
+      tr_util_update_buffer(p_renderer->graphics_queue, vertex_data_size, vertex_data, p_buffer);
+    }
 
     *pp_buffer = p_buffer;
     *p_vertex_count = mesh.GetVertexCount();

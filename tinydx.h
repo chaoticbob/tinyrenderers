@@ -487,6 +487,7 @@ typedef struct tr_cmd {
 typedef struct tr_buffer {
     tr_renderer*                        renderer;
     tr_buffer_usage                     usage;
+    tr_texture_usage_flags              state;
     uint64_t                            size;
     bool                                host_visible;
     tr_index_type                       index_type;
@@ -693,6 +694,7 @@ tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture,
 tr_api_export void tr_cmd_render_pass_rtv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_render_pass_dsv_transition(tr_cmd* p_cmd, tr_render_pass* p_render_pass, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+tr_api_export void tr_cmd_copy_buffer_exact(tr_cmd* p_cmd, tr_buffer* p_src_buffer, tr_buffer* p_dst_buffer);
 tr_api_export void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 tr_api_export void tr_cmd_copy_texture2d_exact(tr_cmd* p_cmd, uint32_t mip_level, tr_texture* p_src_texture, tr_texture* p_dst_texture);
 
@@ -2079,6 +2081,20 @@ void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count
     tr_internal_dx_cmd_dispatch(p_cmd, group_count_x, group_count_y, group_count_z);
 }
 
+void tr_cmd_copy_buffer_exact(tr_cmd* p_cmd, tr_buffer* p_src_buffer, tr_buffer* p_dst_buffer)
+{
+  assert(p_src_buffer != nullptr);
+  assert(p_dst_buffer != nullptr);
+  assert(p_src_buffer->size <= p_dst_buffer->size);
+
+  uint64_t size = p_src_buffer->size;
+  tr_internal_dx_cmd_buffer_transition(p_cmd, p_dst_buffer, p_dst_buffer->usage, tr_buffer_usage_transfer_dst);
+  p_cmd->dx_cmd_list->CopyBufferRegion(p_dst_buffer->dx_resource, 0,
+                                       p_src_buffer->dx_resource, 0,
+                                       size);
+  tr_internal_dx_cmd_buffer_transition(p_cmd, p_dst_buffer, tr_buffer_usage_transfer_dst, p_dst_buffer->usage);
+}
+
 void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
 {
     assert(p_cmd != NULL);
@@ -2782,6 +2798,9 @@ D3D12_RESOURCE_STATES tr_util_to_dx_resource_state_buffer(tr_buffer_usage usage)
     if (tr_buffer_usage_storage_uav == (usage & tr_buffer_usage_storage_uav)) {
         result |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     }
+    if (tr_buffer_usage_vertex == (usage & tr_buffer_usage_vertex)) {
+        result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+    }
     return result;
 }
 
@@ -3088,17 +3107,21 @@ void tr_internal_dx_create_swapchain_renderpass(tr_renderer* p_renderer)
     // Create attachment textures
     for (size_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i) {
         tr_render_pass* p_render_pass = p_renderer->swapchain_render_passes[i];
+        p_render_pass->rtv[0]->state = tr_texture_usage_color_attachment;
         p_render_pass->rtv[0]->dx_resource = swapchain_images[i];
         tr_internal_dx_create_texture(p_renderer, p_render_pass->rtv[0]);
 
         if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
+            p_render_pass->rtv_multisample[0]->state = tr_texture_usage_color_attachment;
             tr_internal_dx_create_texture(p_renderer, p_render_pass->rtv_multisample[0]);
         }
 
         if (NULL != p_render_pass->dsv) {
+            p_render_pass->dsv->state = tr_texture_usage_depth_stencil_attachment;
             tr_internal_dx_create_texture(p_renderer, p_render_pass->dsv);
 
             if (p_renderer->settings.swapchain.sample_count > tr_sample_count_1) {
+              p_render_pass->dsv_multisample->state = tr_texture_usage_depth_stencil_attachment;
               tr_internal_dx_create_texture(p_renderer, p_render_pass->dsv_multisample);
             }
         }

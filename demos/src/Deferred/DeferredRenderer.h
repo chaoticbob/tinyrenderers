@@ -117,7 +117,7 @@ public:
   void BeginGBufferPass(tr_cmd* p_cmd, uint32_t frame_num);
   void EndGBufferPass(tr_cmd* p_cmd, uint32_t frame_num);
 
-  void UpdateGpuBuffers(uint32_t frame_num);
+  void UpdateGpuBuffers(uint32_t frame_num, tr_cmd* p_cmd);
 
   void Lighting(tr_cmd* p_cmd, uint32_t frame_num);
 
@@ -166,6 +166,7 @@ private:
   tr_pipeline*                        m_lighting_pipeline = nullptr;
   DeferredLightingParams              m_lighting_cpu_lighting_params;
   std::vector<tr_buffer*>             m_lighting_gpu_lighting_params;
+  std::vector<tr_buffer*>             m_lighting_gpu_lighting_params_staging;
   tr_sampler*                         m_lighting_sampler = nullptr;
 
   // Composite

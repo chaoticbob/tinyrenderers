@@ -1,4 +1,7 @@
-
+#define DESCRIPTOR_BINDING_BRDF_VIEW_PARAMS         b0
+#define DESCRIPTOR_BINDING_BRDF_TRANSFORM_PARAMS    b1
+#define DESCRIPTOR_BINDING_BRDF_MATERIAL_PARAMS     b2
+#define DESCRIPTOR_BINDING_BRDF_LIGHTING_PARAMS     b3
 
 struct ViewData {
   float3    EyePosition;
@@ -81,10 +84,10 @@ struct LightingData {
 // =================================================================================================
 // Resources
 // =================================================================================================
-ConstantBuffer<ViewData>          ViewParams      : register(b0);
-ConstantBuffer<TransformData>     TransformParams : register(b1);
-ConstantBuffer<BRDFMaterialData>  MaterialParams  : register(b2);
-ConstantBuffer<LightingData>      LightingParams  : register(b3);
+ConstantBuffer<ViewData>          ViewParams      : register(DESCRIPTOR_BINDING_BRDF_VIEW_PARAMS);
+ConstantBuffer<TransformData>     TransformParams : register(DESCRIPTOR_BINDING_BRDF_TRANSFORM_PARAMS);
+ConstantBuffer<BRDFMaterialData>  MaterialParams  : register(DESCRIPTOR_BINDING_BRDF_MATERIAL_PARAMS);
+ConstantBuffer<LightingData>      LightingParams  : register(DESCRIPTOR_BINDING_BRDF_LIGHTING_PARAMS);
 
 // =================================================================================================
 // Signatures
