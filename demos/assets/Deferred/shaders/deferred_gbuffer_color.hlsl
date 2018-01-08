@@ -28,53 +28,8 @@ struct DeferredMaterialData {
   float   Roughness;
   float   Metallic;
   float   Specular;
-  float   Subsurface;
-  float   ClearCoat;  
-};
-
-// =================================================================================================
-// Lights
-// =================================================================================================
-#define MAX_POINT_LIGHTS        16
-#define MAX_SPOT_LIGHTS         1
-#define MAX_DIRECTIONAL_LIGHTS  1
-
-struct AmbientLightData {
-  float3    Color;
-  float     Intensity;
-};
-
-struct PointLightData {
-  float3    Position;
-  float3    Color;
-  float     Intensity;
-  float     FallOff;
-};
-
-struct SpotLightData {
-  float3    Position;
-  float3    Color;
-  float     Intensity;
-  float     FallOff;
-  float3    Direction;
-  float     ConeAngle;
-};
-
-struct DirectionalLightData {
-  float3    Position;
-  float3    Color;
-  float     Intensity;
-  float3    Direction;
-};
-
-struct LightingData {
-  AmbientLightData  AmbientLight;
-  PointLightData    PointLights[MAX_POINT_LIGHTS];
-  uint              PointLightCount;
-  SpotLightData     SpotLights[MAX_SPOT_LIGHTS];
-  uint              SpotLightCount;
-  PointLightData    DirectionalLights[MAX_DIRECTIONAL_LIGHTS];
-  uint              DirectionalLightCount;
+  float   Fresnel;
+  float   FresnelPower;
 };
 
 // =================================================================================================
@@ -114,8 +69,8 @@ struct PSOutput {
   float4  GBuffer2 : SV_Target2;
   // X    = Metallic
   // Y    = Specular
-  // Z    = SubSurface
-  // A    = ClearCoat
+  // Z    = Fresnel
+  // A    = FresnelPower
   float4  GBuffer3 : SV_Target3;
 };
 
@@ -144,8 +99,8 @@ struct GBufferData {
   float   Roughness;
   float   Metallic;
   float   Specular;
-  float   Subsurface;
-  float   ClearCoat;
+  float   Fresnel;
+  float   FresnelPower;
 };
 
 PSOutput PackGBuffer(GBufferData data)
@@ -161,23 +116,23 @@ PSOutput PackGBuffer(GBufferData data)
   // GBuffer3
   output.GBuffer3.x   = data.Metallic;
   output.GBuffer3.y   = data.Specular;
-  output.GBuffer3.z   = data.Subsurface;
-  output.GBuffer3.w   = data.ClearCoat;
+  output.GBuffer3.z   = data.Fresnel;
+  output.GBuffer3.w   = data.FresnelPower;
   return output;
 }
 
 PSOutput psmain(PSInput input) : SV_Target
 {
   // Fill out gbuffer values
-  GBufferData data = (GBufferData)0;
-  data.Position   = input.PositionWS;
-  data.Normal     = input.NormalWS;
-  data.Albedo     = MaterialParams.Color;
-  data.Roughness  = MaterialParams.Roughness;
-  data.Metallic   = MaterialParams.Metallic;
-  data.Specular   = MaterialParams.Specular;
-  data.Subsurface = MaterialParams.Subsurface;
-  data.ClearCoat  = MaterialParams.ClearCoat;
+  GBufferData data  = (GBufferData)0;
+  data.Position     = input.PositionWS;
+  data.Normal       = input.NormalWS;
+  data.Albedo       = MaterialParams.Color;
+  data.Roughness    = MaterialParams.Roughness;
+  data.Metallic     = MaterialParams.Metallic;
+  data.Specular     = MaterialParams.Specular;
+  data.Fresnel      = MaterialParams.Fresnel;
+  data.FresnelPower = MaterialParams.FresnelPower;
   // Pack it!
   PSOutput output = PackGBuffer(data);
   return output;

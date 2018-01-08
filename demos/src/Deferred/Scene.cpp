@@ -134,11 +134,11 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     m_entities.push_back(std::move(entity));
   }
 
-  const float3 k_tube_color       = float3(0.93f, 0.93f, 0.97f);
-  const float  k_tube_specular    = 3.5f;
-  const float  k_tube_roughness   = 0.3f;
-  const float  k_tube_subsurface  = 0.5f;
-  const float  k_tube_clearcoat   = 0.9f;
+  const float3 k_tube_color           = float3(0.8f, 0.8f, 0.97f);
+  const float  k_tube_specular        = 3.5f;
+  const float  k_tube_roughness       = 0.25f;
+  const float  k_tube_fresnel         = 0.1f;
+  const float  k_tube_fresnel_power   = 3.2f;
 
 #if defined(ENABLE_TUBE_SET_1)
   // Tube Set 1
@@ -159,8 +159,8 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
     entity->GetMaterialParams().GetData().Specular    = k_tube_specular;
     entity->GetMaterialParams().GetData().Roughness   = k_tube_roughness;
-    entity->GetMaterialParams().GetData().Subsurface  = k_tube_subsurface;
-    entity->GetMaterialParams().GetData().ClearCoat   = k_tube_clearcoat;
+    entity->GetMaterialParams().GetData().Fresnel  = k_tube_fresnel;
+    entity->GetMaterialParams().GetData().FresnelPower   = k_tube_fresnel_power;
 
     m_entities.push_back(std::move(entity));
   }
@@ -185,8 +185,8 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
     entity->GetMaterialParams().GetData().Specular    = k_tube_specular;
     entity->GetMaterialParams().GetData().Roughness   = k_tube_roughness;
-    entity->GetMaterialParams().GetData().Subsurface  = k_tube_subsurface;
-    entity->GetMaterialParams().GetData().ClearCoat   = k_tube_clearcoat;
+    entity->GetMaterialParams().GetData().Fresnel  = k_tube_fresnel;
+    entity->GetMaterialParams().GetData().FresnelPower   = k_tube_fresnel_power;
 
 
     m_entities.push_back(std::move(entity));
@@ -212,8 +212,8 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
     entity->GetMaterialParams().GetData().Specular    = k_tube_specular;
     entity->GetMaterialParams().GetData().Roughness   = k_tube_roughness;
-    entity->GetMaterialParams().GetData().Subsurface  = k_tube_subsurface;
-    entity->GetMaterialParams().GetData().ClearCoat   = k_tube_clearcoat;
+    entity->GetMaterialParams().GetData().Fresnel  = k_tube_fresnel;
+    entity->GetMaterialParams().GetData().FresnelPower   = k_tube_fresnel_power;
 
 
     m_entities.push_back(std::move(entity));
@@ -239,8 +239,8 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
     entity->GetMaterialParams().GetData().Specular    = k_tube_specular;
     entity->GetMaterialParams().GetData().Roughness   = k_tube_roughness;
-    entity->GetMaterialParams().GetData().Subsurface  = k_tube_subsurface;
-    entity->GetMaterialParams().GetData().ClearCoat   = k_tube_clearcoat;
+    entity->GetMaterialParams().GetData().Fresnel  = k_tube_fresnel;
+    entity->GetMaterialParams().GetData().FresnelPower   = k_tube_fresnel_power;
 
 
     m_entities.push_back(std::move(entity));
@@ -266,8 +266,8 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->GetMaterialParams().GetData().Color       = k_tube_color;
     entity->GetMaterialParams().GetData().Specular    = k_tube_specular;
     entity->GetMaterialParams().GetData().Roughness   = k_tube_roughness;
-    entity->GetMaterialParams().GetData().Subsurface  = k_tube_subsurface;
-    entity->GetMaterialParams().GetData().ClearCoat   = k_tube_clearcoat;
+    entity->GetMaterialParams().GetData().Fresnel  = k_tube_fresnel;
+    entity->GetMaterialParams().GetData().FresnelPower   = k_tube_fresnel_power;
 
 
     m_entities.push_back(std::move(entity));
@@ -382,9 +382,10 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->SetName("Clamps Tall Stakes Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
-    entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.8f);
-    entity->GetMaterialParams().GetData().Specular  = 2.0f;
-    entity->GetMaterialParams().GetData().Roughness = 0.2f;
+    entity->GetMaterialParams().GetData().Color     = float3(0.4f, 0.8f, 0.5f);
+    entity->GetMaterialParams().GetData().Roughness = 0.3f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.8f;
+    entity->GetMaterialParams().GetData().Specular  = 2.5f;
 
     m_entities.push_back(std::move(entity));
   }
@@ -404,9 +405,9 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->SetName("Clamps Ground");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
-    entity->GetMaterialParams().GetData().Color     = float3(0.7f, 0.7f, 0.8f);
+    entity->GetMaterialParams().GetData().Color     = float3(0.4f, 0.4f, 0.9f);
     entity->GetMaterialParams().GetData().Roughness = 0.3f;
-    entity->GetMaterialParams().GetData().Metallic  = 0.7f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.8f;
     entity->GetMaterialParams().GetData().Specular  = 2.5f;
 
     m_entities.push_back(std::move(entity));
@@ -427,9 +428,10 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     entity->SetName("Clamps Air");
     entity->SetVertexBuffers(p_vertex_buffer, vertex_count);
 
-    entity->GetMaterialParams().GetData().Color     = float3(0.85f, 0.7f, 0.7f);
-    entity->GetMaterialParams().GetData().Specular  = 2.0f;
-    entity->GetMaterialParams().GetData().Roughness = 0.2f;
+    entity->GetMaterialParams().GetData().Color     = float3(0.85f, 0.5f, 0.5f);
+    entity->GetMaterialParams().GetData().Roughness = 0.3f;
+    entity->GetMaterialParams().GetData().Metallic  = 0.8f;
+    entity->GetMaterialParams().GetData().Specular  = 2.5f;
 
     m_entities.push_back(std::move(entity));
   }
@@ -445,11 +447,11 @@ void DeferredTubeWorldScene::BuildUi()
         auto& params = entity->GetMaterialParams();
         auto& data = params.GetData();
         ImGui::ColorEdit3("Color", (float*)data.Color.value_ptr());
-        ImGui::SliderFloat("Roughness", data.Roughness.value_ptr(),   0.0, 1.0);
-        ImGui::SliderFloat("Metallic", data.Metallic.value_ptr(),     0.0, 1.0);
-        ImGui::SliderFloat("Specular", data.Specular.value_ptr(),     0.0, 5.0);
-        ImGui::SliderFloat("Subsurface", data.Subsurface.value_ptr(), 0.0, 1.0);
-        ImGui::SliderFloat("ClearCoat", data.ClearCoat.value_ptr(),   0.0, 1.0);
+        ImGui::SliderFloat("Roughness", data.Roughness.value_ptr(),       0.0, 1.0);
+        ImGui::SliderFloat("Metallic", data.Metallic.value_ptr(),         0.0, 1.0);
+        ImGui::SliderFloat("Specular", data.Specular.value_ptr(),         0.0, 5.0);
+        ImGui::SliderFloat("Fresnel", data.Fresnel.value_ptr(),           0.0, 1.0);
+        ImGui::SliderFloat("FresnelPower", data.FresnelPower.value_ptr(), 1.0, 10.0);
       }
       ImGui::PopID();
     }

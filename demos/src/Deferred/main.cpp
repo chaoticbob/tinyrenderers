@@ -229,11 +229,25 @@ void init_tiny_renderer(GLFWwindow* window)
     params.ApplyView(g_camera);
 
     auto& data = params.GetData();    
-    data.AmbientLight.Intensity           = 0.2f;
+    data.AmbientLight.Intensity           = 0.1f;
+    // -Y
     data.DirectionalLights[0].Direction   = float3(-0.3f, -1, 0.2);
-    data.DirectionalLights[0].Intensity   = 0.8f;
+    data.DirectionalLights[0].Intensity   = 0.7f;
+    // +Y
     data.DirectionalLights[1].Direction   = float3(0, 1, 0);
     data.DirectionalLights[1].Intensity   = 0.1f;
+    // -X
+    data.DirectionalLights[2].Direction   = float3(-1, 0, 0);
+    data.DirectionalLights[2].Intensity   = 0.3f;
+    // +X
+    data.DirectionalLights[3].Direction   = float3(1, 0, 0);
+    data.DirectionalLights[3].Intensity   = 0.2f;
+    // -Z
+    data.DirectionalLights[4].Direction   = float3(0, 0, -1);
+    data.DirectionalLights[4].Intensity   = 0.1f;
+    // +Z
+    data.DirectionalLights[5].Direction   = float3(0, 0, 1);
+    data.DirectionalLights[5].Intensity   = 0.1f;
   }
 }
 
@@ -251,7 +265,7 @@ void draw_frame(GLFWwindow* p_window)
   int framebuffer_height = 0;
   glfwGetFramebufferSize(p_window, &framebuffer_width, &framebuffer_height);
 
-  static float prevTime = 0;
+  static float prevTime = (float)glfwGetTime();
   float curTime = (float)glfwGetTime();
   float dt = curTime - prevTime;
   prevTime = curTime;
@@ -278,10 +292,13 @@ void draw_frame(GLFWwindow* p_window)
                                         (float)framebuffer_height / (float)window_height);
     io.FontGlobalScale = std::max(content_scale_x, content_scale_y);
 
-    io.DeltaTime = (float)dt;
+    io.DeltaTime = dt;
     ImGui::NewFrame();
 
     ImGui::Begin("Params", &g_ui_active, ImVec2(300 * content_scale_x, 400 * content_scale_y));
+
+    // FPS
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
   }
 #endif // defined(ENABLE_UI)
   
@@ -395,117 +412,6 @@ void draw_frame(GLFWwindow* p_window)
   tr_queue_present(g_renderer->present_queue, 1, &render_complete_semaphores);
 
   tr_queue_wait_idle(g_renderer->graphics_queue);
-
-  /*
-  // Time
-  float t = curTime;
-
-  ImGui::Begin("Params", nullptr, ImVec2(300 * content_scale_x, 400 * content_scale_y));
-  // Constant buffers
-  {
-    ImGui::SameLine();
-    if (ImGui::Button("Widget")) {
-      g_brdf_entity.SetVertexBuffers(g_shader_widget_geo.vertex_buffer,
-                                     g_shader_widget_geo.vertex_count);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Torus")) {
-      g_brdf_entity.SetVertexBuffers(g_torus_geo.vertex_buffer,
-                                     g_torus_geo.vertex_count);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cylinder")) {
-      g_brdf_entity.SetVertexBuffers(g_cylinder_geo.vertex_buffer,
-                                     g_cylinder_geo.vertex_count);
-    }
-
-    // Camera
-    {
-      float3 eye = float3(0, 2, 5);
-      float3 look_at = float3(0, 1, 0);
-      g_camera.LookAt(eye, look_at);
-      g_camera.Perspective(45.0f, (float)g_window_width / (float)g_window_height);
-
-      g_cpu_view_params.SetView(g_camera);
-      g_brdf_entity.ApplyView(g_camera);
-    }
-
-    // Transforms
-    {
-      tr::Transform transform;
-
-      static float rot[3] = { 0, 1, 0 };
-      ImGui::SliderFloat3("Rotation", rot, 0.0f, 2.0f * 3.141592f);
-
-      // Lambert
-      transform.Clear();
-      transform.Rotate(rot[0], rot[1], rot[2]);
-      transform.Translate(0, 0, 0);
-      g_brdf_entity.SetTransform(transform);
-    }
-
-    // Material
-    if (ImGui::CollapsingHeader("BRDF", ImGuiTreeNodeFlags_DefaultOpen)) {
-      ImGui::PushID(&g_brdf_shader);
-      ImGui::ColorEdit3("BaseColor", (float*)g_brdf_entity.GetMaterialParams().GetData().BaseColor.value_ptr());
-      ImGui::SliderFloat("Metallic", g_brdf_entity.GetMaterialParams().GetData().Metallic.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("Subsurface", g_brdf_entity.GetMaterialParams().GetData().Subsurface.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("Specular", g_brdf_entity.GetMaterialParams().GetData().Specular.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("Roughness", g_brdf_entity.GetMaterialParams().GetData().Roughness.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("SpecularTint", g_brdf_entity.GetMaterialParams().GetData().SpecularTint.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("Anisotropic", g_brdf_entity.GetMaterialParams().GetData().Anisotropic.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("Sheen", g_brdf_entity.GetMaterialParams().GetData().Sheen.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("SheenTint", g_brdf_entity.GetMaterialParams().GetData().SheenTint.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("ClearCoat", g_brdf_entity.GetMaterialParams().GetData().ClearCoat.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("ClearCoatGloss", g_brdf_entity.GetMaterialParams().GetData().ClearCoatGloss.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("kA", g_brdf_entity.GetMaterialParams().GetData().kA.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("kD", g_brdf_entity.GetMaterialParams().GetData().kD.value_ptr(), 0.0, 1.0);
-      ImGui::SliderFloat("kS", g_brdf_entity.GetMaterialParams().GetData().kS.value_ptr(), 0.0, 1.0);
-
-      ImGui::PopID();
-    }
-
-    // Lights
-    {
-    }
-
-    // Update GPU buffers
-    {
-      g_brdf_entity.UpdateGpuBuffers();
-    }
-  }
-  ImGui::End();
-
-  tr_cmd* cmd = g_cmds[frameIdx];
-  tr_begin_cmd(cmd);
-  tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_present, tr_texture_usage_color_attachment); 
-  tr_cmd_render_pass_dsv_transition(cmd, render_pass, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
-  tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
-  tr_cmd_set_scissor(cmd, 0, 0, g_window_width, g_window_height);
-  tr_cmd_begin_render(cmd, render_pass);
-  tr_cmd_clear_color_attachment(cmd, 0, &g_color_clear_value);
-  tr_cmd_clear_depth_stencil_attachment(cmd, &g_depth_stencil_clear_value);
-  // Draw Blinn-Phong
-  {
-    g_brdf_entity.Draw(cmd);
-  }
-
-  // Draw IMGUI
-  {
-    tr::imgui_glfw_set_draw_cmd(cmd);
-    ImGui::Render();
-    tr::imgui_glfw_clear_draw_cmd();
-  }
-  tr_cmd_end_render(cmd);
-  tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_color_attachment, tr_texture_usage_present); 
-  tr_cmd_render_pass_dsv_transition(cmd, render_pass, tr_texture_usage_depth_stencil_attachment, tr_texture_usage_sampled_image);
-  tr_end_cmd(cmd);
-
-  tr_queue_submit(g_renderer->graphics_queue, 1, &cmd, 1, &image_acquired_semaphore, 1, &render_complete_semaphores);
-  tr_queue_present(g_renderer->present_queue, 1, &render_complete_semaphores);
-
-  tr_queue_wait_idle(g_renderer->graphics_queue);
-*/
 }
 
 void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)

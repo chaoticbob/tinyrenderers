@@ -33,21 +33,21 @@
 #define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_OUTPUT_TEX      2
 
 
-#define DEFERRED_MAX_POINT_LIGHTS        16
+#define DEFERRED_MAX_POINT_LIGHTS        512
 #define DEFERRED_MAX_SPOT_LIGHTS         1
-#define DEFERRED_MAX_DIRECTIONAL_LIGHTS  2
+#define DEFERRED_MAX_DIRECTIONAL_LIGHTS  6
 using DeferredLightingParams = tr::LightingParams<DEFERRED_MAX_POINT_LIGHTS, DEFERRED_MAX_SPOT_LIGHTS, DEFERRED_MAX_DIRECTIONAL_LIGHTS>;
 
 /*! @struct DeferredMaterialData
 
 */
 struct DeferredMaterialData {
-  tr::hlsl_float3<3>  Color       = { 0.82f, 0.67f, 0.16f };
-  tr::hlsl_float<1>   Roughness   = { 0.5f };
-  tr::hlsl_float<1>   Metallic    = { 0.0f };
-  tr::hlsl_float<1>   Specular    = { 0.5f };
-  tr::hlsl_float<1>   Subsurface  = { 0.0f };
-  tr::hlsl_float<1>   ClearCoat   = { 0.0f };  
+  tr::hlsl_float3<3>  Color         = { 0.82f, 0.67f, 0.16f };
+  tr::hlsl_float<1>   Roughness     = { 0.5f };
+  tr::hlsl_float<1>   Metallic      = { 0.0f };
+  tr::hlsl_float<1>   Specular      = { 0.5f };
+  tr::hlsl_float<1>   Fresnel       = { 0.0f };
+  tr::hlsl_float<1>   FresnelPower  = { 1.0f };  
 };
 
 /*@ class DeferredMaterialParams
