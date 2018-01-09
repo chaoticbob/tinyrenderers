@@ -1,4 +1,14 @@
 #include "DeferredRenderer.h"
+#include "imgui_glfw.h"
+
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_PARAMS            0
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_GBUFFER0_TEX      1
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_GBUFFER1_TEX      2
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_GBUFFER2_TEX      3
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_GBUFFER3_TEX      4
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_GBUFFER_DEPTH_TEX 5
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_SAMPLER           6
+#define DESCRIPTOR_BINDING_DEFERRED_DEBUG_OUTPUT_TEX        7
 
 #define COMPOSITE_NUM_THREADS_X   8
 #define COMPOSITE_NUM_THREADS_Y   8
@@ -258,9 +268,9 @@ void DeferredRenderer::CreateShaders(tr_renderer* p_renderer, const tr::fs::path
   // Debug
   {
 #if defined(TINY_RENDERER_VK)
-    tr::fs::path cs_file_path = asset_dir / "shaders/resample.cs.spv";
+    tr::fs::path cs_file_path = asset_dir / "shaders/gbuffer_debug.cs.spv";
 #elif defined(TINY_RENDERER_DX)
-    tr::fs::path cs_file_path = asset_dir / "shaders/resample.cs.hlsl";
+    tr::fs::path cs_file_path = asset_dir / "shaders/gbuffer_debug.cs.hlsl";
 #endif
 
     m_debug_shader = tr::CreateShaderProgram(p_renderer, cs_file_path, "csmain");
@@ -293,6 +303,19 @@ void DeferredRenderer::CreateConstantBuffers(tr_renderer* p_renderer)
       assert(p_buffer != nullptr);
       m_lighting_gpu_lighting_params_staging.push_back(p_buffer);
     }
+  }
+
+  // Debug
+  {
+    tr_create_buffer(p_renderer, 
+                      tr_buffer_usage_uniform_cbv,
+                      m_debug_cpu_params.GetDataSize(),
+                      true,
+                      &m_debug_gpu_params);
+    assert(m_debug_gpu_params != nullptr);
+
+    // Make writes go directly to the GPU buffer
+    m_debug_cpu_params.SetTarget(m_debug_gpu_params->cpu_mapped_address);
   }
 }
 
@@ -433,12 +456,57 @@ void DeferredRenderer::CreateDescriptorSets(tr_renderer* p_renderer)
     // Debug
     {
       std::vector<tr_descriptor> descriptors;
-      // Input texture
+      // Lighting params
+      {
+        tr_descriptor descriptor = {};
+        descriptor.type          = tr_descriptor_type_uniform_buffer_cbv;
+        descriptor.count         = 1;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_DEBUG_PARAMS;
+        descriptor.shader_stages = tr_shader_stage_comp;
+        descriptors.push_back(descriptor);
+      }
+      // GBuffer texture 0
       {
         tr_descriptor descriptor = {};
         descriptor.type          = tr_descriptor_type_texture_srv;
         descriptor.count         = 1;
-        descriptor.binding       = 0;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER0_TEX;
+        descriptor.shader_stages = tr_shader_stage_comp;
+        descriptors.push_back(descriptor);
+      }
+      // GBuffer texture 1
+      {
+        tr_descriptor descriptor = {};
+        descriptor.type          = tr_descriptor_type_texture_srv;
+        descriptor.count         = 1;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER1_TEX;
+        descriptor.shader_stages = tr_shader_stage_comp;
+        descriptors.push_back(descriptor);
+      }
+      // GBuffer texture 2
+      {
+        tr_descriptor descriptor = {};
+        descriptor.type          = tr_descriptor_type_texture_srv;
+        descriptor.count         = 1;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER2_TEX;
+        descriptor.shader_stages = tr_shader_stage_comp;
+        descriptors.push_back(descriptor);
+      }
+      // GBuffer texture 3
+      {
+        tr_descriptor descriptor = {};
+        descriptor.type          = tr_descriptor_type_texture_srv;
+        descriptor.count         = 1;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER3_TEX;
+        descriptor.shader_stages = tr_shader_stage_comp;
+        descriptors.push_back(descriptor);
+      }
+      // Depth texture
+      {
+        tr_descriptor descriptor = {};
+        descriptor.type          = tr_descriptor_type_texture_srv;
+        descriptor.count         = 1;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_DEBUG_GBUFFER_DEPTH_TEX;
         descriptor.shader_stages = tr_shader_stage_comp;
         descriptors.push_back(descriptor);
       }
@@ -447,7 +515,7 @@ void DeferredRenderer::CreateDescriptorSets(tr_renderer* p_renderer)
         tr_descriptor descriptor = {};
         descriptor.type          = tr_descriptor_type_sampler;
         descriptor.count         = 1;
-        descriptor.binding       = 1;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_DEBUG_SAMPLER;
         descriptor.shader_stages = tr_shader_stage_comp;
         descriptors.push_back(descriptor);
       }
@@ -456,7 +524,7 @@ void DeferredRenderer::CreateDescriptorSets(tr_renderer* p_renderer)
         tr_descriptor descriptor = {};
         descriptor.type          = tr_descriptor_type_texture_uav;
         descriptor.count         = 1;
-        descriptor.binding       = 2;
+        descriptor.binding       = DESCRIPTOR_BINDING_DEFERRED_DEBUG_OUTPUT_TEX;
         descriptor.shader_stages = tr_shader_stage_comp;
         descriptors.push_back(descriptor);
       }
@@ -519,6 +587,22 @@ void DeferredRenderer::UpdateDescriptorSets(tr_renderer* p_renderer)
       p_descriptor_set->descriptors[0].textures[0]  = m_lighting_rtv[frame_num];
       p_descriptor_set->descriptors[1].samplers[0]  = m_composite_sampler;
       p_descriptor_set->descriptors[2].textures[0]  = m_composite_rtv[frame_num];
+      tr_update_descriptor_set(m_renderer, p_descriptor_set);
+    }
+
+    // Debug
+    {
+      // Get the descriptor set for the frame number
+      tr_descriptor_set* p_descriptor_set = m_debug_descriptor_sets[frame_num];
+      // Update the descriptor set
+      p_descriptor_set->descriptors[0].uniform_buffers[0] = m_debug_gpu_params;
+      p_descriptor_set->descriptors[1].textures[0]        = m_gbuffer_rtvs[frame_num][0];
+      p_descriptor_set->descriptors[2].textures[0]        = m_gbuffer_rtvs[frame_num][1];
+      p_descriptor_set->descriptors[3].textures[0]        = m_gbuffer_rtvs[frame_num][2];
+      p_descriptor_set->descriptors[4].textures[0]        = m_gbuffer_rtvs[frame_num][3];
+      p_descriptor_set->descriptors[5].textures[0]        = m_gbuffer_dsv[frame_num];
+      p_descriptor_set->descriptors[6].samplers[0]        = m_debug_sampler;
+      p_descriptor_set->descriptors[7].textures[0]        = m_composite_rtv[frame_num];
       tr_update_descriptor_set(m_renderer, p_descriptor_set);
     }
   }
@@ -645,7 +729,7 @@ void DeferredRenderer::Composite(tr_cmd* p_cmd, uint32_t frame_num, tr_texture* 
   tr_cmd_copy_texture2d_exact(p_cmd, 0, p_rtv, p_swapchain_image);
 }
 
-void DeferredRenderer::DebugShowDebuffer(tr_cmd* p_cmd, uint32_t frame_num, uint32_t gbuffer_index, tr_texture* p_swapchain_image)
+void DeferredRenderer::DebugShowGBufferElement(tr_cmd* p_cmd, uint32_t frame_num, tr_texture* p_swapchain_image)
 {
   assert(p_cmd != nullptr);
   assert(frame_num < m_frame_count);
@@ -653,42 +737,21 @@ void DeferredRenderer::DebugShowDebuffer(tr_cmd* p_cmd, uint32_t frame_num, uint
   uint32_t num_groups_x = p_swapchain_image->width  / COMPOSITE_NUM_THREADS_X;
   uint32_t num_groups_y = p_swapchain_image->height / COMPOSITE_NUM_THREADS_Y;
   uint32_t num_groups_z = COMPOSITE_NUM_THREADS_Z;
-  
-  tr_texture* p_gbuffer_rtv = nullptr;
-  switch (gbuffer_index) {
-    default: assert(false && "invalid gbuffer_index"); break;
-    case 0:
-    case 1:
-    case 2:
-    case 3: {
-      p_gbuffer_rtv = m_gbuffer_rtvs[frame_num][gbuffer_index];
-    }
-    break;
 
-    case 4: {
-      p_gbuffer_rtv = m_gbuffer_dsv[frame_num];
-    }
-    break;
-  }
   tr_texture* p_composite_rtv = m_composite_rtv[frame_num];
   tr_descriptor_set* p_descriptor_set = m_debug_descriptor_sets[frame_num];
 
-  if (p_descriptor_set->descriptors[0].textures[0] != p_gbuffer_rtv) {
-    // Get the descriptor set for the frame number
-    tr_descriptor_set* p_descriptor_set = m_debug_descriptor_sets[frame_num];
-    // Update the descriptor set
-    p_descriptor_set->descriptors[0].textures[0]  = p_gbuffer_rtv;
-    p_descriptor_set->descriptors[1].samplers[0]  = m_debug_sampler;
-    p_descriptor_set->descriptors[2].textures[0]  = m_composite_rtv[frame_num];
-    tr_update_descriptor_set(m_renderer, p_descriptor_set);
-  }
-
-  tr_cmd_image_transition(p_cmd, p_composite_rtv, tr_texture_usage_transfer_src, tr_texture_usage_storage_image);
   tr_cmd_bind_pipeline(p_cmd, m_debug_pipeline);
   tr_cmd_bind_descriptor_sets(p_cmd, m_debug_pipeline, p_descriptor_set);
   tr_cmd_dispatch(p_cmd, num_groups_x, num_groups_y, num_groups_z);
-  tr_cmd_image_transition(p_cmd, p_composite_rtv, tr_texture_usage_storage_image, tr_texture_usage_transfer_src);
 
   tr_cmd_copy_texture2d_exact(p_cmd, 0, p_composite_rtv, p_swapchain_image);
+}
+
+void DeferredRenderer::BuildDebugUI()
+{
+  ImGui::Combo("Debug GBuffer Element", 
+               m_debug_cpu_params.GetData().GBufferElement.value_ptr(),
+               "None\0Position\0Normal\0Albedo\0Roughness\0Metallic\0Specular\0Fresnel\0FresnelPower\0Depth\0\0");
 }
 

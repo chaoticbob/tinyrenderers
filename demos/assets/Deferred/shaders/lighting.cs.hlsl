@@ -59,10 +59,10 @@ struct LightingData {
 // =================================================================================================
 ConstantBuffer<LightingData>  LightingParams  : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_LIGHTING_PARAMS);
 
-Texture2D                     InputTex0       : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER0_TEX);
-Texture2D                     InputTex1       : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER1_TEX);
-Texture2D                     InputTex2       : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER2_TEX);
-Texture2D                     InputTex3       : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER3_TEX);
+Texture2D                     GBuffer0Tex     : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER0_TEX);
+Texture2D                     GBuffer1Tex     : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER1_TEX);
+Texture2D                     GBuffer2Tex     : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER2_TEX);
+Texture2D                     GBuffer3Tex     : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_GBUFFER3_TEX);
 
 SamplerState                  Sampler         : register(DESCRIPTOR_BINDING_DEFERRED_LIGHTING_SAMPLER);
 
@@ -195,7 +195,7 @@ void csmain(uint3 tid : SV_DispatchThreadID)
   // No need to bounds check since group count and thread count
   // should cleanly multiply out to match texture width and height.
   uint2 coord = tid.xy;
-  GBufferData material_data = UnpackGBuffer(coord, InputTex0, InputTex1, InputTex2, InputTex3, Sampler);
+  GBufferData material_data = UnpackGBuffer(coord, GBuffer0Tex, GBuffer1Tex, GBuffer2Tex, GBuffer3Tex, Sampler);
 
   float3 albedo = material_data.Albedo;
   float3 P = material_data.Position;

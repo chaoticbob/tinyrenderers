@@ -51,7 +51,7 @@ public:
     m_view_projection_dirty = true;
   }
 
-  void Perspective(float fov_degrees, float aspect, float near_clip = 0.1f, float far_clip = 10000.0f) {
+  void Perspective(float fov_degrees, float aspect, float near_clip = 1.0f, float far_clip = 10000.0f) {
     m_fov_degrees = fov_degrees;
     m_aspect = aspect;
     m_near_clip = near_clip;

@@ -23,7 +23,7 @@ function(add_vk sample_name)
                                 ${tinyrenders_include_dir}/camera.h
                                 ${tinyrenders_include_dir}/cbuffer.h
                                 ${tinyrenders_include_dir}/entity.h
-                                ${tinyrenders_include_dir}/imgui_.h
+                                ${tinyrenders_include_dir}/imgui_glfw.h
                                 ${tinyrenders_include_dir}/mesh.h
                                 ${tinyrenders_include_dir}/transform.h
                                 ${IMGUI_DIR}/imgui.h
@@ -53,6 +53,7 @@ if(WIN32)
                                   ${tinyrenders_include_dir}/camera.h
                                   ${tinyrenders_include_dir}/cbuffer.h
                                   ${tinyrenders_include_dir}/entity.h
+						          ${tinyrenders_include_dir}/imgui_glfw.h
                                   ${tinyrenders_include_dir}/mesh.h
                                   ${tinyrenders_include_dir}/transform.h
                                   ${IMGUI_DIR}/imgui.h
@@ -81,6 +82,8 @@ add_executable(${target_name} ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/main.cpp
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/DeferredRenderer.cpp
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.h
                               ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.cpp
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/Common/GpuImageScale.h
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/Common/GpuImageScale.cpp
                               ${tinyrenders_dir}/tinyvk.h
                               ${tinyrenders_include_dir}/camera.h
                               ${tinyrenders_include_dir}/cbuffer.h
@@ -110,6 +113,8 @@ if(WIN32)
                                  ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/DeferredRenderer.cpp
                                  ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.h
                                  ${CMAKE_CURRENT_SOURCE_DIR}/src/Deferred/Scene.cpp
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src/Common/GpuImageScale.h
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/src/Common/GpuImageScale.cpp
                                  ${tinyrenders_dir}/tinydx.h
                                  ${tinyrenders_include_dir}/camera.h
                                  ${tinyrenders_include_dir}/cbuffer.h

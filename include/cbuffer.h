@@ -38,6 +38,14 @@ template <size_t PaddedSize> struct hlsl_int {
     this->value = rhs;
     return*this;
   }
+
+  int* value_ptr() {
+    return &value;
+  }
+
+  const int* value_ptr() const {
+    return &value;
+  }
 };
 
 /*! @struct hlsl_int2
@@ -146,9 +154,17 @@ template <size_t PaddedSize> struct hlsl_uint {
     return value;
   }
 
-  hlsl_uint& operator=(const uint& rhs) {
+  uint& operator=(const uint& rhs) {
     this->value = rhs;
     return*this;
+  }
+
+  uint* value_ptr() {
+    return &value;
+  }
+
+  const int32_t* value_ptr() const {
+    return &value;
   }
 };
 

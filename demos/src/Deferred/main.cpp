@@ -79,9 +79,9 @@ DeferredTubeWorldScene  g_tube_world;
 bool                g_mouse_captured = true;
 bool                g_mouse_move_camera = false;
 float2              g_prev_mouse_pos;
-bool                g_ui_active = false;
+bool                g_ui_active = true;
 
-int32_t             g_debug_gbuffer_index = -1;
+//int32_t             g_debug_gbuffer_index = -1;
 
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
                     platform_log(ss.str().c_str()); }
@@ -247,7 +247,7 @@ void init_tiny_renderer(GLFWwindow* window)
     data.DirectionalLights[4].Intensity   = 0.1f;
     // +Z
     data.DirectionalLights[5].Direction   = float3(0, 0, 1);
-    data.DirectionalLights[5].Intensity   = 0.1f;
+    data.DirectionalLights[5].Intensity   = 0.15f;
   }
 }
 
@@ -296,9 +296,15 @@ void draw_frame(GLFWwindow* p_window)
     ImGui::NewFrame();
 
     ImGui::Begin("Params", &g_ui_active, ImVec2(300 * content_scale_x, 400 * content_scale_y));
+  }
 
-    // FPS
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+  // Build UI
+  {
+    //// FPS
+    //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+    g_deferred_renderer.BuildDebugUI();
+    g_tube_world.BuildDebugUi();
   }
 #endif // defined(ENABLE_UI)
   
@@ -311,10 +317,9 @@ void draw_frame(GLFWwindow* p_window)
       float3 eye = float3(-13, 5, 14.5f);
       float3 look_at = float3(-13, 5, 0);
       g_camera.LookAt(eye, look_at);
-      g_camera.Perspective(75.0f, (float)g_window_width / (float)g_window_height);
+      g_camera.Perspective(75.0f, (float)g_window_width / (float)g_window_height, 1.0f, 1000.0f);
 
       g_cpu_view_params.SetView(g_camera);
-      //g_deferred_entity.ApplyView(g_camera);
       g_tube_world.ApplyView(g_camera);
     }
 
@@ -361,12 +366,12 @@ void draw_frame(GLFWwindow* p_window)
     g_deferred_renderer.EndGBufferPass(cmd, 0);
   }
 
-  //Backface
+  // Backface
   {
   }
 
   // Lighting/Composite or Debug
-  if (g_debug_gbuffer_index == -1) {
+  if (g_deferred_renderer.GetDebugParams().GetData().GBufferElement == 0) {
     // Lighting
     {
       g_deferred_renderer.Lighting(cmd, 0);
@@ -380,16 +385,11 @@ void draw_frame(GLFWwindow* p_window)
   }
   else {
     tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_present, tr_texture_usage_transfer_dst);
-    g_deferred_renderer.DebugShowDebuffer(cmd, 0, (uint32_t)g_debug_gbuffer_index, render_pass->rtv[0]);
+    g_deferred_renderer.DebugShowGBufferElement(cmd, 0, render_pass->rtv[0]);
     tr_cmd_render_pass_rtv_transition(cmd, render_pass, tr_texture_usage_transfer_dst, tr_texture_usage_color_attachment); 
   }
 
 #if defined(ENABLE_UI)
-  // Ui Build
-  {
-    g_tube_world.BuildUi();
-  }
-
   // UI End
   {
     ImGui::End();
@@ -416,32 +416,54 @@ void draw_frame(GLFWwindow* p_window)
 
 void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)
 {
+  auto& gbuffer_element = g_deferred_renderer.GetDebugParams().GetData().GBufferElement;
+
   if (action == GLFW_PRESS) {
     switch (key) {
       default: break;
 
       case GLFW_KEY_1: {
-        g_debug_gbuffer_index = (g_debug_gbuffer_index == 0) ? -1 : 0;        
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION;
       }
       break;
 
       case GLFW_KEY_2:{
-        g_debug_gbuffer_index = (g_debug_gbuffer_index == 1) ? -1 : 1;        
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_NORMAL) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_NORMAL;   
       }
       break;
 
       case GLFW_KEY_3:{
-        g_debug_gbuffer_index = (g_debug_gbuffer_index == 2) ? -1 : 2;        
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_ALBEDO) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_ALBEDO;    
       }
       break;
 
       case GLFW_KEY_4:{
-        g_debug_gbuffer_index = (g_debug_gbuffer_index == 3) ? -1 : 3;        
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_ROUGHNESS) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_ROUGHNESS;      
       }
       break;
 
       case GLFW_KEY_5:{
-        g_debug_gbuffer_index = (g_debug_gbuffer_index == 4) ? -1 : 4;
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_METALLIC) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_METALLIC;
+      }
+      break;
+
+      case GLFW_KEY_6:{
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_SPECULAR) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_SPECULAR;
+      }
+      break;
+
+      case GLFW_KEY_7:{
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL;
+      }
+      break;
+
+      case GLFW_KEY_8:{
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL_POWER) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL_POWER;
+      }
+      break;
+
+      case GLFW_KEY_9:{
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_DEPTH) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_DEPTH;
       }
       break;
 

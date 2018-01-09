@@ -525,6 +525,7 @@ typedef struct tr_texture {
     void*                               cpu_mapped_address;
     uint32_t                            owns_image;
     ID3D12Resource*                     dx_resource;
+    D3D12_DEPTH_STENCIL_VIEW_DESC       dx_dsv_view_desc;
     D3D12_SHADER_RESOURCE_VIEW_DESC     dx_srv_view_desc;
     D3D12_UNORDERED_ACCESS_VIEW_DESC    dx_uav_view_desc;
 } tr_texture;
@@ -713,6 +714,7 @@ tr_api_export uint32_t  tr_vertex_layout_stride(const tr_vertex_layout* p_vertex
 tr_api_export uint64_t    tr_util_calc_storage_counter_offset(uint64_t buffer_size);
 tr_api_export uint32_t    tr_util_calc_mip_levels(uint32_t width, uint32_t height);
 tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format);
+tr_api_export DXGI_FORMAT tr_util_to_dx_format_srv(tr_format format);
 tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
@@ -2293,6 +2295,20 @@ DXGI_FORMAT tr_util_to_dx_format(tr_format format)
     return result;
 }
 
+DXGI_FORMAT tr_util_to_dx_format_srv(tr_format format)
+{
+    DXGI_FORMAT result = DXGI_FORMAT_UNKNOWN;
+    switch (format) {
+        // Depth/stencil
+        case tr_format_d16_unorm           : result = DXGI_FORMAT_R16_TYPELESS; break;
+        case tr_format_x8_d24_unorm_pack32 : result = DXGI_FORMAT_X32_TYPELESS_G8X24_UINT; break;
+        case tr_format_d32_float           : result = DXGI_FORMAT_R32_FLOAT; break;
+        case tr_format_d24_unorm_s8_uint   : result = DXGI_FORMAT_R24G8_TYPELESS; break;
+        case tr_format_d32_float_s8_uint   : result = DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS; break;
+    }
+    return result;
+}
+
 tr_format tr_util_from_dx_format(DXGI_FORMAT format)
 {
     tr_format result = tr_format_undefined;
@@ -2799,6 +2815,9 @@ D3D12_RESOURCE_STATES tr_util_to_dx_resource_state_buffer(tr_buffer_usage usage)
         result |= D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     }
     if (tr_buffer_usage_vertex == (usage & tr_buffer_usage_vertex)) {
+        result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+    }
+    if (tr_buffer_usage_uniform_cbv == (usage & tr_buffer_usage_uniform_cbv)) {
         result |= D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
     }
     return result;
@@ -3515,6 +3534,7 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
         }
         if (p_texture->usage & tr_texture_usage_depth_stencil_attachment) {
+            desc.Format = DXGI_FORMAT_R32_TYPELESS;
             desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
         }
         if (p_texture->usage & tr_texture_usage_storage_image) {
@@ -3561,22 +3581,38 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
         p_texture->owns_image = true;
     }
 
+    // Depth Stencil View
+    if (p_texture->usage & tr_texture_usage_depth_stencil_attachment) {
+      D3D12_DSV_DIMENSION view_dim = D3D12_DSV_DIMENSION_UNKNOWN;
+      switch (p_texture->type) {
+        case tr_texture_type_1d   : view_dim = D3D12_DSV_DIMENSION_TEXTURE1D; break;
+        case tr_texture_type_2d   : view_dim = D3D12_DSV_DIMENSION_TEXTURE2D; break;
+      }
+      p_texture->dx_dsv_view_desc.Format                  = tr_util_to_dx_format(p_texture->format);
+      p_texture->dx_dsv_view_desc.ViewDimension           = view_dim;
+      p_texture->dx_dsv_view_desc.Flags                   = D3D12_DSV_FLAG_NONE;
+      // Should generally be zero, but may need to change later?
+      p_texture->dx_dsv_view_desc.Texture1DArray.MipSlice = 0;
+    }
+
+    // Shader Resource View
     if (p_texture->usage & tr_texture_usage_sampled_image) {
       D3D12_SRV_DIMENSION view_dim = D3D12_SRV_DIMENSION_UNKNOWN;
       switch (p_texture->type) {
-          case tr_texture_type_1d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE1D; break;
-          case tr_texture_type_2d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
-          case tr_texture_type_3d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE3D; break;
-          case tr_texture_type_cube : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
+        case tr_texture_type_1d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE1D; break;
+        case tr_texture_type_2d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
+        case tr_texture_type_3d   : view_dim = D3D12_SRV_DIMENSION_TEXTURE3D; break;
+        case tr_texture_type_cube : view_dim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
       }
       assert(D3D12_SRV_DIMENSION_UNKNOWN != view_dim);
 
       p_texture->dx_srv_view_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-      p_texture->dx_srv_view_desc.Format                  = tr_util_to_dx_format(p_texture->format);
+      p_texture->dx_srv_view_desc.Format                  = tr_util_to_dx_format_srv(p_texture->format);
       p_texture->dx_srv_view_desc.ViewDimension           = view_dim;
       p_texture->dx_srv_view_desc.Texture2D.MipLevels     = (UINT)p_texture->mip_levels;
     }
 
+    // Unordered Access View
     if (p_texture->usage & tr_texture_usage_storage_image) {
       p_texture->dx_uav_view_desc.Format                = tr_util_to_dx_format(p_texture->format);
       p_texture->dx_uav_view_desc.ViewDimension         = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -4252,15 +4288,19 @@ void tr_internal_dx_create_render_pass(tr_renderer* p_renderer, tr_render_pass* 
           assert(NULL != p_render_pass->dsv_multisample);
           assert(NULL != p_render_pass->dsv_multisample->dx_resource);
 
-          p_renderer->dx_device->CreateDepthStencilView(
-            p_render_pass->dsv_multisample->dx_resource, NULL, handle);
+            p_renderer->dx_device->CreateDepthStencilView(
+                p_render_pass->dsv_multisample->dx_resource, 
+                &p_render_pass->dsv->dx_dsv_view_desc, 
+                handle);
         }
         else {
           assert(NULL != p_render_pass->dsv);
           assert(NULL != p_render_pass->dsv->dx_resource);
 
           p_renderer->dx_device->CreateDepthStencilView(
-            p_render_pass->dsv->dx_resource, NULL, handle);
+              p_render_pass->dsv->dx_resource, 
+              &p_render_pass->dsv->dx_dsv_view_desc, 
+              handle);
         }
     }
 }

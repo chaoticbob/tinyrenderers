@@ -28,9 +28,19 @@
 #define DESCRIPTOR_BINDING_DEFERRED_LIGHTING_OUTPUT_TEX        6
 
 // Composite
-#define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_INPUT_TEX       0
-#define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_SAMPLER         1
-#define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_OUTPUT_TEX      2
+#define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_INPUT_TEX         0
+#define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_SAMPLER           1
+#define DESCRIPTOR_BINDING_DEFERRED_COMPOSITE_OUTPUT_TEX        2
+
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION                 1
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_NORMAL                   2
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_ALBEDO                   3
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_ROUGHNESS                4
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_METALLIC                 5
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_SPECULAR                 6
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL                  7
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL_POWER            8
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_DEPTH                    9
 
 
 #define DEFERRED_MAX_POINT_LIGHTS        512
@@ -50,7 +60,7 @@ struct DeferredMaterialData {
   tr::hlsl_float<1>   FresnelPower  = { 1.0f };  
 };
 
-/*@ class DeferredMaterialParams
+/*! @class DeferredMaterialParams
 
 */
 class DeferredMaterialParams : public tr::ConstantBuffer<DeferredMaterialData> {
@@ -59,7 +69,26 @@ public:
   ~DeferredMaterialParams() {}
 };
 
-/*@ class DeferredEntity
+/*! @struct DeferredDebugData
+
+*/
+struct DeferredDebugData {
+  tr::hlsl_int<4> GBufferElement = { 0 };
+};
+
+/*! @class DeferredDebugParams
+
+*/
+class DeferredDebugParams : public tr::ConstantBuffer<DeferredDebugData> {
+public:
+  DeferredDebugParams() {}
+  ~DeferredDebugParams() {}
+};
+
+
+/*!
+
+/*! @class DeferredEntity
 
 */
 using DeferredEntity = tr::EntityT<DeferredMaterialParams>;
@@ -123,7 +152,13 @@ public:
 
   void Composite(tr_cmd* p_cmd, uint32_t frame_num, tr_texture* p_swapchain_image);
 
-  void DebugShowDebuffer(tr_cmd* p_cmd, uint32_t frame_num, uint32_t gbuffer_index, tr_texture* p_swapchain_image);
+  DeferredDebugParams& GetDebugParams() {
+    return m_debug_cpu_params;
+  }
+
+  void DebugShowGBufferElement(tr_cmd* p_cmd, uint32_t frame_num, tr_texture* p_swapchain_image);
+
+  void BuildDebugUI();
 
 private:
   void CreateShaders(tr_renderer* p_renderer, const tr::fs::path& asset_dir);
@@ -180,6 +215,8 @@ private:
   tr_shader_program*                  m_debug_shader = nullptr;
   std::vector<tr_descriptor_set*>     m_debug_descriptor_sets;
   tr_pipeline*                        m_debug_pipeline = nullptr;
+  DeferredDebugParams                 m_debug_cpu_params;
+  tr_buffer*                          m_debug_gpu_params;
   tr_sampler*                         m_debug_sampler = nullptr;
 };
 

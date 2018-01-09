@@ -57,7 +57,7 @@ public:
 
   virtual void Initialize(tr_renderer* p_renderer, const tr::fs::path& asset_dir, tr_buffer* p_gpu_view_params, tr_render_pass* p_gbuffer_render_pass);
 
-  virtual void BuildUi();
+  virtual void BuildDebugUi();
 
 private:
   tr_shader_program*  g_deferred_color_shader = nullptr;
