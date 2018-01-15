@@ -81,6 +81,8 @@ bool                g_mouse_move_camera = false;
 float2              g_prev_mouse_pos;
 bool                g_ui_active = true;
 
+bool                g_key_down[GLFW_KEY_LAST + 1] = {};
+
 //int32_t             g_debug_gbuffer_index = -1;
 
 #define LOG(STR)  { std::stringstream ss; ss << STR << std::endl; \
@@ -217,6 +219,14 @@ void init_tiny_renderer(GLFWwindow* window)
     g_cpu_view_params.SetTarget(g_gpu_view_params->cpu_mapped_address);
   }
 
+  // Initial view 
+  {
+    float3 eye = float3(-13, 5, 14);
+    float3 look_at = float3(-13, 5, 0);
+    g_camera.LookAt(eye, look_at);
+    g_camera.Perspective(75.0f, (float)g_window_width / (float)g_window_height, 1.0f, 1000.0f);
+  }
+
   // Scene
   {
     g_tube_world.Initialize(g_renderer, k_asset_dir / "Deferred", g_gpu_view_params, g_deferred_renderer.GetGBufferRenderPass(0));
@@ -300,60 +310,88 @@ void draw_frame(GLFWwindow* p_window)
 
   // Build UI
   {
-    //// FPS
-    //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    // FPS
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::Text("Visible objects: %d/%d", g_tube_world.GetVisibleObjectCount(), g_tube_world.GetTotalObjectCount());
+    ImGui::Text("Delta: %f, %f", g_camera.GetForwardDelta(), g_camera.GetRightDelta());
 
     g_deferred_renderer.BuildDebugUI();
-    g_tube_world.BuildDebugUi();
+    //g_tube_world.BuildDebugUi();
   }
 #endif // defined(ENABLE_UI)
+
+  // Update camera
+  {
+    g_camera.MoveClearAccel();
+    if (g_key_down[GLFW_KEY_W]) {
+      g_camera.MoveForward();
+    }
+    if (g_key_down[GLFW_KEY_A]) {
+      g_camera.MoveLeft();
+    }
+    if (g_key_down[GLFW_KEY_S]) {
+      g_camera.MoveBackward();
+    }
+    if (g_key_down[GLFW_KEY_D]) {
+      g_camera.MoveRight();
+    }
+    g_camera.MoveUpdate(dt);
+  }
+
+  // Update view params
+  {
+    g_cpu_view_params.SetView(g_camera);
+    g_deferred_renderer.ApplyView(g_camera);
+  }
+
+  // Update scene objects
+  {
+    g_tube_world.SetViewTransform(g_camera);
+    g_tube_world.FinalizeTransforms();
+  }
+
+  // Cull objects
+  {
+    float4x4 model_view_matrix = g_camera.GetViewMatrix();
+    float4 p1 = float4(g_camera.GetEyePosition(), 1);
+    float4 p2 = model_view_matrix* p1;
+
+    g_tube_world.Cull(g_camera);
+  }
+
+  // Update lighting
+  {
+    auto& lighting_params = g_deferred_renderer.GetLightingParams();
+    lighting_params.ApplyView(g_camera);
+
+#if defined(ENABLE_UI)
+    auto& data = lighting_params.GetData();
+    if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::PushID(&data.AmbientLight);
+      ImGui::SliderFloat("Intensity", data.AmbientLight.Intensity.value_ptr(), 0.0f, 1.0f);
+      ImGui::PopID();
+    }
+
+    for (uint32_t i = 0; i < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++i) {
+      char name[256] = {};
+      sprintf(name, "Directional %d", i);
+      if (ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::PushID(&data.DirectionalLights[i]);
+        ImGui::SliderFloat("Intensity", data.DirectionalLights[i].Intensity.value_ptr(), 0.0f, 1.0f);
+        ImGui::PopID();
+      }
+    }
+#endif // defined(ENABLE_UI)
+  }
+
   
   tr_cmd* cmd = g_cmds[frameIdx];
   tr_begin_cmd(cmd);
   // Constant buffers
   {
-    // Camera
-    {
-      float3 eye = float3(-13, 5, 14.5f);
-      float3 look_at = float3(-13, 5, 0);
-      g_camera.LookAt(eye, look_at);
-      g_camera.Perspective(75.0f, (float)g_window_width / (float)g_window_height, 1.0f, 1000.0f);
-
-      g_cpu_view_params.SetView(g_camera);
-      g_tube_world.ApplyView(g_camera);
-    }
-
-    // Lighting
-    {
-      auto& params = g_deferred_renderer.GetLightingParams();
-      params.ApplyView(g_camera);
-
-#if defined(ENABLE_UI)
-      auto& data = params.GetData();
-      if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::PushID(&data.AmbientLight);
-        ImGui::SliderFloat("Intensity", data.AmbientLight.Intensity.value_ptr(), 0.0f, 1.0f);
-        ImGui::PopID();
-      }
-
-      for (uint32_t i = 0; i < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++i) {
-        char name[256] = {};
-        sprintf(name, "Directional %d", i);
-        if (ImGui::CollapsingHeader(name, ImGuiTreeNodeFlags_DefaultOpen)) {
-          ImGui::PushID(&data.DirectionalLights[i]);
-          ImGui::SliderFloat("Intensity", data.DirectionalLights[i].Intensity.value_ptr(), 0.0f, 1.0f);
-          ImGui::PopID();
-        }
-      }
-#endif // defined(ENABLE_UI)
-    }
-
-    // Update GPU buffers
-    {
-      //g_deferred_entity.UpdateGpuBuffers();
-      g_deferred_renderer.UpdateGpuBuffers(0, cmd);
-      g_tube_world.UpdateGpuBuffers(cmd);
-    }
+    //g_deferred_entity.UpdateGpuBuffers();
+    g_deferred_renderer.UpdateGpuBuffers(0, cmd);
+    g_tube_world.UpdateGpuBuffers(cmd);
   }
 
   // GBuffer
@@ -467,6 +505,11 @@ void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)
       }
       break;
 
+      case GLFW_KEY_0:{
+        gbuffer_element = (gbuffer_element == DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION_FROM_DEPTH) ? 0 : DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION_FROM_DEPTH;
+      }
+      break;
+
       case GLFW_KEY_TAB:{
         g_mouse_captured = !g_mouse_captured;
         if (g_mouse_captured) {
@@ -488,6 +531,23 @@ void keyboard(GLFWwindow* p_window, int key, int scancode, int action, int mods)
     }
   }
 
+  if (g_mouse_captured) {
+    switch (key) {
+      case GLFW_KEY_W:
+      case GLFW_KEY_A:
+      case GLFW_KEY_S:
+      case GLFW_KEY_D: {
+        if (action == GLFW_PRESS) {
+          g_key_down[key] = true;
+        }
+        else if (action == GLFW_RELEASE) {
+          g_key_down[key] = false;
+        }
+      }
+      break;
+    }
+  }
+  
   if (!g_mouse_captured) {
     tr::imgui_glfw_keyboard(p_window, key, scancode, action, mods); 
   }

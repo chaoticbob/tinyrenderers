@@ -4,6 +4,7 @@
 #include "DeferredRenderer.h"
 #include "filesystem.h"
 
+#include <map>
 #include <memory>
 
 /*! @class Scene
@@ -25,10 +26,36 @@ public:
 
   virtual void BuildUi() {};
 
-  void ApplyView(const tr::Camera& camera) {
+  void SetViewTransform(const tr::Camera& camera) {
     for (auto& entity : m_entities) {
-      entity->ApplyView(camera);
+      entity->SetViewTransform(camera);
     }
+  }
+
+  void FinalizeTransforms() {
+    for (auto& entity : m_entities) {
+      entity->FinalizeTransforms();
+    }
+  }
+
+  void Cull(const tr::Camera& camera) {
+    m_visible_object_count = 0;
+    for (auto& entity : m_entities) {
+      auto& bounds = entity->GetViewSpaceBounds();
+      bool is_out = (bounds.min.z >= 0) && (bounds.max.z >= 0);
+      bool visible = !is_out;
+      entity->SetCameraVisible(visible);
+      m_visible_object_count += visible ? 1 : 0;
+    }
+  }
+
+  uint32_t GetTotalObjectCount() const {
+    uint32_t count = static_cast<uint32_t>(m_entities.size());
+    return count;
+  }
+
+  uint32_t GetVisibleObjectCount() const {
+    return m_visible_object_count;
   }
 
   void UpdateGpuBuffers(tr_cmd* p_cmd) {
@@ -44,7 +71,15 @@ public:
   }
 
 protected:
+  struct GeometryData {
+    tr_buffer*  vertex_buffer;
+    uint32_t    vertex_count;
+    tr::AABB    object_space_bounds;
+  };
+
+  std::map<std::string, GeometryData>         m_geometry_data;
   std::vector<std::unique_ptr<SceneEntityT>>  m_entities;
+  uint32_t                                    m_visible_object_count = 0;
 };
 
 /*! @class TubeWorldScene

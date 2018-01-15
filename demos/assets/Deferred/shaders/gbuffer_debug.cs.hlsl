@@ -16,13 +16,16 @@
 #define DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL                  7
 #define DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL_POWER            8
 #define DEFERRED_DEBUG_GBUFFER_ELEMENT_DEPTH                    9
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION_FROM_DEPTH      10
 
 #define NUM_THREADS_X   8
 #define NUM_THREADS_Y   8
 #define NUM_THREADS_Z   1
 
 struct DebugData {
-  int   GBufferElement;
+  int       GBufferElement;
+  float4x4  InverseViewMatrix;
+  float4x4  InverseProjectionMatrix;
 };
 
 ConstantBuffer<DebugData> DebugParams     : register(DESCRIPTOR_BINDING_DEFERRED_DEBUG_PARAMS);
@@ -35,6 +38,26 @@ Texture2D                 GBufferDepthTex : register(DESCRIPTOR_BINDING_DEFERRED
 
 SamplerState              Sampler         : register(DESCRIPTOR_BINDING_DEFERRED_DEBUG_SAMPLER);
 RWTexture2D<float4>       OutputTex       : register(DESCRIPTOR_BINDING_DEFERRED_DEBUG_OUTPUT_TEX);
+
+
+// =================================================================================================
+// Support Functions
+// =================================================================================================
+float3 VSPositionFromDepth(float2 coord, Texture2D tex, SamplerState sam)
+{
+  // Get the depth value for this pixel
+  float z = tex.SampleLevel(sam, coord, 0).x;
+  // Get x/w and y/w from the viewport position
+  float x = coord.x * 2 - 1;
+  float y = (1 - coord.y) * 2 - 1;
+  float4 positionProjected = float4(x, y, z, 1);
+  // Transform by the inverse projection matrix
+  float4 positionVS = mul(DebugParams.InverseProjectionMatrix, positionProjected);
+  // Divide by w to get the view-space position
+  positionVS /= positionVS.w;
+  positionVS = mul(DebugParams.InverseViewMatrix, positionVS);
+  return positionVS.xyz * (1 - z);
+}
 
 // =================================================================================================
 // Unpack
@@ -138,6 +161,12 @@ void csmain(uint3 tid : SV_DispatchThreadID)
       case DEFERRED_DEBUG_GBUFFER_ELEMENT_DEPTH: {
         float4 depth_value = Sample(coord, GBufferDepthTex, Sampler);
         value = (float3)depth_value.x;
+      }
+      break;
+
+      case DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION_FROM_DEPTH: {
+        //float4 depth_value = Sample(coord, GBufferDepthTex, Sampler);
+        value = VSPositionFromDepth(coord, GBufferDepthTex, Sampler);
       }
       break;
     }

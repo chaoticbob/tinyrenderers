@@ -16,6 +16,7 @@
 #include "filesystem.h"
 #include "mesh.h"
 #include "transform.h"
+#include "util.h"
 
 #include <algorithm>
 #include <set>
@@ -81,12 +82,11 @@ public:
   bool SetVertexBuffers(tr_buffer* p_buffer, uint32_t vertex_count);
   bool SetVertexBuffers(const tr::Mesh& mesh);
   bool LoadVertexBuffers(const tr::fs::path& file_path);
-  bool SetTexture(uint32_t binding, tr_texture* p_texture);
 
-  tr::Transform&          GetTransform();
-  const tr::Transform&    GetTransform() const;
-  void                    SetTransform(const tr::Transform& transform);
-  void                    ApplyView(const tr::Camera& camera);
+  tr::Transform&          GetModelTransform();
+  const tr::Transform&    GetModelTransform() const;
+  void                    SetModelTransform(const tr::Transform& transform);
+  void                    SetViewTransform(const tr::Camera& camera);
   void                    SetDebugColor(const float3& debug_color);
 
   MaterialParamsT&        GetMaterialParams();
@@ -95,14 +95,24 @@ public:
   TessParams&             GetTessParams();
   const TessParams&       GetTessParams() const;
 
+  bool SetTexture(uint32_t binding, tr_texture* p_texture);
+
+  const AABB& GetObjectSpaceBounds() const;
+  const AABB& GetWorldSpaceBounds() const;
+  const AABB& GetViewSpaceBounds() const;
+  void SetObjectSpaceBounds(const AABB& bounds);
+
+  bool GetCameraVisible() const;
+  void SetCameraVisible(bool value);
+
   void UpdateGpuDescriptorSets();
+
+  void FinalizeTransforms();
+
   void UpdateGpuBuffers(tr_cmd* p_cmd);
 
   void Draw(tr_cmd* p_cmd, uint32_t vertex_count = UINT32_MAX);
   void DrawIndexed(tr_cmd* p_cmd, uint32_t index_count = UINT32_MAX);
-
-private:
-  void SetTranformDirty(bool value);
 
 private:
   std::string                 m_name;
@@ -112,20 +122,14 @@ private:
   EntityCreateInfo            m_create_info = {};
   tr_descriptor_set*          m_descriptor_set = nullptr;
   tr_pipeline*                m_pipeline = nullptr;
-  // Textures
-  struct TextureBinding {
-    uint32_t    binding;
-    tr_texture* texture;
-  };
-  std::vector<TextureBinding> m_texture_bindings;
   // Geometry
   tr_buffer*                  m_index_buffer = nullptr;
   uint32_t                    m_index_count = UINT32_MAX;
   std::vector<tr_buffer*>     m_vertex_buffers;
   uint32_t                    m_vertex_count = UINT32_MAX;
   // Transform
-  tr::Transform               m_transform;
-  bool                        m_transform_dirty = false;
+  tr::Transform               m_model_transform;
+  bool                        m_model_transform_dirty = false;
   TransformParams             m_cpu_transform_params;
   tr_buffer*                  m_gpu_transform_params = nullptr;
   tr_buffer*                  m_gpu_transform_params_staging = nullptr;
@@ -137,21 +141,24 @@ private:
   TessParams                  m_cpu_tess_params;
   tr_buffer*                  m_gpu_tess_params = nullptr;
   tr_buffer*                  m_gpu_tess_params_staging = nullptr;
+  // Textures
+  struct TextureBinding {
+    uint32_t    binding;
+    tr_texture* texture;
+  };
+  std::vector<TextureBinding> m_texture_bindings;
+  // Bounds
+  AABB                        m_object_space_bounds = {};
+  AABB                        m_world_space_bounds = {};
+  AABB                        m_view_space_bounds = {};
+  // Visibility
+  bool                        m_camera_visible = false;
 };
 
 /*! @fn EntityT<MaterialParamsT>::EntityT */
 template <typename MaterialParamsT>
 inline EntityT<MaterialParamsT>::EntityT() 
 {
-  auto fn = std::bind(&EntityT<MaterialParamsT>::SetTranformDirty, this, std::placeholders::_1);
-  m_transform.SetModelChangedCallback(fn);
-}
-
-/*! @fn EntityT<MaterialParamsT>::SetTranformDirty */
-template <typename MaterialParamsT>
-inline void EntityT<MaterialParamsT>::SetTranformDirty(bool value) 
-{
-  m_transform_dirty = value;
 }
 
 /*! @fn EntityT<MaterialParamsT>::Create */
@@ -425,35 +432,42 @@ inline bool EntityT<MaterialParamsT>::LoadVertexBuffers(const tr::fs::path& file
   return set_res;
 }
 
-/*! @fn EntityT<MaterialParamsT>::SetTexture */
+/*! @fn EntityT<MaterialParamsT>::GetTransform */
 template <typename MaterialParamsT>
-inline bool EntityT<MaterialParamsT>::SetTexture(uint32_t binding, tr_texture* p_texture) 
+inline Transform& EntityT<MaterialParamsT>::GetModelTransform() 
+{ 
+  // Assume that if this version of the function gets called, changes are made.
+  m_model_transform_dirty = true;
+  return m_model_transform; 
+}
+
+/*! @fn EntityT<MaterialParamsT>::GetTransform */
+template <typename MaterialParamsT>
+inline const Transform& EntityT<MaterialParamsT>::GetModelTransform() const
+{ 
+  return m_model_transform; 
+}
+
+/*! @fn EntityT<MaterialParamsT>::SetTransform */
+template <typename MaterialParamsT>
+inline void EntityT<MaterialParamsT>::SetModelTransform(const tr::Transform& transform)
 {
-  auto it = std::find_if(std::begin(m_texture_bindings),
-                         std::end(m_texture_bindings),
-                         [binding](const EntityT<MaterialParamsT>::TextureBinding& elem) -> bool
-                             { return elem.binding == binding; });
-  if (it != std::end(m_texture_bindings)) {
-    return false;
-  }
-
-  it->texture = p_texture;
-
-  return true;
+  m_model_transform = transform;
+  m_model_transform_dirty = true;
 }
 
-/*! @fn EntityT<MaterialParamsT>::GetTransform */
+/*! @fn EntityT<MaterialParamsT>::SetView */
 template <typename MaterialParamsT>
-inline Transform& EntityT<MaterialParamsT>::GetTransform() 
-{ 
-  return m_transform; 
+inline void EntityT<MaterialParamsT>::SetViewTransform(const tr::Camera& camera)
+{
+  m_cpu_transform_params.SetViewTransform(camera);
 }
 
-/*! @fn EntityT<MaterialParamsT>::GetTransform */
+/*! @fn EntityT<MaterialParamsT>::SetColor */
 template <typename MaterialParamsT>
-inline const Transform& EntityT<MaterialParamsT>::GetTransform() const
-{ 
-  return m_transform; 
+inline void EntityT<MaterialParamsT>::SetDebugColor(const float3& color)
+{
+  m_cpu_transform_params.SetDebugColor(color);
 }
 
 /*! @fn EntityT<MaterialParamsT>::GetLightingParams */
@@ -484,28 +498,63 @@ inline const TessParams& EntityT<MaterialParamsT>::GetTessParams() const
   return m_cpu_tess_params;
 }
 
-/*! @fn EntityT<MaterialParamsT>::SetView */
+/*! @fn EntityT<MaterialParamsT>::SetTexture */
 template <typename MaterialParamsT>
-inline void EntityT<MaterialParamsT>::ApplyView(const tr::Camera& camera)
+inline bool EntityT<MaterialParamsT>::SetTexture(uint32_t binding, tr_texture* p_texture) 
 {
-  m_cpu_transform_params.ApplyView(camera);
-  SetTranformDirty(true);
+  auto it = std::find_if(std::begin(m_texture_bindings),
+                         std::end(m_texture_bindings),
+                         [binding](const EntityT<MaterialParamsT>::TextureBinding& elem) -> bool
+                             { return elem.binding == binding; });
+  if (it != std::end(m_texture_bindings)) {
+    return false;
+  }
+
+  it->texture = p_texture;
+
+  return true;
 }
 
-/*! @fn EntityT<MaterialParamsT>::SetTransform */
+/*! @fn EntityT<MaterialParamsT>::GetObjectSpaceBounds */
 template <typename MaterialParamsT>
-inline void EntityT<MaterialParamsT>::SetTransform(const tr::Transform& transform)
+inline const AABB& EntityT<MaterialParamsT>::GetObjectSpaceBounds() const
 {
-  m_transform = transform;
-  SetTranformDirty(true);
+  return m_world_space_bounds;
 }
 
-/*! @fn EntityT<MaterialParamsT>::SetColor */
+/*! @fn EntityT<MaterialParamsT>::GetWorldSpaceBounds */
 template <typename MaterialParamsT>
-inline void tr::EntityT<MaterialParamsT>::SetDebugColor(const float3& color)
+inline const AABB& EntityT<MaterialParamsT>::GetWorldSpaceBounds() const
 {
-  m_cpu_transform_params.SetDebugColor(color);
-  SetTranformDirty(true);
+  return m_world_space_bounds;
+}
+
+/*! @fn EntityT<MaterialParamsT>::GetViewSpaceBounds */
+template <typename MaterialParamsT>
+inline const AABB& EntityT<MaterialParamsT>::GetViewSpaceBounds() const
+{
+  return m_view_space_bounds;
+}
+
+/*! @fn EntityT<MaterialParamsT>::SetObjectSpaceBounds */
+template <typename MaterialParamsT>
+inline void EntityT<MaterialParamsT>::SetObjectSpaceBounds(const AABB& bounds)
+{
+  m_object_space_bounds = bounds;
+}
+
+/*! @fn EntityT<MaterialParamsT>::GetCameraVisible */
+template <typename MaterialParamsT>
+inline bool EntityT<MaterialParamsT>::GetCameraVisible() const
+{
+  return m_camera_visible;
+}
+
+/*! @fn EntityT<MaterialParamsT>::SetCameraVisible */
+template <typename MaterialParamsT>
+inline void EntityT<MaterialParamsT>::SetCameraVisible(bool value)
+{
+  m_camera_visible = value;
 }
 
 /*! @fn EntityT<MaterialParamsT>::UpdateGpuDescriptorSets */
@@ -558,11 +607,29 @@ inline void EntityT<MaterialParamsT>::UpdateGpuDescriptorSets()
 
 /*! @fn EntityT<MaterialParamsT>::UpdateGpuBuffers */
 template <typename MaterialParamsT>
+inline void EntityT<MaterialParamsT>::FinalizeTransforms()
+{
+  if (m_model_transform_dirty) {
+    m_cpu_transform_params.SetModelTransform(m_model_transform);
+    m_model_transform_dirty = false;
+  }
+
+  float4x4 model_matrix = m_cpu_transform_params.GetData().ModelMatrix;
+  AABB bounds = m_object_space_bounds.GetTransformed(model_matrix);
+  m_world_space_bounds.Set(bounds);
+
+  float4x4 model_view_matrix = m_cpu_transform_params.GetData().ModelViewMatrix;
+  bounds = m_object_space_bounds.GetTransformed(model_view_matrix);
+  m_view_space_bounds.Set(bounds);
+}
+
+/*! @fn EntityT<MaterialParamsT>::UpdateGpuBuffers */
+template <typename MaterialParamsT>
 inline void EntityT<MaterialParamsT>::UpdateGpuBuffers(tr_cmd* p_cmd)
 {
-  if (m_transform_dirty) {
-    m_cpu_transform_params.SetTransform(m_transform);
-    m_transform_dirty = false;
+  if (m_model_transform_dirty) {
+    m_cpu_transform_params.SetModelTransform(m_model_transform);
+    m_model_transform_dirty = false;
   }
 
   // View/transform constant buffer
@@ -591,6 +658,10 @@ inline void EntityT<MaterialParamsT>::UpdateGpuBuffers(tr_cmd* p_cmd)
 template <typename MaterialParamsT>
 inline void EntityT<MaterialParamsT>::Draw(tr_cmd* p_cmd, uint32_t vertex_count) 
 {
+  if (!m_camera_visible) {
+    return;
+  }
+
   tr_cmd_bind_pipeline(p_cmd, m_pipeline);
   
   tr_cmd_bind_descriptor_sets(p_cmd, m_pipeline, m_descriptor_set);
@@ -670,9 +741,6 @@ public:
   void DrawIndexed(tr_cmd* p_cmd, uint32_t index_count = UINT32_MAX);
 
 private:
-  void SetTranformDirty(bool value);
-
-private:
   // Renderer
   tr_renderer*                m_renderer = nullptr;
   // Pipeline
@@ -700,14 +768,6 @@ private:
 /*! @fn SimpleEntity::SimpleEntity */
 inline SimpleEntity::SimpleEntity() 
 {
-  auto fn = std::bind(&SimpleEntity::SetTranformDirty, this, std::placeholders::_1);
-  m_transform.SetModelChangedCallback(fn);
-}
-
-/*! @fn SimpleEntity::SetTranformDirty */
-inline void SimpleEntity::SetTranformDirty(bool value) 
-{
-  m_transform_dirty = value;
 }
 
 /*! @fn SimpleEntity::Create */
@@ -875,14 +935,12 @@ inline const SimpleShaderParams& SimpleEntity::GetShaderParams() const
 inline void SimpleEntity::SetTransform(const tr::Transform& transform)
 {
   m_transform = transform;
-  SetTranformDirty(true);
 }
 
 /*! @fn SimpleEntity::SetColor */
 inline void tr::SimpleEntity::SetDebugColor(const float3& color)
 {
   m_cpu_shader_params.SetDebugColor(color);
-  SetTranformDirty(true);
 }
 
 /*! @fn SimpleEntity::UpdateGpuDescriptorSets */

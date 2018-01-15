@@ -1,7 +1,10 @@
 #include "Scene.h"
 #include "imgui_glfw.h"
+#include "json.hpp"
 
-//#define FAST_DEBUG
+#if defined(_DEBUG)
+  #define FAST_DEBUG_LOAD
+#endif
 
 #define ENABLE_TUBE_SET_1
 #define ENABLE_TUBE_SET_2
@@ -10,6 +13,7 @@
 #define ENABLE_TUBE_SET_5
 
 using tr::float3;
+using json = nlohmann::json;
 
 // =================================================================================================
 // DeferredTubeWorldScene
@@ -34,6 +38,74 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     }
   }
   
+  // Load scene
+  {
+    tr::fs::path scene_file_path = asset_dir / "models/scene.json";
+    assert(tr::fs::exists(scene_file_path) == true);
+
+    std::ifstream is(scene_file_path.c_str());
+    json scene;
+    is >> scene;
+
+    auto objects = scene["objects"];
+    for (auto& obj : objects) {
+      std::string name = obj["name"];
+      std::string geo = obj["geo"];
+      // Geometry - load if it's not in the map
+      if (m_geometry_data.find(geo) == m_geometry_data.end()) {
+        tr::fs::path geo_file_path = asset_dir / "models" / geo;
+        GeometryData data = {};
+        bool result = tr::Mesh::Load(geo_file_path, p_renderer, &data.vertex_buffer, &data.vertex_count, &data.object_space_bounds);
+        assert(result == true);
+        assert(data.vertex_buffer != nullptr);
+        assert(data.vertex_count > 0);
+        m_geometry_data[geo] = data;
+      }
+      // Geometry data
+      auto& geo_data = m_geometry_data[geo];
+      // Entity create info
+      tr::EntityCreateInfo entity_create_info = {};
+      entity_create_info.shader_program                   = g_deferred_color_shader;
+      entity_create_info.gpu_view_params                  = p_gpu_view_params;
+      entity_create_info.view_params_binding              = DESCRIPTOR_BINDING_DEFERRED_GBUFFER_VIEW_PARAMS;
+      entity_create_info.transform_params_binding         = DESCRIPTOR_BINDING_DEFERRED_GBUFFER_TRANSFORM_PARAMS;
+      entity_create_info.material_params_binding          = DESCRIPTOR_BINDING_DEFERRED_GBUFFER_MATERIAL_PARAMS;
+      entity_create_info.lighting_params_binding          = tr::ENTITY_DESCRIPTOR_BINDING_DISABLED;
+      entity_create_info.tess_params_binding              = tr::ENTITY_DESCRIPTOR_BINDING_DISABLED;;
+      entity_create_info.vertex_layout                    = tr::Mesh::DefaultVertexLayout();
+      entity_create_info.render_pass                      = p_gbuffer_render_pass;
+      entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
+      entity_create_info.pipeline_settings.depth          = true;
+      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_none;
+      // Create entity
+      {
+        auto entity = std::make_unique<DeferredEntity>();
+        entity->Create(p_renderer, entity_create_info);
+        entity->SetName(name);
+        entity->SetVertexBuffers(geo_data.vertex_buffer, geo_data.vertex_count);
+        entity->SetObjectSpaceBounds(geo_data.object_space_bounds);
+        // Initial transform data        
+        float tx = obj["translate"]["x"];
+        float ty = obj["translate"]["y"];
+        float tz = obj["translate"]["z"];
+        float rx = obj["rotate"]["x"];
+        float ry = obj["rotate"]["y"];
+        float rz = obj["rotate"]["z"];
+        float sx = obj["scale"]["x"];
+        float sy = obj["scale"]["y"];
+        float sz = obj["scale"]["z"];
+        std::string rotation_mode_str = obj["rotation_mode"];
+        tr::Transform::RotationMode rotation_mode = tr::Transform::RotationModeFromString(rotation_mode_str);
+        entity->GetModelTransform().Scale(sx, sy, sz);
+        entity->GetModelTransform().Rotate(rx, ry, rz, rotation_mode);
+        entity->GetModelTransform().Translate(tx, ty, tz);
+        // Add entity to entities list
+        m_entities.push_back(std::move(entity));
+      }
+    }
+  }
+
+/*
   tr::EntityCreateInfo entity_create_info = {};
   entity_create_info.shader_program                   = g_deferred_color_shader;
   entity_create_info.gpu_view_params                  = p_gpu_view_params;
@@ -114,7 +186,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     m_entities.push_back(std::move(entity));
   }
 
-#if ! defined(FAST_DEBUG)
+#if ! defined(FAST_DEBUG_LOAD)
   // Tube Connectors
   {
     tr_buffer* p_vertex_buffer = nullptr;
@@ -451,6 +523,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
     m_entities.push_back(std::move(entity));
   }
 #endif // ! defined(FAST_DEBUG)
+*/
 }
 
 void DeferredTubeWorldScene::BuildDebugUi()
@@ -458,17 +531,25 @@ void DeferredTubeWorldScene::BuildDebugUi()
   for (auto& entity : m_entities) {
     if (ImGui::CollapsingHeader(entity->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
       ImGui::PushID(entity.get());
-      // Material
+      // Bounds
+      //if (ImGui::CollapsingHeader("Bounds", ImGuiTreeNodeFlags_DefaultOpen)) 
       {
-        auto& params = entity->GetMaterialParams();
-        auto& data = params.GetData();
-        ImGui::ColorEdit3("Color", (float*)data.Color.value_ptr());
-        ImGui::SliderFloat("Roughness", data.Roughness.value_ptr(),       0.0, 1.0);
-        ImGui::SliderFloat("Metallic", data.Metallic.value_ptr(),         0.0, 1.0);
-        ImGui::SliderFloat("Specular", data.Specular.value_ptr(),         0.0, 5.0);
-        ImGui::SliderFloat("Fresnel", data.Fresnel.value_ptr(),           0.0, 1.0);
-        ImGui::SliderFloat("FresnelPower", data.FresnelPower.value_ptr(), 1.0, 10.0);
+        auto& bounds = entity->GetViewSpaceBounds();
+        ImGui::Text("Visible: %d", entity->GetCameraVisible());
+        ImGui::Text("Min: %.6f, %.6f, %.6f", bounds.min.x, bounds.min.y, bounds.min.z);
+        ImGui::Text("Max: %.6f, %.6f, %.6f", bounds.max.x, bounds.max.y, bounds.max.z);
       }
+      //// Material
+      //{
+      //  auto& params = entity->GetMaterialParams();
+      //  auto& data = params.GetData();
+      //  ImGui::ColorEdit3("Color", (float*)data.Color.value_ptr());
+      //  ImGui::SliderFloat("Roughness", data.Roughness.value_ptr(),       0.0, 1.0);
+      //  ImGui::SliderFloat("Metallic", data.Metallic.value_ptr(),         0.0, 1.0);
+      //  ImGui::SliderFloat("Specular", data.Specular.value_ptr(),         0.0, 5.0);
+      //  ImGui::SliderFloat("Fresnel", data.Fresnel.value_ptr(),           0.0, 1.0);
+      //  ImGui::SliderFloat("FresnelPower", data.FresnelPower.value_ptr(), 1.0, 10.0);
+      //}
       ImGui::PopID();
     }
   }

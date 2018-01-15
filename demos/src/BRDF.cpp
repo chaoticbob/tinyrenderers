@@ -381,7 +381,7 @@ void draw_frame(GLFWwindow* p_window)
       g_camera.Perspective(45.0f, (float)g_window_width / (float)g_window_height);
 
       g_cpu_view_params.SetView(g_camera);
-      g_brdf_entity.ApplyView(g_camera);
+      g_brdf_entity.SetViewTransform(g_camera);
     }
 
     // Transforms
@@ -395,7 +395,7 @@ void draw_frame(GLFWwindow* p_window)
       transform.Clear();
       transform.Rotate(rot[0], rot[1], rot[2]);
       transform.Translate(0, 0, 0);
-      g_brdf_entity.SetTransform(transform);
+      g_brdf_entity.SetModelTransform(transform);
     }
 
     // Material

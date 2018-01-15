@@ -16,6 +16,8 @@ struct ViewData {
 
 struct TransformData {
   float4x4  ModelMatrix;
+  float4x4  ViewMatrix;
+  float4x4  ProjectionMatrix;
   float4x4  ModelViewMatrix;
   float4x4  ModelViewProjectionMatrix;
   float3x3  NormalMatrixWS;
@@ -53,6 +55,7 @@ struct VSOutput {
   float3  PositionWS  : POSITION;
   float3  NormalWS    : NORMAL;
   float2  TexCoord    : TEXCOORD;
+  float3  PositionVS  : POSITION_VS;
 };
 
 typedef VSOutput PSInput;
@@ -86,6 +89,9 @@ VSOutput vsmain(VSInput input)
   output.PositionWS = mul(TransformParams.ModelMatrix, Position4);
   output.NormalWS = normalize(mul(TransformParams.NormalMatrixWS, input.NormalOS));
   output.TexCoord = input.TexCoord;
+
+  float4 PositionVS4 = mul(TransformParams.ModelViewMatrix, Position4);
+  output.PositionVS = PositionVS4.xyz / Position4.w;
   return output;
 }
 

@@ -357,15 +357,15 @@ void draw_frame()
     // Update tess transform and constant buffers
     {
       // View
-      g_chess_pieces_tess.ApplyView(g_camera);
-      g_chess_pieces_tess_wireframe.ApplyView(g_camera);
+      g_chess_pieces_tess.SetViewTransform(g_camera);
+      g_chess_pieces_tess_wireframe.SetViewTransform(g_camera);
       // Transform
       tr::Transform transform;
       transform.Clear();
       transform.Translate(0, 0, 3);
       transform.Rotate(0, ry, 0);
-      g_chess_pieces_tess.SetTransform(transform);
-      g_chess_pieces_tess_wireframe.SetTransform(transform);
+      g_chess_pieces_tess.SetModelTransform(transform);
+      g_chess_pieces_tess_wireframe.SetModelTransform(transform);
       // Color
       g_chess_pieces_tess.SetColor(float3(0.45f, 0.4f, 0.8f));
       // Tess factor

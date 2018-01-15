@@ -41,6 +41,7 @@
 #define DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL                  7
 #define DEFERRED_DEBUG_GBUFFER_ELEMENT_FRESNEL_POWER            8
 #define DEFERRED_DEBUG_GBUFFER_ELEMENT_DEPTH                    9
+#define DEFERRED_DEBUG_GBUFFER_ELEMENT_POSITION_FROM_DEPTH      10
 
 
 #define DEFERRED_MAX_POINT_LIGHTS        512
@@ -73,7 +74,9 @@ public:
 
 */
 struct DeferredDebugData {
-  tr::hlsl_int<4> GBufferElement = { 0 };
+  tr::hlsl_int<4>   GBufferElement = { 0 };
+  tr::hlsl_float4x4 InverseViewMatrix;
+  tr::hlsl_float4x4 InverseProjectionMatrix;
 };
 
 /*! @class DeferredDebugParams
@@ -107,6 +110,8 @@ public:
   void Initialize(tr_renderer* p_renderer, const tr::fs::path& asset_dir, uint32_t width, uint32_t height, uint32_t rtv_count, const tr_format* p_rtv_formats, const tr_clear_value* p_rtv_clears, tr_format dsv_format, const tr_clear_value* p_dsv_clear, uint32_t frame_count);
   void Initialize(tr_renderer* p_renderer, const tr::fs::path& asset_dir, uint32_t width, uint32_t height, uint32_t rtv_count, uint32_t frame_count, bool enable_debug_clear = false);
   void Destroy();
+
+  void ApplyView(const tr::Camera& camera);
 
   DeferredLightingParams& GetLightingParams() {
     return m_lighting_cpu_lighting_params;

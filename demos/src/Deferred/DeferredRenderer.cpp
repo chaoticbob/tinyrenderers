@@ -239,6 +239,12 @@ void DeferredRenderer::Destroy()
 {
 }
 
+void DeferredRenderer::ApplyView(const tr::Camera& camera)
+{
+  m_debug_cpu_params.GetData().InverseViewMatrix = camera.GetInverseViewMatrix();
+  m_debug_cpu_params.GetData().InverseProjectionMatrix = camera.GetInverseProjectionMatrix();
+}
+
 void DeferredRenderer::CreateShaders(tr_renderer* p_renderer, const tr::fs::path& asset_dir)
 {
   // Lighting

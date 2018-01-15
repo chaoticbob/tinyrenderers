@@ -672,6 +672,8 @@ public:
 */
 struct TransformData {
   hlsl_float4x4   ModelMatrix;
+  hlsl_float4x4   ViewMatrix;
+  hlsl_float4x4   ProjectionMatrix;
   hlsl_float4x4   ModelViewMatrix;
   hlsl_float4x4   ModelViewProjectionMatrix;
   hlsl_float3x3   NormalMatrixWS;
@@ -685,35 +687,61 @@ struct TransformData {
 class TransformParams : public ConstantBuffer<TransformData> {
 public:
   TransformParams() {}
-  TransformParams(const Transform& transform) { SetTransform(transform); }
+  TransformParams(const Transform& transform) { SetModelTransform(transform); }
   ~TransformParams() {}
 
-  void SetTransform(const Transform& transform) {
+  void SetModelTransform(const Transform& transform) {
     TransformData& data = GetData();
 
-    data.ModelMatrix = transform.GetModelMatrix();
+    // Model, view, and projection matrices
+    const float4x4& model_matrix = transform.GetModelMatrix();
+    const float4x4 view_matrix = data.ViewMatrix.as_float4x4();
+    const float4x4 projection_matrix = data.ProjectionMatrix.as_float4x4();
+    const float4x4 model_view_matrix = view_matrix * model_matrix;
+    const float4x4 mvp_matrix = projection_matrix * view_matrix * model_matrix;
 
-    float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(data.ModelMatrix.as_float4x4())));
+    // Set model matrix
+    data.ModelMatrix = model_matrix;
+
+    // Set model view matrix
+    data.ModelViewMatrix = model_view_matrix;
+
+    // Set MVP
+    data.ModelViewProjectionMatrix = mvp_matrix;
+    
+    // Calculate world space normal matrix
+    float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(model_matrix)));
     data.NormalMatrixWS = normal_matrix;
-
-    normal_matrix = float3x3(glm::transpose(glm::inverse(data.ModelViewMatrix.as_float4x4())));
+    
+    // Calculate view space normal matrix
+    normal_matrix = float3x3(glm::transpose(glm::inverse(model_view_matrix)));
     data.NormalMatrixVS = normal_matrix;
   }
 
-  void ApplyView(const Camera& camera) {
+  void SetViewTransform(const Camera& camera) {
     TransformData& data = GetData();
 
+    // Model, view, and projection matrices
+    const float4x4 model_matrix = data.ModelMatrix.as_float4x4();
     const float4x4& view_matrix = camera.GetViewMatrix();
     const float4x4& projection_matrix = camera.GetProjectionMatrix();
+    const float4x4 model_view_matrix = view_matrix * model_matrix;
+    const float4x4 mvp_matrix = projection_matrix * view_matrix * model_matrix;
 
-    data.ModelViewMatrix = view_matrix
-                         * data.ModelMatrix.as_float4x4();
+    // Set view matrix
+    data.ViewMatrix = view_matrix;
 
-    data.ModelViewProjectionMatrix = projection_matrix
-                                   * view_matrix
-                                   * data.ModelMatrix.as_float4x4();
+    // Set projection matrix
+    data.ProjectionMatrix = mvp_matrix;
 
-    float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(data.ModelViewMatrix.as_float4x4())));
+    // Set model view matrix
+    data.ModelViewMatrix = model_view_matrix;
+
+    // Set MVP
+    data.ModelViewProjectionMatrix = mvp_matrix;
+
+    // Calculate view space normal matrix
+    float3x3 normal_matrix = float3x3(glm::transpose(glm::inverse(model_view_matrix)));
     data.NormalMatrixVS = normal_matrix;
   }
 

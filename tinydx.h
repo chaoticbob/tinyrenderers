@@ -2876,49 +2876,118 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
       gpu_feature_levels[i] = (D3D_FEATURE_LEVEL)0;
     }
 
+    // Scan adapters for all D3D12 Feature Levels
     IDXGIAdapter1* adapter = NULL;
     for (UINT i = 0; DXGI_ERROR_NOT_FOUND != p_renderer->dx_factory->EnumAdapters1(i, &adapter); ++i) {
         TINY_RENDERER_DECLARE_ZERO(DXGI_ADAPTER_DESC1, desc);
         adapter->GetDesc1(&desc);
-        // Make sure the adapter can support a D3D12 device
+        // Try Feature Level 12.1 first...
         if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, __uuidof(p_renderer->dx_device), NULL))) {
             hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
             if (SUCCEEDED(hres)) {
-                gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_12_1;
-                ++p_renderer->dx_gpu_count;
+                bool is_remote = (desc.Flags & DXGI_ADAPTER_FLAG_REMOTE) == DXGI_ADAPTER_FLAG_REMOTE;
+                bool is_software = (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == DXGI_ADAPTER_FLAG_SOFTWARE;
+                if (! (is_remote || is_software)) {
+                  gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_12_1;
+                  ++p_renderer->dx_gpu_count;
+                }
             }
             adapter->Release();
         }
+        // ...then fall back to Feature Level 12.0
         else if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, __uuidof(p_renderer->dx_device), NULL))) {
             hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
             if (SUCCEEDED(hres)) {
-                gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_12_0;
-                ++p_renderer->dx_gpu_count;
+                bool is_remote = (desc.Flags & DXGI_ADAPTER_FLAG_REMOTE) == DXGI_ADAPTER_FLAG_REMOTE;
+                bool is_software = (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == DXGI_ADAPTER_FLAG_SOFTWARE;
+                if (! (is_remote || is_software)) {
+                  gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_12_0;
+                  ++p_renderer->dx_gpu_count;
+                }
+            }
+            adapter->Release();
+        }
+        // ...then fall back to Feature Level 11.1
+        else if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_1, __uuidof(p_renderer->dx_device), NULL))) {
+            hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
+            if (SUCCEEDED(hres)) {
+                bool is_remote = (desc.Flags & DXGI_ADAPTER_FLAG_REMOTE) == DXGI_ADAPTER_FLAG_REMOTE;
+                bool is_software = (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == DXGI_ADAPTER_FLAG_SOFTWARE;
+                if (! (is_remote || is_software)) {
+                  gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_11_1;
+                  ++p_renderer->dx_gpu_count;
+                }
+            }
+            adapter->Release();
+        }
+        // ...then fall back to Feature Level 11.0
+        else if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(p_renderer->dx_device), NULL))) {
+            hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
+            if (SUCCEEDED(hres)) {
+                bool is_remote = (desc.Flags & DXGI_ADAPTER_FLAG_REMOTE) == DXGI_ADAPTER_FLAG_REMOTE;
+                bool is_software = (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == DXGI_ADAPTER_FLAG_SOFTWARE;
+                if (! (is_remote || is_software)) {
+                  gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_11_0;
+                  ++p_renderer->dx_gpu_count;
+                }
             }
             adapter->Release();
         }
     }
     assert(p_renderer->dx_gpu_count > 0);
 
+    // Pick the adapter with the highest Feature Level
     D3D_FEATURE_LEVEL target_feature_level = D3D_FEATURE_LEVEL_12_1;
-    for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
-      if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_1) {
-        p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
-        break;
-      }
-    }
-
-    if (p_renderer->dx_active_gpu == NULL) {
+    {
       for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
-        if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_0) {
+        if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_1) {
           p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
-          target_feature_level = D3D_FEATURE_LEVEL_12_0;
           break;
         }
       }
-    }
 
+      if (p_renderer->dx_active_gpu == NULL) {
+        for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+          if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_0) {
+            p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+            target_feature_level = D3D_FEATURE_LEVEL_12_0;
+            break;
+          }
+        }
+      }
+
+      if (p_renderer->dx_active_gpu == NULL) {
+        for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+          if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_11_1) {
+            p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+            target_feature_level = D3D_FEATURE_LEVEL_11_1;
+            break;
+          }
+        }
+      }
+
+      if (p_renderer->dx_active_gpu == NULL) {
+        for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+          if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_11_0) {
+            p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+            target_feature_level = D3D_FEATURE_LEVEL_11_0;
+            break;
+          }
+        }
+      }
+    }
     assert(p_renderer->dx_active_gpu != NULL);
+
+    // Adapter description
+    {
+      TINY_RENDERER_DECLARE_ZERO(DXGI_ADAPTER_DESC1, desc);
+      p_renderer->dx_active_gpu->GetDesc1(&desc);      
+      char buf[128];
+      for (uint32_t i = 0; i < 128; ++i) {
+        buf[i] = (char)desc.Description[i];
+      }
+      tr_internal_log(tr_log_type_info, buf, "DirectX Adapter");
+    }
 
     // Load functions
     {
@@ -2936,12 +3005,12 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
                                                                                      "D3D12CreateVersionedRootSignatureDeserializer");
     }
 
-    if ((fnD3D12CreateRootSignatureDeserializer == NULL) ||
-        (fnD3D12SerializeVersionedRootSignature == NULL) ||
-        (fnD3D12CreateVersionedRootSignatureDeserializer == NULL)) 
-    {
-      target_feature_level = D3D_FEATURE_LEVEL_12_0;
-    }
+    //if ((fnD3D12CreateRootSignatureDeserializer == NULL) ||
+    //    (fnD3D12SerializeVersionedRootSignature == NULL) ||
+    //    (fnD3D12CreateVersionedRootSignatureDeserializer == NULL)) 
+    //{
+    //  target_feature_level = D3D_FEATURE_LEVEL_12_0;
+    //}
 
     hres = D3D12CreateDevice(p_renderer->dx_active_gpu, target_feature_level, __uuidof(p_renderer->dx_device), (void**)(&p_renderer->dx_device));
     assert(SUCCEEDED(hres));

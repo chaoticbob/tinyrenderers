@@ -5,7 +5,6 @@
 #ifndef TINY_RENDERER_UTIL_H
 #define TINY_RENDERER_UTIL_H
 
-#define TINY_RENDERER_IMPLEMENTATION
 #if defined(TINY_RENDERER_DX)
   #include "tinydx.h"
 #elif defined(TINY_RENDERER_VK)
@@ -17,6 +16,64 @@
 #include <vector>
 
 namespace tr {
+
+/*! @struct Box3
+
+*/
+struct AABB {
+  float3 min;
+  float3 max;
+  
+  void Set(const AABB& b) {
+    min = glm::min(b.min, b.max);
+    max = glm::max(b.min, b.max);
+  }
+
+  void Fit(const float3& P) {
+    if (initialized) {
+      min = glm::min(min, P);
+      max = glm::max(max, P);
+    }
+    else {
+      min = P;
+      max = P;
+      initialized = true;
+    }
+  }
+
+  void Transform(const float4x4& matrix) {
+    float4 obb_points[8] = {
+      { min.x, min.y, min.z, 1 },
+      { max.x, min.y, min.z, 1 },
+      { max.x, max.y, min.z, 1 },
+      { min.x, max.y, min.z, 1 },
+      { min.x, min.y, max.z, 1 },
+      { max.x, min.y, max.z, 1 },
+      { max.x, max.y, max.z, 1 },
+      { min.x, max.y, max.z, 1 },
+    };
+
+    float4 min4 = matrix * obb_points[0];
+    float4 max4 = min4;
+    for (uint32_t i = 1; i < 7; ++i) {
+      float4 p = matrix * obb_points[i];
+      min4 = glm::min(min4, p);
+      max4 = glm::max(max4, p);
+    }
+
+    min = float3(min4);
+    max = float3(max4);
+  }
+
+  AABB GetTransformed(const float4x4& matrix) const {
+    AABB transformed = *this;
+    transformed.Transform(matrix);
+    return transformed;
+  }
+
+private:
+  bool initialized = false;
+};
 
 // =================================================================================================
 // LoadShaderModule

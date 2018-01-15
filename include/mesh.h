@@ -23,6 +23,7 @@
   #include "tinyvk.h"
 #endif
 
+#include "util.h"
 
 namespace tr {
 
@@ -39,14 +40,15 @@ using float4x2 = glm::mat4x2;
 using float4x3 = glm::mat4x3;
 using float4x4 = glm::mat4x4;
 
-struct Vertex {
-  float3 position;
-  float3 normal;
-  float2 tex_coord;
-};
-
 class Mesh {
 public:
+  struct Vertex {
+    float3 position;
+    float3 normal;
+    float2 tex_coord;
+  };
+
+
   Mesh() {}
   ~Mesh() {}
 
@@ -109,6 +111,10 @@ public:
     return p_data;
   }
 
+  const AABB& GetBounds() const {
+    return m_bounds;
+  }
+
   static bool Load(const std::string& file_path, Mesh* p_mesh) {
     if (p_mesh == nullptr) {
       return false;
@@ -137,6 +143,7 @@ public:
       p_vertex->position.x = attrib.vertices[vertex_index + 0];
       p_vertex->position.y = attrib.vertices[vertex_index + 1];
       p_vertex->position.z = attrib.vertices[vertex_index + 2];
+      p_mesh->m_bounds.Fit(p_vertex->position);
       // Normal
       size_t normal_index = 3 * index.normal_index;
       p_vertex->normal.x = attrib.normals.empty() ? 0.0f : attrib.normals[normal_index + 0];
@@ -153,7 +160,7 @@ public:
     return true;
   }
 
-  static bool Load(const std::string& file_path, tr_renderer* p_renderer, tr_buffer** pp_buffer, uint32_t* p_vertex_count, bool host_visible = false) {
+  static bool Load(const std::string& file_path, tr_renderer* p_renderer, tr_buffer** pp_buffer, uint32_t* p_vertex_count, AABB* p_bounds, bool host_visible = false) {
     tr::Mesh mesh;
     bool mesh_load_res = tr::Mesh::Load(file_path, &mesh);
     if (!mesh_load_res) {
@@ -177,12 +184,18 @@ public:
 
     *pp_buffer = p_buffer;
     *p_vertex_count = mesh.GetVertexCount();
+
+    if (p_bounds != nullptr) {
+      *p_bounds = mesh.GetBounds();
+    }
+
     return true;    
   }
 
 private:
   std::vector<uint32_t> m_indices;
   std::vector<Vertex>   m_vertices;
+  AABB                  m_bounds = {};
 };
 
 } // namespace mesh
