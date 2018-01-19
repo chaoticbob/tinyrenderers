@@ -53,7 +53,7 @@ using DeferredLightingParams = tr::LightingParams<DEFERRED_MAX_POINT_LIGHTS, DEF
 
 */
 struct DeferredMaterialData {
-  tr::hlsl_float3<3>  Color         = { 0.82f, 0.67f, 0.16f };
+  tr::hlsl_float3<3>  Color         = { 0.6f, 0.6f, 0.65f };
   tr::hlsl_float<1>   Roughness     = { 0.5f };
   tr::hlsl_float<1>   Metallic      = { 0.0f };
   tr::hlsl_float<1>   Specular      = { 0.5f };

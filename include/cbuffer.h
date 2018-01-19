@@ -847,7 +847,7 @@ public:
 
 */
 struct BRDFMaterialData {
-  hlsl_float3<3>  BaseColor       = { 0.82f, 0.67f, 0.16f }; // offset = 0
+  hlsl_float3<3>  BaseColor       = { 0.7f, 0.7f, 0.8f }; // offset = 0
   hlsl_float<1>   Metallic        = { 0.0f };
   hlsl_float<1>   Subsurface      = { 0.0f };             // offset = 4
   hlsl_float<1>   Specular        = { 0.5f };
@@ -980,7 +980,7 @@ enum SimpleMaterialProfile {
 
 */
 struct SimpleMaterialData {
-  hlsl_float3<3>  Color           = { 0.4f, 0.5f, 0.9f };   // offset = 0
+  hlsl_float3<3>  Color           = { 0.7f, 0.7f, 0.8f };   // offset = 0
   hlsl_float<1>   Power           = { 0.0f };
   hlsl_float<1>   Roughness       = { 1.0f };               // offset = 4
   hlsl_float3<3>  SpecularColor   = { 1.0f, 1.0f, 1.0f };

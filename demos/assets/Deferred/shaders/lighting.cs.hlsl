@@ -125,57 +125,86 @@ float3  BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y, GBufferData mater
 
 // Unoptimal path, doesn't check intensity
 #if defined(USE_NAIVE)
-void ProcessPointLights(float3 P, float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, out float diffuse, out float3 specular)
-{
-  for (int light_index = 0; light_index < DEFERRED_MAX_POINT_LIGHTS; ++light_index) {
-    float  intensity = lighting_data.PointLights[light_index].Intensity;
-    {
-      float3 LP = lighting_data.PointLights[light_index].Position;
-      float3 L = normalize(LP - P);
-      float  LdotN = max(0.0, dot(L, N));
-      diffuse += LdotN * intensity;
-      specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity;
-    }
-  }
-}
-
-void ProcessDirectionalLights(float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, out float diffuse, out float3 specular)
-{
-  for (int light_index = 0; light_index < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++light_index) {
-    float  intensity = lighting_data.DirectionalLights[light_index].Intensity;
-    {
-      float3 L = -normalize(lighting_data.DirectionalLights[light_index].Direction);
-      float  LdotN = max(0.0, dot(L, N));
-      diffuse += LdotN * intensity;
-      specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity;
-    }
-  }
-}
-
+// void ProcessPointLights(float3 P, float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, out float diffuse, out float3 specular)
+// {
+//   for (int light_index = 0; light_index < DEFERRED_MAX_POINT_LIGHTS; ++light_index) {
+//     float  intensity = lighting_data.PointLights[light_index].Intensity;
+//     {
+//       float3 LP = lighting_data.PointLights[light_index].Position;
+//       float3 L = normalize(LP - P);
+//       float  LdotN = max(0.0, dot(L, N));
+//       diffuse += LdotN * intensity;
+//       specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity;
+//     }
+//   }
+// }
+//
+// void ProcessDirectionalLights(float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, out float diffuse, out float3 specular)
+// {
+//   for (int light_index = 0; light_index < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++light_index) {
+//     float  intensity = lighting_data.DirectionalLights[light_index].Intensity;
+//     {
+//       float3 L = -normalize(lighting_data.DirectionalLights[light_index].Direction);
+//       float  LdotN = max(0.0, dot(L, N));
+//       diffuse += LdotN * intensity;
+//       specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity;
+//     }
+//   }
+// }
+//
 // Slightly more optimized path
 #else
-void ProcessPointLights(float3 P, float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, out float diffuse, out float3 specular)
+void ProcessPointLights(float3 P, float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, inout float3 diffuse, inout float3 specular)
 {
-  for (int light_index = 0; light_index < DEFERRED_MAX_POINT_LIGHTS; ++light_index) {
+  // float3 LP = lighting_data.PointLights[0].Position;
+  // float3 LV = LP - P;
+  // float3 L = normalize(LV);
+  // float  LdotN = max(0.0, dot(L, N));
+  // diffuse = LdotN;
+  // specular = float3(1, 0, 0);
+
+  for (int light_index = 0; light_index < 40; ++light_index) {
     float  intensity = lighting_data.PointLights[light_index].Intensity;
-    if (intensity > 0) {
-      float3 LP = lighting_data.PointLights[light_index].Position;
-      float3 L = normalize(LP - P);
+    float3 LP = lighting_data.PointLights[light_index].Position;
+    float3 LV = LP - P;
+    float  dist = length(LV);
+    float  falloff = lighting_data.PointLights[light_index].FallOff;
+    float  s = 1.0 - clamp(dist / falloff, 0, 1);
+    if (s > 0) {
+      float3 L = normalize(LV);
       float  LdotN = max(0.0, dot(L, N));
-      diffuse += LdotN * intensity;
-      specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity;
+      float  s2 = s * s;
+      float3 color = lighting_data.PointLights[light_index].Color;
+      diffuse += color * LdotN * s2 * intensity;
+      specular += color * LdotN * BRDF(L, V, N, X, Y, material_data) * s2 * intensity;
     }
   }
+
+  // for (int light_index = 0; light_index < DEFERRED_MAX_POINT_LIGHTS; ++light_index) {
+  //   float intensity = lighting_data.PointLights[light_index].Intensity;
+  //   if (intensity > 0) {
+  //     float3 LP = lighting_data.PointLights[light_index].Position;
+  //     float3 LV = LP - P;
+  //     float3 L = normalize(LV);
+  //     float  LdotN = max(0.0, dot(L, N));
+  //     float  dist = length(LV);
+  //     float  falloff = lighting_data.PointLights[light_index].FallOff;
+  //     float  s = 1.0 - clamp(dist / falloff, 0, 1);
+  //     float  s2 = s * s;
+  //     diffuse += LdotN * intensity * s2;
+  //     specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity * s2;
+  //   }
+  // }
 }
 
-void ProcessDirectionalLights(float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, out float diffuse, out float3 specular)
+void ProcessDirectionalLights(float3 V, float3 N, float3 X, float3 Y, LightingData lighting_data, GBufferData material_data, inout float3 diffuse, inout float3 specular)
 {
   for (int light_index = 0; light_index < DEFERRED_MAX_DIRECTIONAL_LIGHTS; ++light_index) {
     float  intensity = lighting_data.DirectionalLights[light_index].Intensity;
     if (intensity > 0) {
       float3 L = -normalize(lighting_data.DirectionalLights[light_index].Direction);
       float  LdotN = max(0.0, dot(L, N));
-      diffuse += LdotN * intensity;
+      diffuse += (float3)(LdotN * intensity);
       specular += LdotN * BRDF(L, V, N, X, Y, material_data) * intensity;
     }
   }
@@ -206,8 +235,8 @@ void csmain(uint3 tid : SV_DispatchThreadID)
   float3 Y;
   ComputeTangentVectors(N, X, Y);
 
-  float  ambient  = LightingParams.AmbientLight.Intensity;
-  float  diffuse  = 0;
+  float3 ambient  = (float3)LightingParams.AmbientLight.Intensity;
+  float3 diffuse  = (float3)0;
   float3 specular = (float3)0;
 
   // Point lights
@@ -219,7 +248,8 @@ void csmain(uint3 tid : SV_DispatchThreadID)
   float fresnelPower = material_data.FresnelPower;
 
   float f = fresnel * pow(1.0 - max(0.0, dot(N, V)), 1 / fresnelPower);
-  float3 Co = ((diffuse + ambient + f) * albedo) + specular;
+  //float3 Co = ((diffuse + float3(ambient + f) * albedo) + specular;
+  float3 Co = ((diffuse + ambient) * albedo) + specular;
   OutputTex[tid.xy] = float4(Co, 1);
 }
 

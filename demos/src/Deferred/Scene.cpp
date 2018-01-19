@@ -76,7 +76,7 @@ void DeferredTubeWorldScene::Initialize(tr_renderer* p_renderer, const tr::fs::p
       entity_create_info.render_pass                      = p_gbuffer_render_pass;
       entity_create_info.pipeline_settings.primitive_topo = tr_primitive_topo_tri_list;
       entity_create_info.pipeline_settings.depth          = true;
-      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_none;
+      entity_create_info.pipeline_settings.cull_mode      = tr_cull_mode_back;
       // Create entity
       {
         auto entity = std::make_unique<DeferredEntity>();

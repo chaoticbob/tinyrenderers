@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <random>
 #include <sstream>
 #include <vector>
 
@@ -144,6 +145,21 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug(
 }
 #endif
 
+float Rand() 
+{
+  static std::mt19937_64                        s_rng;
+  static std::uniform_real_distribution<float>  s_distrib(0, 1);
+
+  float value = s_distrib(s_rng);
+  return value;
+}
+
+float3 Rand3()
+{
+  float3 value(Rand(), Rand(), Rand());
+  return value;
+}
+
 void init_tiny_renderer(GLFWwindow* window)
 {
   // Renderer
@@ -224,7 +240,7 @@ void init_tiny_renderer(GLFWwindow* window)
     float3 eye = float3(-13, 5, 14);
     float3 look_at = float3(-13, 5, 0);
     g_camera.LookAt(eye, look_at);
-    g_camera.Perspective(75.0f, (float)g_window_width / (float)g_window_height, 1.0f, 1000.0f);
+    g_camera.Perspective(75.0f, (float)g_window_width / (float)g_window_height, 1.0f, 100000.0f);
   }
 
   // Scene
@@ -240,24 +256,53 @@ void init_tiny_renderer(GLFWwindow* window)
 
     auto& data = params.GetData();    
     data.AmbientLight.Intensity           = 0.1f;
+
+    {
+      float radius = 54;
+      const uint32_t k_num_lights = 20;
+      float dt = 1.0f / (float)k_num_lights;
+      for (uint32_t i = 0; i < k_num_lights; ++i) {
+        float t = i * dt * 2.0f * 3.141592f;
+        float x = cos(t) * radius;
+        float y = 30.0f;
+        float z = sin(t) * radius;
+        data.PointLights[i].Position  = float3(x, y, z);
+        data.PointLights[i].Color     = float3(0.4f, 0.4f, 0.4f) + 0.8f * Rand3();
+        data.PointLights[i].Intensity = 1.0;
+        data.PointLights[i].FallOff   = 50.0f;
+      }
+
+      radius = 175;
+      for (uint32_t i = 0; i < k_num_lights; ++i) {
+        float t = i * dt * 2.0f * 3.141592f;
+        float x = cos(t) * radius;
+        float y = 40.0f;
+        float z = sin(t) * radius;
+        data.PointLights[i + (1 * k_num_lights)].Position  = float3(x, y, z);
+        data.PointLights[i + (1 * k_num_lights)].Color     = float3(0.6f, 0.6f, 0.6f) + 0.7f * Rand3();
+        data.PointLights[i + (1 * k_num_lights)].Intensity = 1.0f;
+        data.PointLights[i + (1 * k_num_lights)].FallOff   = 80;
+      }
+    }
+
     // -Y
-    data.DirectionalLights[0].Direction   = float3(-0.3f, -1, 0.2);
-    data.DirectionalLights[0].Intensity   = 0.7f;
+    data.DirectionalLights[0].Direction   = float3(-0.1f, -1, 0.2);
+    data.DirectionalLights[0].Intensity   = 0.1f;
     // +Y
     data.DirectionalLights[1].Direction   = float3(0, 1, 0);
-    data.DirectionalLights[1].Intensity   = 0.1f;
+    data.DirectionalLights[1].Intensity   = 0.0f;
     // -X
     data.DirectionalLights[2].Direction   = float3(-1, 0, 0);
-    data.DirectionalLights[2].Intensity   = 0.3f;
+    data.DirectionalLights[2].Intensity   = 0.0f;
     // +X
     data.DirectionalLights[3].Direction   = float3(1, 0, 0);
-    data.DirectionalLights[3].Intensity   = 0.2f;
+    data.DirectionalLights[3].Intensity   = 0.0f;
     // -Z
     data.DirectionalLights[4].Direction   = float3(0, 0, -1);
-    data.DirectionalLights[4].Intensity   = 0.1f;
+    data.DirectionalLights[4].Intensity   = 0.0f;
     // +Z
     data.DirectionalLights[5].Direction   = float3(0, 0, 1);
-    data.DirectionalLights[5].Intensity   = 0.15f;
+    data.DirectionalLights[5].Intensity   = 0.0f;
   }
 }
 
