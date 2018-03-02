@@ -378,6 +378,7 @@ void draw_frame()
     depth_stencil_clear_value.depth = 1.0f;
     depth_stencil_clear_value.stencil = 255;
     tr_cmd_clear_depth_stencil_attachment(cmd, &depth_stencil_clear_value);
+	tr_cmd_set_line_width(cmd, 1.0f);
     tr_cmd_bind_pipeline(cmd, m_pipeline);
     tr_cmd_bind_vertex_buffers(cmd, 1, &m_rect_vertex_buffer);
     tr_cmd_bind_descriptor_sets(cmd, m_pipeline, m_desc_set);

@@ -2670,6 +2670,11 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
     for (UINT i = 0; DXGI_ERROR_NOT_FOUND != p_renderer->dx_factory->EnumAdapters1(i, &adapter); ++i) {
         TINY_RENDERER_DECLARE_ZERO(DXGI_ADAPTER_DESC1, desc);
         adapter->GetDesc1(&desc);
+		// Skip software adapters
+		if (desc.Flags &DXGI_ADAPTER_FLAG_SOFTWARE) {
+			adapter->Release();
+			continue;
+		}
         // Make sure the adapter can support a D3D12 device
         if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_1, __uuidof(p_renderer->dx_device), NULL))) {
             hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
@@ -2687,6 +2692,22 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
             }
             adapter->Release();
         }
+		else if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_1, __uuidof(p_renderer->dx_device), NULL))) {
+			hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
+			if (SUCCEEDED(hres)) {
+				gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_11_1;
+				++p_renderer->dx_gpu_count;
+			}
+			adapter->Release();
+		}
+		else if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(p_renderer->dx_device), NULL))) {
+			hres = adapter->QueryInterface(__uuidof(IDXGIAdapter3), (void**)&(p_renderer->dx_gpus[p_renderer->dx_gpu_count]));
+			if (SUCCEEDED(hres)) {
+				gpu_feature_levels[p_renderer->dx_gpu_count] = D3D_FEATURE_LEVEL_11_0;
+				++p_renderer->dx_gpu_count;
+			}
+			adapter->Release();
+		}
     }
     assert(p_renderer->dx_gpu_count > 0);
 

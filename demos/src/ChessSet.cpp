@@ -329,7 +329,8 @@ void draw_frame()
     tr_begin_cmd(cmd);
     tr_cmd_render_target_transition(cmd, render_target, tr_texture_usage_present, tr_texture_usage_color_attachment); 
     tr_cmd_depth_stencil_transition(cmd, render_target, tr_texture_usage_sampled_image, tr_texture_usage_depth_stencil_attachment);
-    tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
+	tr_cmd_set_line_width(cmd, 1.0f);
+	tr_cmd_set_viewport(cmd, 0, 0, (float)g_window_width, (float)g_window_height, 0.0f, 1.0f);
     tr_cmd_set_scissor(cmd, 0, 0, g_window_width, g_window_height);
     tr_cmd_begin_render(cmd, render_target);
     tr_cmd_clear_color_attachment(cmd, 0, &g_color_clear_value);
