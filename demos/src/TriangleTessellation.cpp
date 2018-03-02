@@ -385,6 +385,7 @@ void draw_frame()
     tr_cmd_begin_render(cmd, render_target);
     tr_cmd_clear_color_attachment(cmd, 0, &g_color_clear_value);
     tr_cmd_clear_depth_stencil_attachment(cmd, &g_depth_stencil_clear_value);
+    tr_cmd_set_line_width(cmd, 1.0f);
     {
       // Draw base
       g_chess_pieces_base.Draw(cmd);
