@@ -5131,8 +5131,8 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
     assert(p_cmd != NULL);
     assert(p_cmd->vk_cmd_buf != VK_NULL_HANDLE);
 
-    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
-    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    VkPipelineStageFlags src_stage_mask = 0;
+    VkPipelineStageFlags dst_stage_mask = 0;
     VkDependencyFlags dependency_flags = 0;
     TINY_RENDERER_DECLARE_ZERO(VkBufferMemoryBarrier , barrier);
     barrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -5143,106 +5143,132 @@ void tr_internal_vk_cmd_buffer_transition(tr_cmd* p_cmd, tr_buffer* p_buffer, tr
     barrier.offset              = 0;
     barrier.size                = VK_WHOLE_SIZE;
 
+    const VkPipelineStageFlags all_shader_stages =
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+        VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
+        VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+        VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
     switch (old_usage) {
-        case tr_buffer_usage_transfer_src: {
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_transfer_dst: {
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_uniform_texel_srv: {
-            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_storage_texel_uav: {
-            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_uniform_cbv: {
-            barrier.srcAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_storage_srv: {
-            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_storage_uav: {
-            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        }
-        break;
-
         case tr_buffer_usage_index: {
+            src_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
             barrier.srcAccessMask = VK_ACCESS_INDEX_READ_BIT;
         }
         break;
 
         case tr_buffer_usage_vertex: {
+            src_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
             barrier.srcAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
         }
         break;
 
         case tr_buffer_usage_indirect: {
+            src_stage_mask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
             barrier.srcAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_transfer_src: {
+            src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_transfer_dst: {
+            src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_uniform_cbv: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_srv: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_uav: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        break;
+        case tr_buffer_usage_uniform_texel_srv: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_texel_uav: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
     }
 
     switch (new_usage) {
-        case tr_buffer_usage_transfer_src: {
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_transfer_dst: {
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_uniform_texel_srv: {
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_storage_texel_uav: {
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_uniform_cbv: {
-            barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_storage_srv: {
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        }
-        break;
-
-        case tr_buffer_usage_storage_uav: {
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        }
-        break;
-
         case tr_buffer_usage_index: {
+            dst_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
             barrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
         }
         break;
 
         case tr_buffer_usage_vertex: {
+            dst_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
             barrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
         }
         break;
 
         case tr_buffer_usage_indirect: {
+            dst_stage_mask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
             barrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_transfer_src: {
+            dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_transfer_dst: {
+            dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_uniform_cbv: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_srv: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_uav: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        }
+        break;
+        case tr_buffer_usage_uniform_texel_srv: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        }
+        break;
+
+        case tr_buffer_usage_storage_texel_uav: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         }
         break;
     }
@@ -5264,18 +5290,15 @@ void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
     assert(VK_NULL_HANDLE != p_cmd->vk_cmd_buf);
     assert(VK_NULL_HANDLE != p_texture->vk_image);
 
-    VkPipelineStageFlags src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkPipelineStageFlags dst_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags src_stage_mask = 0;
+    VkPipelineStageFlags dst_stage_mask = 0;
     VkDependencyFlags dependency_flags = 0;
     TINY_RENDERER_DECLARE_ZERO(VkImageMemoryBarrier, barrier);
 
-    barrier.oldLayout = tr_util_to_vk_image_layout(old_usage);
-    barrier.newLayout = tr_util_to_vk_image_layout(new_usage);
-
     barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.pNext                           = NULL;
-    barrier.oldLayout                       = tr_util_to_vk_image_layout(old_usage);
-    barrier.newLayout                       = tr_util_to_vk_image_layout(new_usage);
+    barrier.oldLayout                       = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
     barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
     barrier.image                           = p_texture->vk_image;
@@ -5285,77 +5308,133 @@ void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount     = 1;
 
-    // oldLayout
-    switch (barrier.oldLayout) 
+    const VkPipelineStageFlags all_shader_stages =
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+        VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
+        VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
+        VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+    // source stage/access/layout
+    switch (old_usage)
     {
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: {
-            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        case tr_texture_usage_undefined: {
+            src_stage_mask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         }
         break;
 
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: {
-            barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        }
-        break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: {
-            barrier.srcAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
-        }
-        break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
+        case tr_texture_usage_transfer_src: {
+            src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         }
         break;
 
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:  {
+        case tr_texture_usage_transfer_dst: {
+            src_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         }
         break;
 
-        case VK_IMAGE_LAYOUT_PREINITIALIZED: {
-            barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        case tr_texture_usage_sampled_image: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
         break;
 
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: {
-            barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        case tr_texture_usage_storage_image: {
+            src_stage_mask = all_shader_stages;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
         }
-        break;  
+        break;
+
+        case tr_texture_usage_color_attachment: {
+            src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_depth_stencil_attachment: {
+            src_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_present: {
+            src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            barrier.srcAccessMask = 0;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        }
+        break;
     }
 
-    // newImageLayout
-    switch (barrier.newLayout) 
+    // destination stage/access/layout
+    switch (new_usage)
     {
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: {
-            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        case tr_texture_usage_undefined: {
+            dst_stage_mask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         }
         break;
 
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: {
-            barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        }
-        break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL: {
-            barrier.dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
-        }
-        break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL: {
+       case tr_texture_usage_transfer_src: {
+            dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
             barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        }
-
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL: {
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         }
         break;
 
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: {
-            barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        case tr_texture_usage_transfer_dst: {
+            dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         }
-        break;                                            
-    }
+        break;
+
+        case tr_texture_usage_sampled_image: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_storage_image: {
+            dst_stage_mask = all_shader_stages;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        }
+        break;
+
+        case tr_texture_usage_color_attachment: {
+            dst_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_depth_stencil_attachment: {
+            dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+            barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_present: {
+            dst_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            barrier.dstAccessMask = 0;
+            barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        }
+        break;
+     }
 
     vkCmdPipelineBarrier(p_cmd->vk_cmd_buf,
                          src_stage_mask,
