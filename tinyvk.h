@@ -2816,6 +2816,12 @@ VkImageUsageFlags tr_util_to_vk_image_usage(tr_texture_usage_flags usage)
     if (tr_texture_usage_depth_stencil_attachment == (usage & tr_texture_usage_depth_stencil_attachment)) {
         result |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     }
+    if (tr_texture_usage_resolve_src == (usage & tr_texture_usage_resolve_src)) {
+        result |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    }
+    if (tr_texture_usage_resolve_dst == (usage & tr_texture_usage_resolve_dst)) {
+        result |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    }
     return result;
 }
 
@@ -2830,6 +2836,8 @@ VkImageLayout tr_util_to_vk_image_layout(tr_texture_usage usage)
         case tr_texture_usage_storage_image            : result = VK_IMAGE_LAYOUT_GENERAL; break;
         case tr_texture_usage_color_attachment         : result = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; break;
         case tr_texture_usage_depth_stencil_attachment : result = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; break;
+        case tr_texture_usage_resolve_src              : result = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; break;
+        case tr_texture_usage_resolve_dst              : result = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; break;
         case tr_texture_usage_present                  : result = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; break;
     }
     return result;
@@ -5368,6 +5376,20 @@ void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
         }
         break;
 
+        case tr_texture_usage_resolve_src: {
+            src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_resolve_dst: {
+            src_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
         case tr_texture_usage_present: {
             src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             barrier.srcAccessMask = 0;
@@ -5425,6 +5447,20 @@ void tr_internal_vk_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
             dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
             barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_resolve_src: {
+            dst_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        }
+        break;
+
+        case tr_texture_usage_resolve_dst: {
+            dst_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         }
         break;
 
