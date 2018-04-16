@@ -668,6 +668,7 @@ tr_api_export void tr_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture,
 tr_api_export void tr_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 tr_api_export void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+tr_api_export void tr_cmd_copy_buffer_to_buffer(tr_cmd* p_cmd, uint64_t src_offset, uint64_t dst_offset, uint64_t size, tr_buffer* p_src_buffer, tr_buffer* p_dst_buffer);
 tr_api_export void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
 tr_api_export void tr_acquire_next_image(tr_renderer* p_renderer, tr_semaphore* p_signal_semaphore, tr_fence* p_fence);
@@ -811,6 +812,7 @@ void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
 void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_depth_stencil_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage);
 void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+void tr_internal_dx_cmd_copy_buffer_to_buffer(tr_cmd* p_cmd, uint64_t src_offset, uint64_t dst_offset, uint64_t size, tr_buffer* p_src_buffer, tr_buffer* p_dst_buffer);
 void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture);
 
 // Internal queue/swapchain functions
@@ -1397,6 +1399,7 @@ void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint
     assert(size > 0 );
 
     // Create counter buffer
+
     if (pp_counter_buffer != NULL) {
       tr_buffer* p_counter_buffer = (tr_buffer*)calloc(1, sizeof(*p_counter_buffer));
       assert(NULL != p_counter_buffer);
@@ -1970,6 +1973,16 @@ void tr_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t group_count
     tr_internal_dx_cmd_dispatch(p_cmd, group_count_x, group_count_y, group_count_z);
 }
 
+void tr_cmd_copy_buffer_to_buffer(tr_cmd* p_cmd, uint64_t src_offset, uint64_t dst_offset, uint64_t size, tr_buffer* p_src_buffer, tr_buffer* p_dst_buffer)
+{
+    assert(p_cmd != NULL);
+    assert(p_src_buffer != NULL);
+    assert(p_dst_buffer != NULL);
+
+    tr_internal_dx_cmd_copy_buffer_to_buffer(p_cmd, src_offset, dst_offset, size, p_src_buffer, p_dst_buffer);
+}
+
+
 void tr_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
 {
     assert(p_cmd != NULL);
@@ -2277,6 +2290,10 @@ void tr_util_transition_buffer(tr_queue* p_queue, tr_buffer* p_buffer, tr_buffer
 {
     assert(NULL != p_queue);
     assert(NULL != p_buffer);
+
+    if (old_usage == new_usage) {
+      return;
+    }
   
     tr_cmd_pool* p_cmd_pool = NULL;
     tr_create_cmd_pool(p_queue->renderer, p_queue, true, &p_cmd_pool);
@@ -2724,6 +2741,26 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
         if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_12_0) {
           p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
           target_feature_level = D3D_FEATURE_LEVEL_12_0;
+          break;
+        }
+      }
+    }
+
+    if (p_renderer->dx_active_gpu == NULL) {
+      for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+        if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_11_1) {
+          p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+          target_feature_level = D3D_FEATURE_LEVEL_11_1;
+          break;
+        }
+      }
+    }
+
+    if (p_renderer->dx_active_gpu == NULL) {
+      for (uint32_t i = 0; i < p_renderer->dx_gpu_count; ++i) {
+        if (gpu_feature_levels[i] == D3D_FEATURE_LEVEL_11_0) {
+          p_renderer->dx_active_gpu = p_renderer->dx_gpus[i];
+          target_feature_level = D3D_FEATURE_LEVEL_11_0;
           break;
         }
       }
@@ -3188,11 +3225,11 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     if (p_buffer->host_visible) {
         // D3D12_HEAP_TYPE_UPLOAD requires D3D12_RESOURCE_STATE_GENERIC_READ
-        heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
-        res_states = D3D12_RESOURCE_STATE_GENERIC_READ;
+        heap_props.Type = (p_buffer->usage == tr_buffer_usage_storage_srv) ? D3D12_HEAP_TYPE_READBACK : D3D12_HEAP_TYPE_UPLOAD;
+        res_states = (p_buffer->usage == tr_buffer_usage_storage_srv) ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_GENERIC_READ;
     }
 
-    HRESULT hres = p_renderer->dx_device->CreateCommittedResource(
+    HRESULT hres = p_renderer->dx_device->CreateCommittedResource( 
         &heap_props, heap_flags, &desc, res_states, NULL,
         __uuidof(p_buffer->dx_resource), (void**)&(p_buffer->dx_resource));
     assert(SUCCEEDED(hres));
@@ -4595,6 +4632,15 @@ void tr_internal_dx_cmd_dispatch(tr_cmd* p_cmd, uint32_t group_count_x, uint32_t
     assert(p_cmd->dx_cmd_list != NULL);
 
     p_cmd->dx_cmd_list->Dispatch(group_count_x, group_count_y, group_count_z);
+}
+
+void tr_internal_dx_cmd_copy_buffer_to_buffer(tr_cmd* p_cmd, uint64_t src_offset, uint64_t dst_offset, uint64_t size, tr_buffer* p_src_buffer, tr_buffer* p_dst_buffer)
+{
+    assert(p_cmd->dx_cmd_list != NULL);
+
+    p_cmd->dx_cmd_list->CopyBufferRegion(p_dst_buffer->dx_resource, dst_offset,
+                                         p_src_buffer->dx_resource, src_offset,
+                                         size);
 }
 
 void tr_internal_dx_cmd_copy_buffer_to_texture2d(tr_cmd* p_cmd, uint32_t width, uint32_t height, uint32_t row_pitch, uint64_t buffer_offset, uint32_t mip_level, tr_buffer* p_buffer, tr_texture* p_texture)
