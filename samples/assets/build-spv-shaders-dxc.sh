@@ -1,7 +1,7 @@
 #!/bin/sh
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-compile_flags=-O3
+compile_flags="-O3 -fvk-use-dx-layout"
 
 if [ "$#" -lt 1 ]; then
   echo "Usage: build-spv-shaders.sh <dxc path>"
@@ -225,5 +225,7 @@ compile_gs triangle_wireframe.hlsl GSMain
 compile_vs_ps simple_tess_color.hlsl VSMain PSMain
 compile_vs_ps simple_tess_isoline.hlsl VSMain PSMain
 compile_hs_ds simple_tess_isoline.hlsl HSMain DSMain
+
+compile_cs debugging.hlsl main
 
 echo ""

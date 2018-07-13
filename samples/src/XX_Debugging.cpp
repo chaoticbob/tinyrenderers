@@ -5,6 +5,7 @@
   #define GLFW_EXPOSE_NATIVE_WIN32
 #endif
 #include "GLFW/glfw3native.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -22,7 +23,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-const char*         k_app_name = "06_AppendConsume";
+const char*         k_app_name = "XX_Debugging";
 const uint32_t      k_image_count = 3;
 #if defined(__linux__)
 const std::string   k_asset_dir = "../samples/assets/";
@@ -175,7 +176,7 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_cmd_n(m_cmd_pool, false, k_image_count, &m_cmds);
     
 #if defined(TINY_RENDERER_VK)
-    auto comp = load_file(k_asset_dir + "append_consume.cs.spv");
+    auto comp = load_file(k_asset_dir + "debugging.cs.spv");
     tr_create_shader_program_compute(m_renderer, 
                                      (uint32_t)comp.size(), comp.data(), "main", &m_compute_shader);
 
@@ -185,7 +186,7 @@ void init_tiny_renderer(GLFWwindow* window)
                              (uint32_t)vert.size(), (uint32_t*)(vert.data()), "VSMain", 
                              (uint32_t)frag.size(), (uint32_t*)(frag.data()), "PSMain", &m_texture_shader);
 #elif defined(TINY_RENDERER_DX)
-    auto hlsl = load_file(k_asset_dir + "append_consume.hlsl");
+    auto hlsl = load_file(k_asset_dir + "debugging.hlsl");
     tr_create_shader_program_compute(m_renderer, 
                                      (uint32_t)hlsl.size(), hlsl.data(), "main", &m_compute_shader);
 
@@ -209,7 +210,7 @@ void init_tiny_renderer(GLFWwindow* window)
 
     // See append_consume.hlsl for bindings for both Vulkan and D3D12
 #if defined(TINY_RENDERER_VK)
-    descriptors.resize(4);
+    descriptors.resize(6);
     // Consume buffer data
     descriptors[0].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[0].count         = 1;
@@ -242,6 +243,7 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[5].shader_stages = tr_shader_stage_comp;
     tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_compute_desc_set);
 #elif defined(TINY_RENDERER_DX)
+    descriptors.resize(3);
     descriptors[0].type          = tr_descriptor_type_storage_buffer_uav;
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
@@ -307,19 +309,21 @@ void init_tiny_renderer(GLFWwindow* window)
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = required_channels;
     // Consume buffer
-    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_src_counter_buffer, &m_compute_src_buffer);
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, false, &m_compute_src_counter_buffer, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, (uint32_t)element_count, m_compute_src_counter_buffer);
     stbi_image_free(image_data);
     // Append buffer
-    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, false, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);
     tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, 0, m_compute_dst_counter_buffer);
     tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
     // Debug buffer
-    buffer_size = 1024 * 1024 * 8;
-    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, &m_compute_dst_counter_buffer, &m_compute_dst_buffer);
-    tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, 0, m_compute_dst_counter_buffer);
-    tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
+    struct_stride = sizeof(uint32_t);
+    element_count = 1024 * 1024 * 8;
+    buffer_size = element_count * struct_stride;
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, true, false, &m_debug_dst_counter_buffer, &m_debug_dst_buffer);
+    tr_util_set_storage_buffer_count(m_renderer->graphics_queue, 0, 0, m_debug_dst_counter_buffer);
+    //tr_util_transition_buffer(m_renderer->graphics_queue, m_debug_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_src);
     
     tr_create_texture_2d(m_renderer, m_image_width, m_image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, 1, NULL, false, tr_texture_usage_sampled_image, &m_texture);
     tr_util_transition_image(m_renderer->graphics_queue, m_texture, tr_texture_usage_undefined, tr_texture_usage_sampled_image);
@@ -335,9 +339,12 @@ void init_tiny_renderer(GLFWwindow* window)
     m_compute_desc_set->descriptors[1].buffers[0] = m_compute_src_counter_buffer;
     m_compute_desc_set->descriptors[2].buffers[0] = m_compute_dst_buffer;
     m_compute_desc_set->descriptors[3].buffers[0] = m_compute_dst_counter_buffer;
+    m_compute_desc_set->descriptors[4].buffers[0] = m_debug_dst_buffer;
+    m_compute_desc_set->descriptors[5].buffers[0] = m_debug_dst_counter_buffer;
 #elif defined(TINY_RENDERER_DX)
     m_compute_desc_set->descriptors[0].buffers[0] = m_compute_src_buffer;
     m_compute_desc_set->descriptors[1].buffers[0] = m_compute_dst_buffer;
+    m_compute_desc_set->descriptors[2].buffers[0] = m_debug_dst_buffer;
 #endif
     tr_update_descriptor_set(m_renderer, m_compute_desc_set);
 }
@@ -394,6 +401,33 @@ void draw_frame()
     tr_queue_present(m_renderer->present_queue, 1, &render_complete_semaphores);
 
     tr_queue_wait_idle(m_renderer->graphics_queue);
+
+    struct DebugData {
+      uint32_t control;
+      union {
+        struct { uint32_t x, y, z, w; };
+        uint32_t xyzw[4];
+      };
+    };
+
+    uint32_t size = sizeof(DebugData);
+    DebugData* values = (DebugData*)(m_debug_dst_buffer->cpu_mapped_address);
+    uint32_t count = *((uint32_t*)(m_debug_dst_counter_buffer->cpu_mapped_address));
+    count = std::min<uint32_t>(10, count);
+    for (uint32_t i = 0; i < count; ++i) {
+      std::stringstream ss;
+      ss << i << " : ";
+      const DebugData& v = values[i];           
+      switch (v.control) {
+        case 1: ss << v.x; break;
+        case 2: ss << "(" << v.x << "," << v.x << ")"; break;
+        case 3: ss << "(" << v.x << "," << v.x << "," << v.y << ")"; break;
+        case 4: ss << "(" << v.x << "," << v.x << "," << v.y << "," << v.z << ")"; break;
+      }
+      std::string s = ss.str();
+      LOG(s);
+    }
+    *((uint32_t*)(m_debug_dst_counter_buffer->cpu_mapped_address)) = 0;
 }
 
 int main(int argc, char **argv)

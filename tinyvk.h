@@ -3771,7 +3771,7 @@ void tr_internal_vk_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
     VkMemoryPropertyFlags mem_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     if (p_buffer->host_visible) {
-        mem_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        mem_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
     }
 
     uint32_t memory_type_index = UINT32_MAX;
