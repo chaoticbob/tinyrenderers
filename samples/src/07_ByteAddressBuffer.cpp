@@ -267,14 +267,14 @@ void init_tiny_renderer(GLFWwindow* window)
     uint64_t buffer_size = m_image_row_stride * m_image_height;
     uint64_t element_count = m_image_width * m_image_height;
     uint64_t struct_stride = 0;
-    tr_create_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, true, &m_compute_src_buffer);
+    tr_create_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, true, &m_compute_src_buffer);
     tr_util_update_buffer(m_renderer->graphics_queue, buffer_size, image_data, m_compute_src_buffer);
     stbi_image_free(image_data);
 
     buffer_size = m_image_row_stride * m_image_height;
     element_count = m_image_width * m_image_height;
     struct_stride = 0;
-    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, true, NULL, &m_compute_dst_buffer);
+    tr_create_rw_structured_buffer(m_renderer, buffer_size, 0, element_count, struct_stride, false, true, NULL, &m_compute_dst_buffer);
     tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_storage_uav, tr_buffer_usage_transfer_dst);
     tr_util_clear_buffer(m_renderer->graphics_queue, m_compute_dst_buffer);
     tr_util_transition_buffer(m_renderer->graphics_queue, m_compute_dst_buffer, tr_buffer_usage_transfer_dst, tr_buffer_usage_transfer_src);

@@ -621,8 +621,8 @@ tr_api_export void tr_create_buffer(tr_renderer* p_renderer, tr_buffer_usage usa
 tr_api_export void tr_create_index_buffer(tr_renderer*p_renderer, uint64_t size, bool host_visible, tr_index_type index_type, tr_buffer** pp_buffer);
 tr_api_export void tr_create_uniform_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, tr_buffer** pp_buffer);
 tr_api_export void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_visible, uint32_t vertex_stride, tr_buffer** pp_buffer);
-tr_api_export void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_buffer);
-tr_api_export void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
+tr_api_export void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool host_visible, bool raw, tr_buffer** pp_buffer);
+tr_api_export void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool host_visible, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer);
 tr_api_export void tr_destroy_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer);
 
 tr_api_export void tr_create_texture(tr_renderer* p_renderer, tr_texture_type type, uint32_t width, uint32_t height, uint32_t depth, tr_sample_count sample_count, tr_format format, uint32_t mip_levels, const tr_clear_value* p_clear_value, bool host_visible, tr_texture_usage_flags usage, tr_texture** pp_texture);
@@ -1430,7 +1430,7 @@ void tr_create_vertex_buffer(tr_renderer* p_renderer, uint64_t size, bool host_v
     (*pp_buffer)->vertex_stride = vertex_stride;
 }
 
-void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_buffer)
+void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool host_visible, bool raw, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1441,7 +1441,7 @@ void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_
     p_buffer->renderer        = p_renderer;
     p_buffer->usage           = tr_buffer_usage_storage_srv;
     p_buffer->size            = size;
-    p_buffer->host_visible    = false;
+    p_buffer->host_visible    = host_visible;
     p_buffer->format          = tr_format_undefined;
     p_buffer->first_element   = first_element;
     p_buffer->element_count   = element_count;
@@ -1452,7 +1452,7 @@ void tr_create_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_
     *pp_buffer = p_buffer;
 }
 
-void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
+void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint64_t first_element, uint64_t element_count, uint64_t struct_stride, bool host_visible, bool raw, tr_buffer** pp_counter_buffer, tr_buffer** pp_buffer)
 {
     TINY_RENDERER_RENDERER_PTR_CHECK(p_renderer);
     assert(size > 0 );
@@ -1465,7 +1465,7 @@ void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint
       p_counter_buffer->renderer        = p_renderer;
       p_counter_buffer->usage           = tr_buffer_usage_storage_uav;
       p_counter_buffer->size            = 4;
-      p_counter_buffer->host_visible    = false;
+      p_counter_buffer->host_visible    = host_visible;
       p_counter_buffer->format          = tr_format_undefined;
       p_counter_buffer->first_element   = 0;
       p_counter_buffer->element_count   = 1;
@@ -1484,7 +1484,7 @@ void tr_create_rw_structured_buffer(tr_renderer* p_renderer, uint64_t size, uint
       p_buffer->renderer        = p_renderer;
       p_buffer->usage           = tr_buffer_usage_storage_uav;
       p_buffer->size            = size;
-      p_buffer->host_visible    = false;
+      p_buffer->host_visible    = host_visible;
       p_buffer->format          = tr_format_undefined;
       p_buffer->first_element   = first_element;
       p_buffer->element_count   = element_count;
