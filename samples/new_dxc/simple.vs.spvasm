@@ -1,0 +1,48 @@
+
+                          OpCapability Shader
+  %1  =                   OpExtInstImport "GLSL.std.450"
+                          OpMemoryModel Logical GLSL450
+                          OpEntryPoint Vertex %VSMain "VSMain" %in_Position %out_SV_Position
+                          OpSource HLSL 500
+        
+                          OpName %VSMain "VSMain"
+                          OpName %VSMain_impl "VSMain_impl"
+                          OpName %in_Position "in_Position"
+                          OpName %out_SV_Position "out_SV_Position"
+
+                          OpDecorate %in_Position Location 0
+                          OpDecorate %out_SV_Position BuiltIn Position
+
+  %void                 = OpTypeVoid 
+  %void_func            = OpTypeFunction %void
+  %float                = OpTypeFloat 32
+  %v4float              = OpTypeVector %float 4
+  %ptr_function_v4float = OpTypePointer Function %v4float 
+  %v4float_func         = OpTypeFunction %v4float %ptr_function_v4float
+  %ptr_input_v4float    = OpTypePointer Input %v4float
+  %ptr_output_v4float   = OpTypePointer Output %v4float
+
+; Input/output variables
+  %in_Position          = OpVariable %ptr_input_v4float Input
+  %out_SV_Position      = OpVariable %ptr_output_v4float Output
+
+; void VSMain(void)
+  %VSMain               = OpFunction %void None %void_func
+  %VSMain_label         = OpLabel
+  %VSMain_var_0         = OpVariable %ptr_function_v4float Function
+  ; Load from in_Position and store 
+  %VSMain_res_0         = OpLoad %v4float %in_Position
+                          OpStore %VSMain_var_0 %VSMain_res_0
+  ; VSMain_var_4 = VSMain_impl(VSMain_var2);
+  %VSMain_res_1         = OpFunctionCall %v4float %VSMain_impl %VSMain_var_0
+                          OpStore %out_SV_Position %VSMain_res_1
+                          OpReturn
+                          OpFunctionEnd
+
+; float4 VSMain_impl(float4)
+  %VSMain_impl          = OpFunction %v4float None %v4float_func
+  %VSMain_impl_param_0  = OpFunctionParameter %ptr_function_v4float
+  %VSMain_impl_label    = OpLabel
+  %VSMain_impl_var_1    = OpLoad %v4float %VSMain_impl_param_0
+                          OpReturnValue %VSMain_impl_var_1
+                          OpFunctionEnd

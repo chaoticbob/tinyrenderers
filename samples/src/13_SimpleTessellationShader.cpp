@@ -35,7 +35,7 @@ using float4x4 = glm::mat4;
 
 
 const char*         k_app_name = "13_SimpleTessellationShader";
-const uint32_t      k_image_count = 1;
+const uint32_t      k_image_count = 3;
 #if defined(__linux__)
 const std::string   k_asset_dir = "../samples/assets/";
 #elif defined(_WIN32)

@@ -29,7 +29,7 @@
 using namespace tr;
 
 const char*         k_app_name = "TriangleTessellation";
-const uint32_t      k_image_count = 1;
+const uint32_t      k_image_count = 3;
 #if defined(__linux__)
 const tr::fs::path  k_asset_dir = "../demos/assets/";
 #elif defined(_WIN32)
