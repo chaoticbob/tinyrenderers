@@ -1,6 +1,9 @@
 #include "GLFW/glfw3.h"
 #if defined(__linux__)
-  #define GLFW_EXPOSE_NATIVE_X11
+  #if defined(__ggp__)
+  #else
+    #define GLFW_EXPOSE_NATIVE_X11
+  #endif
 #elif defined(_WIN32)
   #define GLFW_EXPOSE_NATIVE_WIN32
 #endif
@@ -43,11 +46,16 @@ using float4x3 = glm::mat4x3;
 
 const char*           k_app_name = "ChessSet";
 const uint32_t        k_image_count = 3;
-#if defined(__linux__)
+#if defined(TINY_RENDERER_GGP)
+const tr::fs::path   k_asset_dir = "./demos/assets/";
+#elif defined(TINY_RENDERER_LINUX)
 const tr::fs::path    k_asset_dir = "../demos/assets/";
-#elif defined(_WIN32)
+#elif defined(TINY_RENDERER_MSW)
 const tr::fs::path    k_asset_dir = "../../demos/assets/";
 #endif
+
+const uint32_t k_window_width  = 1920;
+const uint32_t k_window_height = 1080;
 
 tr_renderer*          g_renderer = nullptr;
 tr_cmd_pool*          g_cmd_pool = nullptr;
@@ -153,11 +161,12 @@ void init_tiny_renderer(GLFWwindow* window)
     g_depth_stencil_clear_value.depth = 1.0f;
     g_depth_stencil_clear_value.stencil = 255;
 
-    tr_renderer_settings settings = {0};
-#if defined(__linux__)
+    tr_renderer_settings settings = {};
+#if defined(TINY_RENDERER_GGP)
+#elif defined(TINY_RENDERER_LINUX)
     settings.handle.connection              = XGetXCBConnection(glfwGetX11Display());
     settings.handle.window                  = glfwGetX11Window(window);
-#elif defined(_WIN32)
+#elif defined(TINY_RENDERER_MSW)
     settings.handle.hinstance               = ::GetModuleHandle(NULL);
     settings.handle.hwnd                    = glfwGetWin32Window(window);
 #endif
@@ -366,7 +375,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(1920, 1080, k_app_name, NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(k_window_width, k_window_height, k_app_name, NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {

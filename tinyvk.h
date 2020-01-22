@@ -68,9 +68,16 @@ COMPILING & LINKING
 #include <string.h>
 
 #if defined(__linux__)
-    #define TINY_RENDERER_LINUX
-    #define VK_USE_PLATFORM_XCB_KHR
-    #include <X11/Xlib-xcb.h>
+    #if defined(__ggp__)
+        #define TINY_RENDERER_GGP
+        #ifndef VK_USE_PLATFORM_GGP
+            #define VK_USE_PLATFORM_GGP
+        #endif
+    #else
+        #define TINY_RENDERER_LINUX
+        #define VK_USE_PLATFORM_XCB_KHR
+        #include <X11/Xlib-xcb.h>
+    #endif
 #endif
 
 #if defined(_WIN32)
@@ -358,7 +365,8 @@ typedef struct tr_clear_value {
 } tr_clear_value;
 
 typedef struct tr_platform_handle {
-#if defined(__linux__)
+#if defined(TINY_RENDERER_GGP)
+#elif defined(TINY_RENDERER_LINUX)
     xcb_connection_t*                   connection;
     xcb_window_t                        window;
 #elif defined(TINY_RENDERER_MSW)
@@ -2989,7 +2997,7 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
     app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app_info.pEngineName        = "tinyvk";
     app_info.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
-    app_info.apiVersion         = VK_MAKE_VERSION(1, 0, 3);
+    app_info.apiVersion         = VK_MAKE_VERSION(1, 1, 0);
 
     // Instance
     {
@@ -3005,7 +3013,9 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
         else {
           // Use default extensions
           extensions[extension_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
-#if defined(TINY_RENDERER_LINUX)
+#if defined(TINY_RENDERER_GGP)
+          extensions[extension_count++] = VK_GGP_STREAM_DESCRIPTOR_SURFACE_EXTENSION_NAME;
+#elif defined(TINY_RENDERER_LINUX)
           extensions[extension_count++] = VK_KHR_XCB_SURFACE_EXTENSION_NAME;
 #elif defined(TINY_RENDERER_MSW)
           extensions[extension_count++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
@@ -3068,7 +3078,14 @@ void tr_internal_vk_create_surface(tr_renderer* p_renderer)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_instance);
 
-#if defined(TINY_RENDERER_LINUX)
+#if defined(TINY_RENDERER_GGP)
+    TINY_RENDERER_DECLARE_ZERO(VkStreamDescriptorSurfaceCreateInfoGGP, create_info);
+    create_info.sType            = VK_STRUCTURE_TYPE_STREAM_DESCRIPTOR_SURFACE_CREATE_INFO_GGP;
+    create_info.pNext            = NULL;
+    create_info.streamDescriptor = kGgpPrimaryStreamDescriptor;
+    VkResult vk_res = vkCreateStreamDescriptorSurfaceGGP(p_renderer->vk_instance, &create_info, NULL, &(p_renderer->vk_surface));
+    assert(VK_SUCCESS == vk_res);
+#elif defined(TINY_RENDERER_LINUX)
     TINY_RENDERER_DECLARE_ZERO(VkXcbSurfaceCreateInfoKHR, create_info);
     create_info.sType      = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
     create_info.pNext      = NULL;

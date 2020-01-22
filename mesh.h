@@ -123,9 +123,10 @@ public:
     tinyobj::attrib_t                 attrib;
     std::vector<tinyobj::shape_t>     shapes;
     std::vector<tinyobj::material_t>  materials;
+    std::string                       warn;
     std::string                       err;
     bool                              triangulate = true;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, file_path.c_str(), nullptr, triangulate);
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, file_path.c_str(), nullptr, triangulate);
     if (!ret || shapes.empty() || attrib.vertices.empty()) {
       return false;
     }

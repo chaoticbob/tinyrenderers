@@ -1,6 +1,9 @@
 #include "GLFW/glfw3.h"
 #if defined(__linux__)
-  #define GLFW_EXPOSE_NATIVE_X11
+  #if defined(__ggp__)
+  #else
+    #define GLFW_EXPOSE_NATIVE_X11
+  #endif
 #elif defined(_WIN32)
   #define GLFW_EXPOSE_NATIVE_WIN32
 #endif
@@ -20,10 +23,20 @@
 
 const char*         k_app_name = "01_Color";
 const uint32_t      k_image_count = 3;
-#if defined(__linux__)
+#if defined(TINY_RENDERER_GGP)
+const std::string   k_asset_dir = "./samples/assets/";
+#elif defined(TINY_RENDERER_LINUX)
 const std::string   k_asset_dir = "../samples/assets/";
-#elif defined(_WIN32)
+#elif defined(TINY_RENDERER_MSW)
 const std::string   k_asset_dir = "../../samples/assets/";
+#endif
+
+#if defined(TINY_RENDERER_GGP)
+const uint32_t k_window_width  = 1920;
+const uint32_t k_window_height = 1080;
+#else
+const uint32_t k_window_width  = 640;
+const uint32_t k_window_height = 480;
 #endif
 
 tr_renderer*        m_renderer = nullptr;
@@ -130,11 +143,12 @@ void init_tiny_renderer(GLFWwindow* window)
     s_window_width = (uint32_t)width;
     s_window_height = (uint32_t)height;
 
-    tr_renderer_settings settings = {0};
-#if defined(__linux__)
+    tr_renderer_settings settings = {};
+#if defined(TINY_RENDERER_GGP)
+#elif defined(TINY_RENDERER_LINUX)
     settings.handle.connection              = XGetXCBConnection(glfwGetX11Display());
     settings.handle.window                  = glfwGetX11Window(window);
-#elif defined(_WIN32)
+#elif defined(TINY_RENDERER_mSW)
     settings.handle.hinstance               = ::GetModuleHandle(NULL);
     settings.handle.hwnd                    = glfwGetWin32Window(window);
 #endif
@@ -278,7 +292,7 @@ int main(int argc, char **argv)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(640, 480, k_app_name, NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(k_window_width, k_window_height, k_app_name, NULL, NULL);
     init_tiny_renderer(window);
 
     while (! glfwWindowShouldClose(window)) {
