@@ -107,6 +107,7 @@ namespace TINY_RENDERER_CPP_NAMESPACE {
 
 #if ! defined(TINY_RENDERER_CUSTOM_MAX)
 enum {
+    tr_max_instance_layers           = 128,
     tr_max_instance_extensions       = 1024,
     tr_max_device_extensions         = 1024,
     tr_max_gpus                      = 4,
@@ -2977,8 +2978,8 @@ bool tr_internal_vk_find_present_queue_family(VkPhysicalDevice gpu, VkSurfaceKHR
 void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_renderer)
 {
     uint32_t count = 0;
-    VkLayerProperties layers[100];
-    VkExtensionProperties exts[100];
+    VkLayerProperties layers[tr_max_instance_layers];
+    VkExtensionProperties exts[tr_max_instance_extensions];
     vkEnumerateInstanceLayerProperties(&count, NULL);
     vkEnumerateInstanceLayerProperties(&count, layers);
     for (uint32_t i =0; i < count; ++i) {
@@ -3152,7 +3153,7 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     assert(VK_NULL_HANDLE != p_renderer->vk_active_gpu);
 
     uint32_t count = 0;
-    VkExtensionProperties exts[100];
+    VkExtensionProperties exts[tr_max_device_extensions];
     vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, NULL, &count, NULL);
     vkEnumerateDeviceExtensionProperties(p_renderer->vk_active_gpu, NULL, &count, exts);
     for (uint32_t i =0; i < count; ++i) {
