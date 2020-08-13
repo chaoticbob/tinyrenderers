@@ -163,7 +163,7 @@ void init_tiny_renderer(GLFWwindow* window)
 #elif defined(TINY_RENDERER_LINUX)
     settings.handle.connection              = XGetXCBConnection(glfwGetX11Display());
     settings.handle.window                  = glfwGetX11Window(window);
-#elif defined(TINY_RENDERER_mSW)
+#elif defined(TINY_RENDERER_MSW)
     settings.handle.hinstance               = ::GetModuleHandle(NULL);
     settings.handle.hwnd                    = glfwGetWin32Window(window);
 #endif
