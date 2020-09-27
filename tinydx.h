@@ -2757,6 +2757,19 @@ void tr_internal_dx_create_device(tr_renderer* p_renderer)
     hres = D3D12CreateDevice(p_renderer->dx_active_gpu, target_feature_level, __uuidof(p_renderer->dx_device), (void**)(&p_renderer->dx_device));
     assert(SUCCEEDED(hres));
 
+#if defined( _DEBUG )
+    {
+        ID3D12InfoQueue* queue = NULL;
+        if (SUCCEEDED(p_renderer->dx_device->QueryInterface(__uuidof(ID3D12InfoQueue), (void**)&(queue)))) {
+            queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+            queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+            //queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
+            queue->Release();
+            queue = NULL;
+        }
+    }
+#endif
+
     p_renderer->settings.dx_feature_level = target_feature_level;
 
     // Queues
