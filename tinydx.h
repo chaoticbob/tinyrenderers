@@ -642,7 +642,7 @@ tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program
 tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
-tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, tr_format depth_stencil_format, tr_render_target** pp_render_target);
+tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, const tr_clear_value* p_color_clear_values, tr_format depth_stencil_format, const tr_clear_value* p_depth_stencil_clear_value, tr_render_target** pp_render_target);
 tr_api_export void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 
 tr_api_export void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
@@ -684,7 +684,7 @@ tr_api_export uint32_t  tr_vertex_layout_stride(const tr_vertex_layout* p_vertex
 // Utility functions
 tr_api_export uint64_t    tr_util_calc_storage_counter_offset(uint64_t buffer_size);
 tr_api_export uint32_t    tr_util_calc_mip_levels(uint32_t width, uint32_t height);
-tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format);
+tr_api_export DXGI_FORMAT tr_util_to_dx_format(tr_format format, bool for_srv);
 tr_api_export tr_format   tr_util_from_dx_format(DXGI_FORMAT fomat);
 tr_api_export uint32_t    tr_util_format_stride(tr_format format);
 tr_api_export uint32_t    tr_util_format_channel_count(tr_format format);
@@ -1750,7 +1750,7 @@ void tr_create_render_target(
                                  p_render_target->width, 
                                  p_render_target->height, 
                                  p_render_target->sample_count,
-                                 p_render_target->color_format, 
+                                 p_render_target->depth_stencil_format, 
                                  1,
                                  p_depth_stencil_clear_value,
                                  false,
@@ -2119,7 +2119,7 @@ uint32_t tr_util_calc_mip_levels(uint32_t width, uint32_t height)
     return result;
 }
 
-DXGI_FORMAT tr_util_to_dx_format(tr_format format)
+DXGI_FORMAT tr_util_to_dx_format(tr_format format, bool for_srv = false)
 {
     DXGI_FORMAT result = DXGI_FORMAT_UNKNOWN;
     switch (format) {
@@ -2146,11 +2146,11 @@ DXGI_FORMAT tr_util_to_dx_format(tr_format format)
         case tr_format_r32g32b32a32_uint   : result = DXGI_FORMAT_R32G32B32A32_UINT; break;
         case tr_format_r32g32b32a32_float  : result = DXGI_FORMAT_R32G32B32A32_FLOAT; break;
         // Depth/stencil
-        case tr_format_d16_unorm           : result = DXGI_FORMAT_D16_UNORM; break;
-        case tr_format_x8_d24_unorm_pack32 : result = DXGI_FORMAT_X32_TYPELESS_G8X24_UINT; break;
-        case tr_format_d32_float           : result = DXGI_FORMAT_D32_FLOAT; break;
-        case tr_format_d24_unorm_s8_uint   : result = DXGI_FORMAT_D24_UNORM_S8_UINT; break;
-        case tr_format_d32_float_s8_uint   : result = DXGI_FORMAT_D32_FLOAT_S8X24_UINT; break;
+        case tr_format_d16_unorm           : result = for_srv ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_D16_UNORM; break;
+        case tr_format_x8_d24_unorm_pack32 : result = for_srv ? DXGI_FORMAT_R24_UNORM_X8_TYPELESS : DXGI_FORMAT_X32_TYPELESS_G8X24_UINT; break;
+        case tr_format_d32_float           : result = for_srv ? DXGI_FORMAT_R32_FLOAT : DXGI_FORMAT_D32_FLOAT ; break;
+        case tr_format_d24_unorm_s8_uint   : result = for_srv ? DXGI_FORMAT_R24_UNORM_X8_TYPELESS : DXGI_FORMAT_D24_UNORM_S8_UINT; break;
+        case tr_format_d32_float_s8_uint   : result = for_srv ? DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS : DXGI_FORMAT_D32_FLOAT_S8X24_UINT; break;
     }
     return result;
 }
@@ -3258,7 +3258,7 @@ void tr_internal_dx_create_buffer(tr_renderer* p_renderer, tr_buffer* p_buffer)
 
         case tr_buffer_usage_uniform_texel_srv: {
             D3D12_SHADER_RESOURCE_VIEW_DESC* desc = &(p_buffer->dx_srv_view_desc);
-            desc->Format                     = tr_util_to_dx_format(p_buffer->format);
+            desc->Format                     = tr_util_to_dx_format(p_buffer->format, true);
             desc->ViewDimension              = D3D12_SRV_DIMENSION_BUFFER;
             desc->Shader4ComponentMapping    = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
             desc->Buffer.FirstElement        = p_buffer->first_element;
@@ -3389,7 +3389,7 @@ void tr_internal_dx_create_texture(tr_renderer* p_renderer, tr_texture* p_textur
       assert(D3D12_SRV_DIMENSION_UNKNOWN != view_dim);
 
       p_texture->dx_srv_view_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-      p_texture->dx_srv_view_desc.Format                  = tr_util_to_dx_format(p_texture->format);
+      p_texture->dx_srv_view_desc.Format                  = tr_util_to_dx_format(p_texture->format, true);
       p_texture->dx_srv_view_desc.ViewDimension           = view_dim;
       p_texture->dx_srv_view_desc.Texture2D.MipLevels     = (UINT)p_texture->mip_levels;
     }
@@ -3740,6 +3740,10 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
     }
     else {
       hres = D3D12SerializeRootSignature(&(desc.Desc_1_0), D3D_ROOT_SIGNATURE_VERSION_1_0, &sig_blob, &error_msgs);
+    }
+    if (error_msgs)
+    {
+        tr_internal_log(tr_log_type_error, (const char*)error_msgs->GetBufferPointer(), "D3D12SerializeRootSignature");
     }
     assert(SUCCEEDED(hres));
 
@@ -4434,7 +4438,12 @@ void tr_internal_dx_cmd_bind_descriptor_sets(tr_cmd* p_cmd, tr_pipeline* p_pipel
                 D3D12_GPU_DESCRIPTOR_HANDLE handle = p_descriptor_set->dx_sampler_heap->GetGPUDescriptorHandleForHeapStart();
                 UINT handle_inc_size = p_cmd->cmd_pool->renderer->dx_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
                 handle.ptr += descriptor->dx_heap_offset * handle_inc_size;
-                p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                if (p_pipeline->type == tr_pipeline_type_graphics) {
+                    p_cmd->dx_cmd_list->SetGraphicsRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                }
+                else if (p_pipeline->type == tr_pipeline_type_compute) {
+                    p_cmd->dx_cmd_list->SetComputeRootDescriptorTable(descriptor->dx_root_parameter_index, handle);
+                }
             }
             break;
 
