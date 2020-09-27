@@ -3741,6 +3741,10 @@ void tr_internal_dx_create_root_signature(tr_renderer* p_renderer, tr_descriptor
     else {
       hres = D3D12SerializeRootSignature(&(desc.Desc_1_0), D3D_ROOT_SIGNATURE_VERSION_1_0, &sig_blob, &error_msgs);
     }
+    if (error_msgs)
+    {
+        tr_internal_log(tr_log_type_error, (const char*)error_msgs->GetBufferPointer(), "D3D12SerializeRootSignature");
+    }
     assert(SUCCEEDED(hres));
 
     hres = p_renderer->dx_device->CreateRootSignature(0, sig_blob->GetBufferPointer(), sig_blob->GetBufferSize(),
