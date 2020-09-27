@@ -4543,6 +4543,9 @@ void tr_internal_dx_cmd_image_transition(tr_cmd* p_cmd, tr_texture* p_texture, t
 void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target* p_render_target, tr_texture_usage old_usage, tr_texture_usage new_usage)
 {
     assert(NULL != p_cmd->dx_cmd_list);
+
+    // FIXME: Need to find out, what was the intention behind this special handling?
+    bool transitioned_attachment_0 = false;
     
     if (p_render_target->sample_count > tr_sample_count_1) {
         if (1 == p_render_target->color_attachment_count) {
@@ -4553,10 +4556,12 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
             if (tr_texture_usage_present == (ss_attachment->usage & tr_texture_usage_present)) {
                 if ((tr_texture_usage_present == old_usage) && (tr_texture_usage_color_attachment == new_usage)) {
                     tr_internal_dx_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_present, tr_texture_usage_color_attachment);
+                    transitioned_attachment_0 = true;
                 }
 
                 if ((tr_texture_usage_color_attachment == old_usage) && (tr_texture_usage_present == new_usage)) {
                     tr_internal_dx_cmd_image_transition(p_cmd, ss_attachment, tr_texture_usage_color_attachment, tr_texture_usage_present);
+                    transitioned_attachment_0 = true;
                 }
             }
         }
@@ -4568,13 +4573,25 @@ void tr_internal_dx_cmd_render_target_transition(tr_cmd* p_cmd, tr_render_target
             if (tr_texture_usage_present == (attachment->usage & tr_texture_usage_present)) {
                 if ((tr_texture_usage_present == old_usage) && (tr_texture_usage_color_attachment == new_usage)) {
                     tr_internal_dx_cmd_image_transition(p_cmd, attachment, tr_texture_usage_present, tr_texture_usage_color_attachment);
+                    transitioned_attachment_0 = true;
                 }
 
                 if ((tr_texture_usage_color_attachment == old_usage) && (tr_texture_usage_present == new_usage)) {
                     tr_internal_dx_cmd_image_transition(p_cmd, attachment, tr_texture_usage_color_attachment, tr_texture_usage_present);
+                    transitioned_attachment_0 = true;
                 }
             }
         }
+    }
+
+    // FIXME: Need to find out, what was the intention behind this special handling?
+    for (uint32_t i = 0; i < p_render_target->color_attachment_count; ++i) {
+        if (i == 0 && transitioned_attachment_0) {
+            continue;
+        }
+        tr_texture* attachment = p_render_target->color_attachments[0];
+        assert(0 == (attachment->usage & tr_texture_usage_present));
+        tr_internal_dx_cmd_image_transition(p_cmd, attachment, old_usage, new_usage);
     }
 }
 
