@@ -642,7 +642,7 @@ tr_api_export void tr_create_pipeline(tr_renderer* p_renderer, tr_shader_program
 tr_api_export void tr_create_compute_pipeline(tr_renderer* p_renderer, tr_shader_program* p_shader_program, tr_descriptor_set* p_descriptor_set, const tr_pipeline_settings* p_pipeline_settings, tr_pipeline** pp_pipeline);
 tr_api_export void tr_destroy_pipeline(tr_renderer* p_renderer, tr_pipeline* p_pipeline);
 
-tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, tr_format depth_stencil_format, tr_render_target** pp_render_target);
+tr_api_export void tr_create_render_target(tr_renderer*p_renderer, uint32_t width, uint32_t height, tr_sample_count sample_count, tr_format color_format, uint32_t color_attachment_count, const tr_clear_value* p_color_clear_values, tr_format depth_stencil_format, const tr_clear_value* p_depth_stencil_clear_value, tr_render_target** pp_render_target);
 tr_api_export void tr_destroy_render_target(tr_renderer* p_renderer, tr_render_target* p_render_target);
 
 tr_api_export void tr_update_descriptor_set(tr_renderer* p_renderer, tr_descriptor_set* p_descriptor_set);
