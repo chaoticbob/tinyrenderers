@@ -85,6 +85,10 @@ public:
     return m_view_projection_matrix;
   }
 
+  float2 GetNearAndFarClip() const {
+    return float2{m_near_clip, m_far_clip};
+  }
+
 private:
   bool              m_pixel_aligned         = false;
   float3            m_eye                   = float3(0, 0, 1);
