@@ -1750,7 +1750,7 @@ void tr_create_render_target(
                                  p_render_target->width, 
                                  p_render_target->height, 
                                  p_render_target->sample_count,
-                                 p_render_target->color_format, 
+                                 p_render_target->depth_stencil_format, 
                                  1,
                                  p_depth_stencil_clear_value,
                                  false,
