@@ -213,6 +213,7 @@ typedef enum tr_format {
     // 1 channel
     tr_format_r8_unorm,
     tr_format_r16_unorm,
+    tr_format_r16_uint,
     tr_format_r16_float,
     tr_format_r32_uint,
     tr_format_r32_float,
@@ -2126,6 +2127,7 @@ DXGI_FORMAT tr_util_to_dx_format(tr_format format, bool for_srv = false)
         // 1 channel
         case tr_format_r8_unorm            : result = DXGI_FORMAT_R8_UNORM; break;
         case tr_format_r16_unorm           : result = DXGI_FORMAT_R16_UNORM; break;
+        case tr_format_r16_uint            : result = DXGI_FORMAT_R16_UINT; break;
         case tr_format_r16_float           : result = DXGI_FORMAT_R16_FLOAT; break;
         case tr_format_r32_uint            : result = DXGI_FORMAT_R32_UINT; break;
         case tr_format_r32_float           : result = DXGI_FORMAT_R32_FLOAT; break;
@@ -2162,6 +2164,7 @@ tr_format tr_util_from_dx_format(DXGI_FORMAT format)
         // 1 channel
         case DXGI_FORMAT_R8_UNORM                : result = tr_format_r8_unorm; break;
         case DXGI_FORMAT_R16_UNORM               : result = tr_format_r16_unorm; break;
+        case DXGI_FORMAT_R16_UINT                : result = tr_format_r16_uint; break;
         case DXGI_FORMAT_R16_FLOAT               : result = tr_format_r16_float; break;
         case DXGI_FORMAT_R32_UINT                : result = tr_format_r32_uint; break;
         case DXGI_FORMAT_R32_FLOAT               : result = tr_format_r32_float; break;
@@ -2198,6 +2201,7 @@ uint32_t tr_util_format_stride(tr_format format)
         // 1 channel
         case tr_format_r8_unorm            : result = 1; break;
         case tr_format_r16_unorm           : result = 2; break;
+        case tr_format_r16_uint            : result = 2; break;
         case tr_format_r16_float           : result = 2; break;
         case tr_format_r32_uint            : result = 4; break;
         case tr_format_r32_float           : result = 4; break;
@@ -2239,6 +2243,7 @@ uint32_t tr_util_format_channel_count(tr_format format)
         // 1 channel
         case tr_format_r8_unorm            : result = 1; break;
         case tr_format_r16_unorm           : result = 1; break;
+        case tr_format_r16_uint            : result = 1; break;
         case tr_format_r16_float           : result = 1; break;
         case tr_format_r32_uint            : result = 1; break;
         case tr_format_r32_float           : result = 1; break;
