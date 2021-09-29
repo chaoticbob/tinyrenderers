@@ -1093,38 +1093,49 @@ void tr_create_renderer(const char *app_name, const tr_renderer_settings* settin
         p_renderer->graphics_queue->renderer = p_renderer;
         p_renderer->present_queue->renderer = p_renderer;
 
+        // If headless, don't create a swap chain; the user also makes a promise that they won't try to present
+        const bool headless = p_renderer->settings.width == 0 && p_renderer->settings.height == 0 && p_renderer->settings.swapchain.image_count == 0;
+        if (headless)
+        {
+            tr_internal_log(tr_log_type_info, "Zero back buffer requested, creating a headless renderer", "tr_create_renderer");
+        }
+
         // Initialize the D3D12 bits
         {
             tr_internal_dx_create_device(p_renderer);
-            tr_internal_dx_create_swapchain(p_renderer);
+            if (!headless) {
+                tr_internal_dx_create_swapchain(p_renderer);
+            }
         }
 
-        // Allocate and configure render target objects
-        tr_internal_create_swapchain_renderpass(p_renderer);
+        if (!headless) {
+            // Allocate and configure render target objects
+            tr_internal_create_swapchain_renderpass(p_renderer);
 
-        // Initialize the D3D12 bits of the render targets
-        tr_internal_dx_create_swapchain_renderpass(p_renderer);
+            // Initialize the D3D12 bits of the render targets
+            tr_internal_dx_create_swapchain_renderpass(p_renderer);
 
-        // Allocate storage for image acquired fences
-        p_renderer->image_acquired_fences = (tr_fence**)calloc(p_renderer->settings.swapchain.image_count, 
-                                                               sizeof(*(p_renderer->image_acquired_fences)));
-        assert(NULL != p_renderer->image_acquired_fences);
-        
-        // Allocate storage for image acquire semaphores
-        p_renderer->image_acquired_semaphores = (tr_semaphore**)calloc(p_renderer->settings.swapchain.image_count, 
-                                                                       sizeof(*(p_renderer->image_acquired_semaphores)));
-        assert(NULL != p_renderer->image_acquired_semaphores);
-        
-        // Allocate storage for render complete semaphores
-        p_renderer->render_complete_semaphores = (tr_semaphore**)calloc(p_renderer->settings.swapchain.image_count, 
-                                                                        sizeof(*(p_renderer->render_complete_semaphores)));
-        assert(NULL != p_renderer->render_complete_semaphores);
+            // Allocate storage for image acquired fences
+            p_renderer->image_acquired_fences = (tr_fence**)calloc(p_renderer->settings.swapchain.image_count,
+                sizeof(*(p_renderer->image_acquired_fences)));
+            assert(NULL != p_renderer->image_acquired_fences);
 
-        // Initialize fences and semaphores
-        for (uint32_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i ) {
-            tr_create_fence(p_renderer, &(p_renderer->image_acquired_fences[i]));
-            tr_create_semaphore(p_renderer, &(p_renderer->image_acquired_semaphores[i]));
-            tr_create_semaphore(p_renderer, &(p_renderer->render_complete_semaphores[i]));
+            // Allocate storage for image acquire semaphores
+            p_renderer->image_acquired_semaphores = (tr_semaphore**)calloc(p_renderer->settings.swapchain.image_count,
+                sizeof(*(p_renderer->image_acquired_semaphores)));
+            assert(NULL != p_renderer->image_acquired_semaphores);
+
+            // Allocate storage for render complete semaphores
+            p_renderer->render_complete_semaphores = (tr_semaphore**)calloc(p_renderer->settings.swapchain.image_count,
+                sizeof(*(p_renderer->render_complete_semaphores)));
+            assert(NULL != p_renderer->render_complete_semaphores);
+
+            // Initialize fences and semaphores
+            for (uint32_t i = 0; i < p_renderer->settings.swapchain.image_count; ++i ) {
+                tr_create_fence(p_renderer, &(p_renderer->image_acquired_fences[i]));
+                tr_create_semaphore(p_renderer, &(p_renderer->image_acquired_semaphores[i]));
+                tr_create_semaphore(p_renderer, &(p_renderer->render_complete_semaphores[i]));
+            }
         }
 
         // Renderer is good! Assign it to result!
