@@ -136,8 +136,8 @@ void init_tiny_renderer(GLFWwindow* window)
   // Renderer
   {
     std::vector<const char*> instance_layers = {
-#if defined(_DEBUG)
-        "VK_LAYER_LUNARG_standard_validation",
+#if defined(_DEBUG) && defined(TINY_RENDERER_VK)
+        VK_KHR_KHRONOS_VALIDATION_LAYER_NAME,
 #endif
     };
 

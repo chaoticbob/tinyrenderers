@@ -95,6 +95,8 @@ COMPILING & LINKING
 
 #include <vulkan/vulkan.h>
 
+#define VK_KHR_KHRONOS_VALIDATION_LAYER_NAME "VK_LAYER_KHRONOS_validation"
+
 #if defined(__cplusplus) && defined(TINY_RENDERER_CPP_NAMESPACE)
 namespace TINY_RENDERER_CPP_NAMESPACE {
 #endif
@@ -3028,7 +3030,7 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
             break;
           }
 
-          int cmp = strcmp(p_renderer->settings.instance_layers.names[i], "VK_LAYER_LUNARG_standard_validation");
+          int cmp = strcmp(p_renderer->settings.instance_layers.names[i], VK_KHR_KHRONOS_VALIDATION_LAYER_NAME);
           if (cmp == 0) {
             extensions[extension_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
           }
