@@ -67,6 +67,8 @@ COMPILING & LINKING
 #include <stdlib.h>
 #include <string.h>
 
+#include <iostream>
+
 #if defined(__linux__)
     #if defined(__ggp__)
         #define TINY_RENDERER_GGP
@@ -3207,10 +3209,16 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
       extensions[extension_count++] = VK_KHR_MAINTENANCE1_EXTENSION_NAME;
     }
 
+    for (uint32_t i =0; i < extension_count; ++i) {
+        tr_internal_log(tr_log_type_info, extensions[i], "vkdevice-ext-loading");
+    }
+
     VkPhysicalDeviceFeatures gpu_features = { 0 };
     vkGetPhysicalDeviceFeatures(p_renderer->vk_active_gpu, &gpu_features);
-    gpu_features.multiViewport  = VK_FALSE;
-    gpu_features.geometryShader = VK_TRUE;
+      
+    VkPhysicalDeviceFeatures features = { 0 };
+    features.geometryShader = gpu_features.geometryShader;
+    features.tessellationShader = gpu_features.tessellationShader;
         
     TINY_RENDERER_DECLARE_ZERO(VkDeviceCreateInfo, create_info);
     create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -3222,7 +3230,7 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
     create_info.ppEnabledLayerNames     = NULL;
     create_info.enabledExtensionCount   = extension_count;
     create_info.ppEnabledExtensionNames = extensions;
-    create_info.pEnabledFeatures        = &gpu_features;
+    create_info.pEnabledFeatures        = &features;
     vk_res = vkCreateDevice(p_renderer->vk_active_gpu, &create_info, NULL, &(p_renderer->vk_device));
     assert(VK_SUCCESS == vk_res);
 
@@ -3236,9 +3244,6 @@ void tr_internal_vk_create_device(tr_renderer* p_renderer)
 void tr_internal_vk_create_swapchain(tr_renderer* p_renderer)
 {
     assert(VK_NULL_HANDLE != p_renderer->vk_active_gpu);
-
-    // Most GPUs will not go beyond VK_SAMPLE_COUNT_8_BIT
-    assert(0 != (p_renderer->vk_active_gpu_properties.limits.framebufferColorSampleCounts & p_renderer->settings.swapchain.sample_count));
 
     // Image count
     {

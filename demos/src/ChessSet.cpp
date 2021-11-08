@@ -173,7 +173,7 @@ void init_tiny_renderer(GLFWwindow* window)
     settings.width                          = g_window_width;
     settings.height                         = g_window_height;
     settings.swapchain.image_count          = k_image_count;
-    settings.swapchain.sample_count         = tr_sample_count_8;
+    settings.swapchain.sample_count         = tr_sample_count_1;
     settings.swapchain.color_format         = tr_format_b8g8r8a8_unorm;
     settings.swapchain.depth_stencil_format = tr_format_d32_float;
     settings.swapchain.color_clear_value          = g_color_clear_value;
