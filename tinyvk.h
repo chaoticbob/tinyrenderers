@@ -2271,7 +2271,7 @@ tr_format tr_util_from_vk_format(VkFormat format)
         // 1 channel
         case VK_FORMAT_R8_UNORM            : result = tr_format_r8_unorm; break;
         case VK_FORMAT_R16_UNORM           : result = tr_format_r16_unorm; break;
-        case VK_FORMAT_R16_UINT            : result = tr_format_r16_int; break;
+        case VK_FORMAT_R16_UINT            : result = tr_format_r16_uint; break;
         case VK_FORMAT_R16_SFLOAT          : result = tr_format_r16_float; break;
         case VK_FORMAT_R32_UINT            : result = tr_format_r32_uint; break;
         case VK_FORMAT_R32_SFLOAT          : result = tr_format_r32_float; break;
