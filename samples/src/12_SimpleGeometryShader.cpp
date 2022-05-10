@@ -218,14 +218,6 @@ void init_tiny_renderer(GLFWwindow* window)
     descriptors[0].count         = 1;
     descriptors[0].binding       = 0;
     descriptors[0].shader_stages = (tr_shader_stage)(tr_shader_stage_vert | tr_shader_stage_geom);
-    //descriptors[1].type          = tr_descriptor_type_texture_srv;
-    //descriptors[1].count         = 1;
-    //descriptors[1].binding       = 1;
-    //descriptors[1].shader_stages = tr_shader_stage_frag;
-    //descriptors[2].type          = tr_descriptor_type_sampler;
-    //descriptors[2].count         = 1;
-    //descriptors[2].binding       = 2;
-    //descriptors[2].shader_stages = tr_shader_stage_frag;
     tr_create_descriptor_set(m_renderer, (uint32_t)descriptors.size(), descriptors.data(), &m_desc_set);
 
     tr_vertex_layout vertex_layout = {};
@@ -319,23 +311,9 @@ void init_tiny_renderer(GLFWwindow* window)
     tr_create_vertex_buffer(m_renderer, vertex_data_size, true, vertex_stride, &m_rect_vertex_buffer);
     memcpy(m_rect_vertex_buffer->cpu_mapped_address, vertex_data.data(), vertex_data_size);
 
-    int image_width = 0;
-    int image_height = 0;
-    int image_channels = 0;
-    unsigned char* image_data = stbi_load((k_asset_dir + "box_panel.jpg").c_str(), &image_width, &image_height, &image_channels, 0);
-    assert(NULL != image_data);
-    int image_row_stride = image_width * image_channels;
-    tr_create_texture_2d(m_renderer, image_width, image_height, tr_sample_count_1, tr_format_r8g8b8a8_unorm, tr_max_mip_levels, NULL, false, tr_texture_usage_sampled_image, &m_texture);
-    //tr_util_update_texture_uint8(m_renderer->graphics_queue, image_width, image_height, image_row_stride, image_data, image_channels, m_texture, NULL, NULL);
-    stbi_image_free(image_data);
-
-    tr_create_sampler(m_renderer, &m_sampler);
-
     tr_create_uniform_buffer(m_renderer, 16 * sizeof(float), true, &m_uniform_buffer);
 
     m_desc_set->descriptors[0].uniform_buffers[0] = m_uniform_buffer;
-    m_desc_set->descriptors[1].textures[0]        = m_texture;
-    m_desc_set->descriptors[2].samplers[0]        = m_sampler;
     tr_update_descriptor_set(m_renderer, m_desc_set);
 }
 
