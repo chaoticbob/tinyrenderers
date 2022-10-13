@@ -3051,7 +3051,18 @@ void tr_internal_vk_create_instance(const char* app_name, tr_renderer* p_rendere
         create_info.enabledExtensionCount   = extension_count;
         create_info.ppEnabledExtensionNames = extensions;
         VkResult vk_res = vkCreateInstance(&create_info, NULL, &(p_renderer->vk_instance));
-        assert(VK_SUCCESS == vk_res);
+
+        if (VK_SUCCESS != vk_res)
+        {
+            TINY_RENDERER_DECLARE_ZERO(VkInstanceCreateInfo, create_info_no_validation_layers);
+            create_info_no_validation_layers = create_info;
+            create_info_no_validation_layers.enabledLayerCount = 0;
+            create_info_no_validation_layers.ppEnabledLayerNames = NULL;
+            VkResult vk_res_no_validation_layers = vkCreateInstance(&create_info_no_validation_layers, NULL, &(p_renderer->vk_instance));
+            assert(VK_SUCCESS == vk_res_no_validation_layers);
+        }
+
+        //assert(VK_SUCCESS == vk_res);
     }
 
     // Debug
